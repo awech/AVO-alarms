@@ -2,15 +2,6 @@ alarm_type = 'RSAM'				# this designates which alarm module will be imported and
 alarm_name = 'Pavlof RSAM'		# this is the alarm name sent to icinga and in message alerts
 
 # Stations list. Last station is arrestor.
-# SCNL=[
-# {'scnl':'PS4A.EHZ.AV.--'	, 'value': 600	},
-# {'scnl':'PVV.EHZ.AV.--'		, 'value': 2500	},
-# {'scnl':'PS1A.EHZ.AV.--'	, 'value': 1700	},
-# {'scnl':'HAG.EHZ.AV.--'		, 'value': 2500	},
-# {'scnl':'PN7A.SHZ.AV.--'	, 'value': 220	},
-# {'scnl':'PV6A.SHZ.AV.--'	, 'value': 200	},
-# {'scnl':'SDPT.BHZ.AT.--'	, 'value': 400	}, # arrestor station
-# ]
 SCNL=[
 {'scnl':'PS4A.BHZ.AV.--'	, 'value': 200	},
 # {'scnl':'PS4A.EHZ.AV.--'	, 'value': 600	},

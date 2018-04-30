@@ -7,6 +7,7 @@ numpy<br>
 obspy>=1.1<br>
 matplotlib<br>
 PIL<br>
+xlrd >= 0.9.0<br>
 
 ### Running it...
 You'll need to edit .sys_config_example.py with the relevant system parameters and rename the file sys_config.py<br><br>

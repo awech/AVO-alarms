@@ -7,7 +7,7 @@ import utils
 from obspy import UTCDateTime
 import numpy as np
 from pandas import DataFrame
-from os import remove
+import os
 import time
 
 # main function called by main.py
@@ -42,16 +42,6 @@ def run_alarm(config,T0):
 		print('********** DETECTION **********')
 		state_message='{} (UTC) RSAM detection! {}'.format(T0.strftime('%Y-%m-%d %H:%M'),state_message)
 		state='CRITICAL'
-		#### Generate Figure ####
-		start = time.time()
-		try:
-			filename=make_figure(scnl,T0,config.alarm_name)
-		except:
-			filename=None
-		### Send Email Notification ####
-		craft_and_send_email(t1,t2,stas,rms,lvlv,config.alarm_name,filename)
-		end = time.time()
-		print('{:.2f} seconds to make figure & send email.'.format(end - start))
 		#
 	elif (rms[-1]<lvlv[-1]) & (sum(rms[:-1]>lvlv[:-1]/2)>=config.min_sta):
 		#### elevated RSAM ####
@@ -77,10 +67,29 @@ def run_alarm(config,T0):
 		state_message='{} (UTC) RSAM normal. {}'.format(T0.strftime('%Y-%m-%d %H:%M'),state_message)
 		state='OK'
 
+
+	if state=='CRITICAL':
+		#### Generate Figure ####
+		try:
+			filename=make_figure(scnl,T0,config.alarm_name)
+		except:
+			filename=None
+		
+		### Craft message text ####
+		subject, message = create_message(t1,t2,stas,rms,lvlv,config.alarm_name)
+
+		### Send message ###
+		utils.send_alert(config.alarm_name,subject,message,filename)
+		utils.post_mattermost(config.alarm_name,subject,message,filename)
+		# delete the file you just sent
+		if filename:
+			os.remove(filename)
+
 	# send heartbeat status message to icinga
 	utils.icinga_state(config.alarm_name,state,state_message)
 
-def craft_and_send_email(t1,t2,stations,rms,lvlv,alarm_name,filename):
+
+def create_message(t1,t2,stations,rms,lvlv,alarm_name):
 	from pandas import Timestamp
 
 	# create the subject line
@@ -90,23 +99,54 @@ def craft_and_send_email(t1,t2,stations,rms,lvlv,alarm_name,filename):
 	message='Start: {} (UTC)\nEnd: {} (UTC)\n\n'.format(t1.strftime('%Y-%m-%d %H:%M'),t2.strftime('%Y-%m-%d %H:%M'))
 	t1_local=Timestamp(t1.datetime,tz='UTC')
 	t2_local=Timestamp(t2.datetime,tz='UTC')
-	t1_local=t1_local.tz_convert('US/Alaska')
-	t2_local=t2_local.tz_convert('US/Alaska')
+	t1_local=t1_local.tz_convert(os.environ['TIMEZONE'])
+	t2_local=t2_local.tz_convert(os.environ['TIMEZONE'])
 	message='{}Start: {} ({})'.format(message,t1_local.strftime('%Y-%m-%d %H:%M'),t1_local.tzname())
 	message='{}\nEnd: {} ({})\n\n'.format(message,t2_local.strftime('%Y-%m-%d %H:%M'),t2_local.tzname())
 
 	a=np.array([''] * len(rms[:-1]))
 	a[np.where(rms>lvlv)]='*'
-	sta_message = ''.join('{}{}: {:.0f}/{}\n'.format(sta,a[i],rms[i],lvlv[i]) for i,sta in enumerate(stations[:-1]))
-	sta_message = ''.join([sta_message,'\nArrestor: {} {:.0f}/{}'.format(stations[-1],rms[-1],lvlv[-1])])
+	if 'Semisopochnoi' in alarm_name:
+		sta_message = ''.join('{}{}: {:,.0f}k/{:.0f}k\n'.format(sta,a[i],rms[i]/1000.0,lvlv[i]/1000.0) for i,sta in enumerate(stations[:-1]))
+	else:
+		sta_message = ''.join('{}{}: {:.0f}/{}\n'.format(sta,a[i],rms[i],lvlv[i]) for i,sta in enumerate(stations[:-1]))
+	sta_message = ''.join([sta_message,'\nArrestor: {} {:.0f}/{:.0f}'.format(stations[-1],rms[-1],lvlv[-1])])
 	message = ''.join([message,sta_message])
 
-	utils.send_alert(alarm_name,subject,message,filename)
-	# utils.post_mattermost(subject,message,filename)
-	utils.post_mattermost(subject,message,alarm_name,filename)
-	# delete the file you just sent
-	if filename:
-		remove(filename)
+	return subject, message
+
+
+
+# def craft_and_send_email(t1,t2,stations,rms,lvlv,alarm_name,filename):
+# 	from pandas import Timestamp
+
+# 	# create the subject line
+# 	subject='--- {} ---'.format(alarm_name)
+
+# 	# create the text for the message you want to send
+# 	message='Start: {} (UTC)\nEnd: {} (UTC)\n\n'.format(t1.strftime('%Y-%m-%d %H:%M'),t2.strftime('%Y-%m-%d %H:%M'))
+# 	t1_local=Timestamp(t1.datetime,tz='UTC')
+# 	t2_local=Timestamp(t2.datetime,tz='UTC')
+# 	t1_local=t1_local.tz_convert(os.environ['TIMEZONE'])
+# 	t2_local=t2_local.tz_convert(os.environ['TIMEZONE'])
+# 	message='{}Start: {} ({})'.format(message,t1_local.strftime('%Y-%m-%d %H:%M'),t1_local.tzname())
+# 	message='{}\nEnd: {} ({})\n\n'.format(message,t2_local.strftime('%Y-%m-%d %H:%M'),t2_local.tzname())
+
+# 	a=np.array([''] * len(rms[:-1]))
+# 	a[np.where(rms>lvlv)]='*'
+# 	if 'Semisopochnoi' in alarm_name:
+# 		sta_message = ''.join('{}{}: {:,.0f}k/{:.0f}k\n'.format(sta,a[i],rms[i]/1000.0,lvlv[i]/1000.0) for i,sta in enumerate(stations[:-1]))
+# 	else:
+# 		sta_message = ''.join('{}{}: {:.0f}/{}\n'.format(sta,a[i],rms[i],lvlv[i]) for i,sta in enumerate(stations[:-1]))
+# 	sta_message = ''.join([sta_message,'\nArrestor: {} {:.0f}/{:.0f}'.format(stations[-1],rms[-1],lvlv[-1])])
+# 	message = ''.join([message,sta_message])
+
+# 	utils.send_alert(alarm_name,subject,message,filename)
+# 	# utils.post_mattermost(subject,message,filename)
+# 	utils.post_mattermost(subject,message,alarm_name,filename)
+# 	# delete the file you just sent
+# 	if filename:
+# 		os.remove(filename)
 
 
 def make_figure(scnl,T0,alarm_name):
@@ -157,10 +197,10 @@ def make_figure(scnl,T0,alarm_name):
 
 
 	plt.subplots_adjust(left=0.08,right=.94,top=0.92,bottom=0.1,hspace=0.1)
-	filename=utils.tmp_figure_dir+'/'+UTCDateTime.utcnow().strftime('%Y%m%d_%H%M%S_%f')
+	filename=os.environ['TMP_FIGURE_DIR']+'/'+UTCDateTime.utcnow().strftime('%Y%m%d_%H%M%S_%f')
 	plt.savefig(filename,dpi=250,format='png')
 	im=Image.open(filename)
-	remove(filename)
+	os.remove(filename)
 	filename=filename+'.jpg'
 	im.save(filename)
 

@@ -9,9 +9,11 @@ from obspy.core.util import AttribDict
 from obspy.geodetics.base import gps2dist_azimuth
 from obspy.signal.cross_correlation import xcorr
 import numpy as np
-from os import remove
+import os
 from pandas import DataFrame
 import time
+# import sys_config
+
 
 # main function called by alarm.py
 def run_alarm(config,T0):
@@ -90,7 +92,7 @@ def run_alarm(config,T0):
         #### check if this is airwave velocity from a volcano in config file list ####
         if np.any(np.abs(d_Azimuth) < az_tolerance):
             v_ind=np.argmax(np.abs(d_Azimuth) < az_tolerance)
-            mx_pressure=np.max(np.array([tr.data for tr in st]))*config.digouti
+            mx_pressure=np.max(np.array([np.max(np.abs(tr.data)) for tr in st]))*config.digouti
             if config.VOLCANO[v_ind]['vmin'] < velocity < config.VOLCANO[v_ind]['vmax'] and mx_pressure > config.VOLCANO[v_ind]['min_pa']:
                 #### DETECTION ####
                 volcano=config.VOLCANO[v_ind]
@@ -99,11 +101,7 @@ def run_alarm(config,T0):
                 print('Airwave Detection!!!')
                 state_message='{} - {} detection! {:.1f} Pa peak pressure'.format(state_message,volcano['volcano'],mx_pressure)
                 state='CRITICAL'
-                try:
-                    filename=make_figure(st,volcano,T0,config,mx_pressure)
-                except:
-                    filename=None
-                craft_and_send_email(t1,t2,config,volcano,d_Azimuth,velocity,mx_pressure,filename)
+
             else:
                 print('Non-volcano detect!!!')
                 state_message='{} - Detection with wrong velocity ({:.1f} km/s) or maximum pressure ({:.1f} Pa)'.format(state_message,velocity,mx_pressure)
@@ -113,6 +111,23 @@ def run_alarm(config,T0):
             print('Non-volcano detect!!!')
             state_message='{} - Detection with wrong backazimuth ({:.0f} from N)'.format(state_message,azimuth)
             state='WARNING'
+
+    if state=='CRITICAL':
+        #### Generate Figure ####
+        try:
+            filename=make_figure(st,volcano,T0,config,mx_pressure)
+        except:
+            filename=None
+        
+        ### Craft message text ####
+        subject, message = create_message(t1,t2,config,volcano,azimuth,d_Azimuth,velocity,mx_pressure)
+
+        ### Send message ###
+        utils.send_alert(config.alarm_name,subject,message,filename)
+        utils.post_mattermost(config.alarm_name,subject,message,filename)
+        # delete the file you just sent
+        if filename:
+            os.remove(filename)
 
     # send heartbeat status message to icinga
     utils.icinga_state(config.alarm_name,state,state_message)
@@ -397,10 +412,10 @@ def make_figure(st,volcano,T0,config,mx_pressure):
 
 
     plt.subplots_adjust(left=0.08,right=.94,top=0.92,bottom=0.1,hspace=0.1)
-    filename=utils.tmp_figure_dir+'/'+UTCDateTime.utcnow().strftime('%Y%m%d_%H%M%S_%f')
+    filename=os.environ['TMP_FIGURE_DIR']+'/'+UTCDateTime.utcnow().strftime('%Y%m%d_%H%M%S_%f')
     plt.savefig(filename,dpi=250,format='png')
     im=Image.open(filename)
-    remove(filename)
+    os.remove(filename)
     filename=filename+'.jpg'
     im.save(filename)
 
@@ -433,7 +448,7 @@ def xcorr_align_stream(st,config):
     ST.trim(T1,T2)
     return ST
 
-def craft_and_send_email(t1,t2,config,volcano,d_Azimuth,velocity,mx_pressure,filename):
+def create_message(t1,t2,config,volcano,azimuth,d_Azimuth,velocity,mx_pressure):
     from pandas import Timestamp
     # create the subject line
     subject='{} Airwave Detection'.format(volcano['volcano'])
@@ -444,17 +459,41 @@ def craft_and_send_email(t1,t2,config,volcano,d_Azimuth,velocity,mx_pressure,fil
     message='{}Start: {} (UTC)\nEnd: {} (UTC)\n\n'.format(message,t1.strftime('%Y-%m-%d %H:%M'),t2.strftime('%Y-%m-%d %H:%M'))
     t1_local=Timestamp(t1.datetime,tz='UTC')
     t2_local=Timestamp(t2.datetime,tz='UTC')
-    t1_local=t1_local.tz_convert('US/Alaska')
-    t2_local=t2_local.tz_convert('US/Alaska')
+    t1_local=t1_local.tz_convert(os.environ['TIMEZONE'])
+    t2_local=t2_local.tz_convert(os.environ['TIMEZONE'])
     message='{}Start: {} ({})'.format(message,t1_local.strftime('%Y-%m-%d %H:%M'),t1_local.tzname())
     message='{}\nEnd: {} ({})\n\n'.format(message,t2_local.strftime('%Y-%m-%d %H:%M'),t2_local.tzname())
 
+    message='{}Azimuth: {:+.1f} degrees\n'.format(message,azimuth)
     message='{}d_Azimuth: {:+.1f} degrees\n'.format(message,d_Azimuth)
     message='{}Velocity: {:.0f} m/s\n'.format(message,velocity*1000)
     message='{}Max Pressure: {:.1f} Pa'.format(message,mx_pressure)
 
-    utils.send_alert(config.alarm_name,subject,message,filename)
-    utils.post_mattermost(subject,message,config.alarm_name,filename)
-    # delete the file you just sent
-    if filename:
-        remove(filename)
+    return subject, message
+
+# def craft_and_send_email(t1,t2,config,volcano,azimuth,d_Azimuth,velocity,mx_pressure,filename):
+#     from pandas import Timestamp
+#     # create the subject line
+#     subject='{} Airwave Detection'.format(volcano['volcano'])
+
+#     # create the test for the message you want to send
+#     message='{} alarm:\n'.format(config.alarm_name)
+#     message='{}{} detection!\n\n'.format(message,volcano['volcano'])
+#     message='{}Start: {} (UTC)\nEnd: {} (UTC)\n\n'.format(message,t1.strftime('%Y-%m-%d %H:%M'),t2.strftime('%Y-%m-%d %H:%M'))
+#     t1_local=Timestamp(t1.datetime,tz='UTC')
+#     t2_local=Timestamp(t2.datetime,tz='UTC')
+#     t1_local=t1_local.tz_convert(os.environ['TIMEZONE'])
+#     t2_local=t2_local.tz_convert(os.environ['TIMEZONE'])
+#     message='{}Start: {} ({})'.format(message,t1_local.strftime('%Y-%m-%d %H:%M'),t1_local.tzname())
+#     message='{}\nEnd: {} ({})\n\n'.format(message,t2_local.strftime('%Y-%m-%d %H:%M'),t2_local.tzname())
+
+#     message='{}Azimuth: {:+.1f} degrees\n'.format(message,azimuth)
+#     message='{}d_Azimuth: {:+.1f} degrees\n'.format(message,d_Azimuth)
+#     message='{}Velocity: {:.0f} m/s\n'.format(message,velocity*1000)
+#     message='{}Max Pressure: {:.1f} Pa'.format(message,mx_pressure)
+
+#     utils.send_alert(config.alarm_name,subject,message,filename)
+#     utils.post_mattermost(subject,message,config.alarm_name,filename)
+#     # delete the file you just sent
+#     if filename:
+#         os.remove(filename)

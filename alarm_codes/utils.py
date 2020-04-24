@@ -1,19 +1,17 @@
 # This module contains all of the common functions that various alarms will use:
-#	grab_data - gets data from a winston
-#	icinga_state - sends heartbeat info to icinga
-#	send_alert - does the actual email/txt message sending
+#	grab_data 		- gets data from a winston
+#	icinga_state 	- sends heartbeat info to icinga
+#	send_alert 		- does the actual email/txt message sending
+#	post_mattermost - posts message to mattermost
 #
-# Wech 2017-06-08
+# Wech, updated 2020-04-22
 
+import os
 import subprocess
 from obspy import Stream
 from obspy.clients.earthworm import Client
 from numpy import round, dtype
-# import configuration variables:
-import sys_config
 
-# temporary directory location for writing alarm figures
-tmp_figure_dir=sys_config.tmp_figure_dir
 
 def grab_data(scnl,T1,T2,fill_value=0):
 	# scnl = list of station names (eg. ['PS4A.EHZ.AV.--','PVV.EHZ.AV.--','PS1A.EHZ.AV.--'])
@@ -29,9 +27,9 @@ def grab_data(scnl,T1,T2,fill_value=0):
 
 	for sta in scnl:
 		if sta.split('.')[2]=='MI':
-			client = Client(sys_config.CNMI_winston, sys_config.CNMI_port)
+			client = Client(os.environ['CNMI_WINSTON'], int(os.environ['CNMI_PORT']))
 		else:
-			client = Client(sys_config.winston_address, sys_config.winston_port)
+			client = Client(os.environ['WINSTON_HOST'], int(os.environ['WINSTON_PORT']))
 		try:
 			tr=client.get_waveforms(sta.split('.')[2], sta.split('.')[0],sta.split('.')[3],sta.split('.')[1], T1, T2, cleanup=True)
 			if len(tr)>1:
@@ -87,30 +85,37 @@ def icinga_state(alarm_name,state,state_message):
 		alarm_name='generic alarm 1'
 		if state_num==2:
 			state_num=1
-	if alarm_name=='AKS Infrasound':
+	# if alarm_name=='ADKI Infrasound Hf':
+	# 	alarm_name='generic alarm 2'
+	# 	if state_num==2:
+	# 		state_num=1
+	if alarm_name=='Great Sitkin RSAM':
 		alarm_name='generic alarm 2'
 		if state_num==2:
 			state_num=1
+	if alarm_name=='Okmok RSAM':
+		alarm_name='generic alarm 3'
+		if state_num==2:
+			state_num=1
+	if alarm_name=='SO2':
+		alarm_name='generic alarm 4'
 	#############################
 	#############################
 
-	cmd='echo "{}\t{}\t{}\t{}\\n" | {} -H {} -c {}'.format(sys_config.icinga_host_name,alarm_name,state_num,
-																state_message,sys_config.send_nsca_cmd,
-																sys_config.icinga_ip,sys_config.send_nsca_cfg)
+
+	cmd='echo "{}\t{}\t{}\t{}\\n" | {} -H {} -c {}'.format(os.environ['ICINGA_HOST_NAME'],alarm_name,state_num,
+																state_message,os.environ['SEND_NSCA_CMD'],
+																os.environ['ICINGA_IP'],os.environ['SEND_NSCA_CFG'])
 	print(cmd)
-	output=subprocess.check_output(cmd,shell=True)
+	try:
+		output=subprocess.check_output(cmd,shell=True)
+	except:
+		import time
+		time.sleep(1.5)
+		output=subprocess.check_output(cmd,shell=True)
 	print(output.split('\n')[0])
 
-	try:
-		# test for Botnick setting up new icinga server
-		cmd='echo "{}\t{}\t{}\t{}\\n" | {} -H {} -c {}'.format(sys_config.icinga_host_name,alarm_name,state_num,
-															state_message,sys_config.send_nsca_cmd,
-															sys_config.icinga_ip2,sys_config.send_nsca_cfg)
-		print(cmd)
-		output=subprocess.check_output(cmd,shell=True)
-		print(output.split('\n')[0])
-	except:
-		return
+	return
 
 
 def send_alert(alarm_name,subject,body,filename=None):
@@ -134,7 +139,6 @@ def send_alert(alarm_name,subject,body,filename=None):
 	 
 		msg = MIMEMultipart()
 
-		# fromaddr = 'volcano.alarm@usgs.gov'
 		fromaddr=alarm_name.replace(' ','_')+'@usgs.gov'
 		msg['From'] = fromaddr
 		msg['Subject'] = subject
@@ -154,13 +158,13 @@ def send_alert(alarm_name,subject,body,filename=None):
 			part.add_header('Content-Disposition', 'attachment; filename= {}'.format(name))
 			msg.attach(part)
 
-		server = smtplib.SMTP(sys_config.smtp_ip)
+		server = smtplib.SMTP(os.environ['SMTP_IP'])
 		text = msg.as_string()
 		server.sendmail(fromaddr, recipients, text)
 		server.quit()
 
 
-def post_mattermost(subject,body,alarm_name,filename=None):
+def post_mattermost(alarm_name,subject,body,filename=None):
 	from tomputils import mattermost as mm
 	import re
 
@@ -168,8 +172,14 @@ def post_mattermost(subject,body,alarm_name,filename=None):
 
 	if alarm_name=='PIREP':
 		conn.channel_id='fdde17wkrfdqze785wt69mrqeo'
-	elif alarm_name=='Pavlof Tremor':
-		conn.channel_id='jewennqiq7rd5kdubg8t1j9b8a'
+	elif alarm_name=='SO2':
+		conn.channel_id='qkkbtrmbi7nijed9457gsrix6o'
+	elif alarm_name=='NOAA_CIMSS':
+		conn.channel_id='jcusdzgyhfb4jq65af3zw6pcwa'
+	# elif alarm_name=='Pavlof Tremor':
+	# 	conn.channel_id='jewennqiq7rd5kdubg8t1j9b8a'
+	elif alarm_name=='Lightning_new':
+		conn.channel_id='bbee81rp13n68mstu33xf3b88a'
 	else:
 		conn.channel_id='wssypqro9igfznesgzx64xtd3c'
 

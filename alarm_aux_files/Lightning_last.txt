@@ -1,0 +1,1 @@
+dataSource,lightningId,lightningLatitude,lightningLongitude,lightningTimestamp,nearestDistanceKm,volcanoLatitude,volcanoLongitude,volcanoName,datetime

@@ -5,3 +5,7 @@ common/
 Pavlof_seismic/
 www/
 *.pyc
+logs/*.out
+logs/pavlof_seismic*
+distribution.xlsx
+.env

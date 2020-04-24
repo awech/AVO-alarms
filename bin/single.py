@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/home/rtem/miniconda/envs/py_alarms/bin/python
 # -*- coding: utf-8 -*-
 import sys,os
 

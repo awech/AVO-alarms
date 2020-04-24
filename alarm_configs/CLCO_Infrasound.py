@@ -1,4 +1,4 @@
-alarm_type = 'Airwave'			# this designates which alarm module will be imported and executed
+alarm_type = 'Infrasound'		# this designates which alarm module will be imported and executed
 alarm_name = 'CLCO Infrasound'	# this is the alarm name sent to icinga and in message alerts
 
 # Infrasound channels list
@@ -16,7 +16,7 @@ SCNL=[
 # seismic_scnl is a list of seismic channels to be plotted with infrasound on detect
 VOLCANO=[
 {'volcano':	'Bogoslof',		'v_lat': 53.9310,	'v_lon': -168.0360, 	'Azimuth_tolerance': 15, 'min_pa': 0.2, 'vmin':0.28, 'vmax':0.45,
-		'seismic_scnl': ['OKFG.BHZ.AV.--','MAPS.BHZ.AV.--','MSW.BHN.AV.--']},
+		'seismic_scnl': ['BOGO.BHZ.AV.--','OKFG.BHZ.AV.--','MAPS.BHZ.AV.--']},
 
 {'volcano':	'Cleveland',	'v_lat': 52.8222,	'v_lon': -169.9464, 	'Azimuth_tolerance': 15, 'min_pa': 4.0, 'vmin':0.28, 'vmax':0.41,
 		'seismic_scnl': ['CLES.BHZ.AV.--','CLCO.BHZ.AV.--']}
@@ -26,7 +26,7 @@ duration  = 3*60 # duration value in seconds
 latency   = 10.0 # seconds between timestamps and end of data window
 taper_val = 5.0  # seconds to taper beginning and end of trace before filtering
 f1		  = 0.2  # minimum frequency for bandpass filter
-f2		  = 10.0 # maximum frequency for bandpass filter
+f2		  = 5.0 # maximum frequency for bandpass filter
 
 digouti   = (1/419430.0)/(1.62e-2)	# convert counts to Pressure in Pa (Q330 + new VDP-10 mics)
 min_cc    = 0.6					# min normalized correlation coefficient to accept

@@ -1,14 +1,14 @@
-alarm_type = 'Airwave'			# this designates which alarm module will be imported and executed
+alarm_type = 'Infrasound'			# this designates which alarm module will be imported and executed
 alarm_name = 'SDPI Infrasound'	# this is the alarm name sent to icinga and in message alerts
 
 # Infrasound channels list
 SCNL=[
-{'scnl':'SDPI.BDF.AV.01'	, 'sta_lat': 55.34900	, 'sta_lon': -160.47640},
-{'scnl':'SDPI.BDF.AV.02'	, 'sta_lat': 55.34870	, 'sta_lon': -160.47683},
-{'scnl':'SDPI.BDF.AV.03'	, 'sta_lat': 55.34934	, 'sta_lon': -160.47732},
-{'scnl':'SDPI.BDF.AV.04'	, 'sta_lat': 55.34952	, 'sta_lon': -160.47661},
-{'scnl':'SDPI.BDF.AV.05'	, 'sta_lat': 55.34922	, 'sta_lon': -160.47650},
-{'scnl':'SDPI.BDF.AV.06'	, 'sta_lat': 55.34919	, 'sta_lon': -160.47710},
+{'scnl':'SDPI.HDF.AV.01'	, 'sta_lat': 55.34900	, 'sta_lon': -160.47640},
+{'scnl':'SDPI.HDF.AV.02'	, 'sta_lat': 55.34870	, 'sta_lon': -160.47683},
+{'scnl':'SDPI.HDF.AV.03'	, 'sta_lat': 55.34934	, 'sta_lon': -160.47732},
+{'scnl':'SDPI.HDF.AV.04'	, 'sta_lat': 55.34952	, 'sta_lon': -160.47661},
+{'scnl':'SDPI.HDF.AV.05'	, 'sta_lat': 55.34922	, 'sta_lon': -160.47650},
+{'scnl':'SDPI.HDF.AV.06'	, 'sta_lat': 55.34919	, 'sta_lon': -160.47710},
 ]
 
 # Volcano list to be monitored
@@ -16,12 +16,12 @@ SCNL=[
 # Azimuthal tolerance is in degrees
 # seismic_scnl is a list of seismic channels to be plotted with infrasound on detect
 VOLCANO=[
-{'volcano':	'Pavlof',		'v_lat': 55.417622,	'v_lon': -161.893669, 	'Azimuth_tolerance': 8, 'min_pa': 0.1, 'vmin':0.28, 'vmax':0.45,
+{'volcano':	'Pavlof',		'v_lat': 55.417622,	'v_lon': -161.893669, 	'Azimuth_tolerance': 8, 'min_pa': 0.3, 'vmin':0.28, 'vmax':0.45,
 		'seismic_scnl': ['PV6A.BDF.AV.--','PV6A.SHZ.AV.--','PN7A.BHZ.AV.--','PS4A.BHZ.AV.--']},
-{'volcano':	'Veniaminof',	'v_lat': 56.195825,	'v_lon': -159.389536, 	'Azimuth_tolerance': 6, 'min_pa': 0.1, 'vmin':0.28, 'vmax':0.45,
+{'volcano':	'Veniaminof',	'v_lat': 56.195825,	'v_lon': -159.389536, 	'Azimuth_tolerance': 6, 'min_pa': 0.5, 'vmin':0.28, 'vmax':0.45,
 		'seismic_scnl': ['VNSS.EHZ.AV.--','VNFG.EHZ.AV.--','VNHG.EHZ.AV.--']},
-{'volcano':	'Shishaldin',	'v_lat': 54.755856,	'v_lon': -163.969961, 	'Azimuth_tolerance': 5, 'min_pa': 0.4, 'vmin':0.28, 'vmax':0.45,
-		'seismic_scnl': ['SSBA.BHZ.AV.--','SSLN.BHZ.AV.--','BRPK.EHZ.AV.--']},
+{'volcano':	'Shishaldin',	'v_lat': 54.755856,	'v_lon': -163.969961, 	'Azimuth_tolerance': 5, 'min_pa': 2.5, 'vmin':0.28, 'vmax':0.45,
+		'seismic_scnl': ['SSBA.BHZ.AV.--','SSLS.BHZ.AV.--','ISNN.SHZ.AV.--']},
 ]
 
 duration  = 3*60 # duration value in seconds

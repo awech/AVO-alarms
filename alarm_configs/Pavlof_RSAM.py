@@ -3,15 +3,14 @@ alarm_name = 'Pavlof RSAM'		# this is the alarm name sent to icinga and in messa
 
 # Stations list. Last station is arrestor.
 SCNL=[
-{'scnl':'PS4A.BHZ.AV.--'	, 'value': 200	},
-# {'scnl':'PS4A.EHZ.AV.--'	, 'value': 600	},
-{'scnl': 'PVV.SHZ.AV.--'	, 'value': 200	},
-{'scnl':'PS1A.BHZ.AV.--'	, 'value': 200	},
-{'scnl': 'HAG.SHZ.AV.--'	, 'value': 200	},
-# {'scnl': 'HAG.EHZ.AV.--'	, 'value': 2500	},
-{'scnl':'PN7A.BHZ.AV.--'	, 'value': 220	},
-{'scnl':'PV6A.SHZ.AV.--'	, 'value': 200	},
-{'scnl':'SDPT.BHZ.AT.--'	, 'value': 400	}, # arrestor station
+{'scnl':'PS4A.BHZ.AV.--'	, 'value': 400/1.	},  # dividing by 2 for all stations because of ongoing activity (15-May-2019), removed 9/6
+{'scnl': 'PVV.SHZ.AV.--'	, 'value': 400/1.	},
+{'scnl':'PS1A.BHZ.AV.--'	, 'value': 400/1.	},
+{'scnl': 'HAG.SHZ.AV.--'	, 'value': 400/1.	},
+{'scnl':'PN7A.BHZ.AV.--'	, 'value': 400/1.	}, # out since Feb 16, 2019
+{'scnl':'PV6A.SHZ.AV.--'	, 'value': 400/1.	},
+# {'scnl':'FALS.BHZ.AK.--'	, 'value': 200	}, # arrestor station, out since May 23, 2019
+{'scnl':'SDPT.BHZ.AT.--'	, 'value': 200	}, # arrestor station
 ]
 
 duration  = 5*60 # duration value in seconds

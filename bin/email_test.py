@@ -3,9 +3,9 @@ import os
 import sys
 from obspy import UTCDateTime
 
-sys.path.append(work_dir)
+sys.path.append(os.environ['HOME_DIR'])
+os.chdir(os.environ['HOME_DIR'])
 from alarm_codes import utils
-os.chdir(work_dir)
 
 if os.getenv('FROMCRON') == 'yep':
     file=os.environ['LOGS_DIR']+'/Email_test-'+UTCDateTime.now().strftime('%Y%m%d-%H')+'.out'

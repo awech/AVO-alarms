@@ -3,8 +3,8 @@ from bs4 import BeautifulSoup
 import pandas as pd
 from obspy import UTCDateTime
 import os
-import utils
-# import sys_config
+from . import utils
+from PIL import Image
 from obspy.geodetics.base import gps2dist_azimuth
 
 
@@ -26,7 +26,7 @@ def run_alarm(config,T0):
 				print('Page error.')
 				state='WARNING'
 				state_message='{} (UTC) webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
-				utils.icinga_state(config.alarm_name,state,state_message)
+				utils.icinga_state(config,state,state_message)
 				return
 
 	table=table.get_text().split('\n')
@@ -55,7 +55,7 @@ def run_alarm(config,T0):
 		update_timestamp(date,time,config)
 		
 		print('Posting to Mattermost')
-		utils.post_mattermost(config.alarm_name,subject,message,filename=attachment)
+		utils.post_mattermost(config,subject,message,filename=attachment)
 
 
 		# delete the file you just sent
@@ -73,7 +73,7 @@ def run_alarm(config,T0):
 		state='OK'
 
 	# send heartbeat status message to icinga
-	utils.icinga_state(config.alarm_name,state,state_message)
+	utils.icinga_state(config,state,state_message)
 
 
 def volcano_distance(lon,lat,config):
@@ -94,7 +94,6 @@ def time_check(date,time,config):
 	return t_last!=t_current
 
 def download_image(soup,config,date,time):
-	from PIL import Image
 
 	imgs=soup.find_all('img')
 	img_files=[]
@@ -106,16 +105,21 @@ def download_image(soup,config,date,time):
 		pic_url=os.environ['SACS_URL'].split('last')[0]+img_files[0]
 		pic_url=pic_url.replace('_sm','_lr')
 		img_data = requests.get(pic_url,stream=True).content
-		with open(config.imgfile, 'wb') as handler:
+		gif_file=''.join([os.environ['TMP_FIGURE_DIR'],
+					  '/',
+					  config.alarm_name.replace(' ','_'),
+					  '_',
+					  UTCDateTime.utcnow().strftime('%Y%m%d_%H%M'),
+					  '.gif'])
+		jpg_file=gif_file.split('.')[0]+'.jpg'
+		with open(gif_file, 'wb') as handler:
 		    handler.write(img_data)
 
 		try:
-			im=Image.open(config.imgfile)
-			os.remove(config.imgfile)
-			t=pd.Timestamp(UTCDateTime(date + time).datetime,tz='UTC')
-			filename=t.strftime('%Y%m%d_%H%M')+'.jpg'
-			im.convert('RGB').save(filename,'JPEG')
-			attachment=filename
+			im=Image.open(gif_file)
+			os.remove(gif_file)
+			im.convert('RGB').save(jpg_file,'JPEG')
+			attachment=jpg_file
 		except:
 			attachment=[]
 	else:

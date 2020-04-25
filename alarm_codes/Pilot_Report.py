@@ -4,9 +4,19 @@ from urllib import urlretrieve
 from zipfile import ZipFile
 import numpy as np
 import os
-import utils
-# import sys_config
+from . import utils
 import socket
+import shapefile
+from shutil import rmtree
+from obspy.geodetics.base import gps2dist_azimuth
+import re
+import matplotlib as m
+from mpl_toolkits.basemap import Basemap
+import matplotlib.pyplot as plt
+from matplotlib.patches import Polygon
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+from textwrap import wrap
+
 socket.setdefaulttimeout(15)
 
 def run_alarm(config,T0):
@@ -41,15 +51,9 @@ def run_alarm(config,T0):
 	except:
 		print('No new pilot reports')
 		os.remove(config.zipfilename)
-		utils.icinga_state(config.alarm_name,state,state_message)
+		utils.icinga_state(config,state,state_message)
 		return
 		# utils.icinga_state(config.alarm_name,state,state_message)
-
-	# some data to parse, so import the relevant libraries (no need to do this if nothing downloaded)
-	import shapefile
-	from shutil import rmtree
-	from obspy.geodetics.base import gps2dist_azimuth
-
 
 
 	archive.extractall(path=config.tmp_zipped_dir)
@@ -140,7 +144,7 @@ def run_alarm(config,T0):
 
 		        ### Send message ###
 		        utils.send_alert(config.alarm_name,subject,message,filename)
-		        utils.post_mattermost(config.alarm_name,subject,message,filename)
+		        utils.post_mattermost(config,subject,message,filename)
 
                 # delete the file you just sent
 		        if filename:
@@ -151,7 +155,7 @@ def run_alarm(config,T0):
 	OLD.to_csv(config.outfile,float_format='%.6f',index_label='time',sep='\t',date_format='%Y%m%dT%H%M%S.%f')
 	os.remove(config.zipfilename)
 	rmtree(config.tmp_zipped_dir)
-	utils.icinga_state(config.alarm_name,state,state_message)
+	utils.icinga_state(config,state,state_message)
 
 
 def check_volcano_mention(report):
@@ -224,7 +228,6 @@ def get_height_text(report):
 
 
 def get_pilot_remark(report):
-	import re
 	
 	FL = re.compile('(.*)fl(\d+)(.*)', re.MULTILINE)
 	RM = re.compile('(RM)*(.*)')
@@ -267,47 +270,9 @@ def create_message(df,i,A,UTC_time_text,height_text,pilot_remark):
 
 	return subject, message
 
-# def craft_and_send_email(df,i,A,UTC_time_text,height_text,pilot_remark,attachment,config):
-
-# 	t=pd.Timestamp(df.ix[i].VALID,tz='UTC')
-# 	t_local=t.tz_convert(os.environ['TIMEZONE'])
-# 	Local_time_text = '{} {}'.format(t_local.strftime('%Y-%m-%d %H:%M'),t_local.tzname())
-
-
-# 	message = '{}\n{}\n{}\n{}'.format(UTC_time_text,Local_time_text,height_text,pilot_remark)
-# 	message = '{}\nLatitude: {:.3f}\nLongitude: {:.3f}\n'.format(message,df.ix[i].LAT,df.ix[i].LON)
-
-# 	v_text=''
-# 	for candidate in A.sort_values('dist').Volcano.values[:3]:
-# 		v_text='{}{}, '.format(v_text,candidate)
-# 	v_text=v_text.replace('_',' ')
-# 	message = '{}Nearest volcanoes: {}\n'.format(message,v_text[:-2])
-# 	message = '{}\n--Original Report--\n{}'.format(message,df.ix[i].REPORT)
-# 	print(message)
-
-# 	if df.ix[i].URGENT=='T':
-# 		subject = 'URGENT! Activity possible at: {}'.format(v_text[:-2])
-# 	else:
-# 		subject = 'Activity possible at: {}'.format(v_text[:-2])
-
-# 	if config.send_email:
-# 		utils.send_alert(config.alarm_name,subject,message,attachment)
-# 	utils.post_mattermost(config.alarm_name,subject,message,filename=attachment)
-
-# 	# delete the file you just sent
-# 	if attachment:
-# 		os.remove(attachment)
-
 
 def plot_fig(df,i,A,UTC_time_text,height_text,pilot_remark):
-	import matplotlib as m
 	m.use('Agg')
-	from mpl_toolkits.basemap import Basemap
-	import matplotlib.pyplot as plt
-	from matplotlib.patches import Polygon
-	from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-	from PIL import Image
-	from textwrap import wrap
 
 	latlims=[df.ix[i].LAT-2,df.ix[i].LAT+2]
 	lonlims=[df.ix[i].LON-4,df.ix[i].LON+4]
@@ -338,8 +303,6 @@ def plot_fig(df,i,A,UTC_time_text,height_text,pilot_remark):
 	axin = inset_axes(m.ax, width="25%", height="25%", loc=1,borderpad=0.3)
 	latlims=[50.0,58.0]
 	lonlims=[-189.9,-145]
-	# inmap = Basemap(projection='tmerc',llcrnrlat=df.ix[i].LAT-20,urcrnrlat=df.ix[i].LAT+20,
-	# 							  llcrnrlon=df.ix[i].LON-50,urcrnrlon=df.ix[i].LON+50,lat_0=np.mean(latlims),lon_0=np.mean(lonlims),resolution='l')
 
 	inmap = Basemap(projection='eqdc',lat_1=latlims[0],lat_2=latlims[1],
 					lat_0=df.ix[i].LAT,lon_0=df.ix[i].LON,width=3500000,height=3000000,
@@ -354,11 +317,6 @@ def plot_fig(df,i,A,UTC_time_text,height_text,pilot_remark):
 	mapboundary = Polygon(xy, edgecolor='y', linewidth=1, fill=False)
 	axin.add_patch(mapboundary)
 
-	filename=os.environ['TMP_FIGURE_DIR']+'/'+UTCDateTime.utcnow().strftime('%Y%m%d_%H%M%S_%f')
-	plt.savefig(filename,dpi=250,format='png')
-	plt.close()
-	im=Image.open(filename)
-	os.remove(filename)
-	filename=filename+'.jpg'
-	im.save(filename)
+	jpg_file=utils.save_file(plt,config,dpi=250)
+
 	return filename

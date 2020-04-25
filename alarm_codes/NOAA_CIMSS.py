@@ -1,15 +1,24 @@
+from . import utils
 import os
 import pandas as pd
 import numpy as np
 import requests
 from obspy import UTCDateTime
 from obspy.geodetics.base import gps2dist_azimuth
-import utils
-# import sys_config
 import warnings
+from urllib.parse import urlparse, urljoin
+from bs4 import BeautifulSoup
+import re
+import matplotlib as m
+from mpl_toolkits.basemap import Basemap
+import matplotlib.pyplot as plt
+from matplotlib.patches import Polygon
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+import matplotlib.image as mpimg
+from textwrap import wrap
+
 warnings.filterwarnings("ignore")
 
-# os.environ['REQUESTS_CA_BUNDLE']='/fs01/alarms/common/DOIRootCA.crt'
 
 def run_alarm(config,T0):
 
@@ -30,7 +39,7 @@ def run_alarm(config,T0):
 				break
 				state='WARNING'
 				state_message='{} (UTC) webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
-				# utils.icinga_state(config.alarm_name,state,state_message)
+				# utils.icinga_state(config,state,state_message)
 				return
 			print('Error opening .json file. Trying again')
 			attempt+=1
@@ -78,8 +87,9 @@ def run_alarm(config,T0):
 				get_cimss_image(soup,alert)
 				print('Done.')
 				print('Trying to make figure attachment')
+				attachment=plot_fig(alert,volcs,config)
 				try:
-					attachment=plot_fig(alert,volcs)
+					attachment=plot_fig(alert,volcs,config)
 					print('Figure generated successfully')
 				except:
 					attachment=[]
@@ -99,7 +109,7 @@ def run_alarm(config,T0):
 				print('Sending message...')
 				utils.send_alert(config.alarm_name,subject,message,attachment)
 				print('Posting to mattermost...')
-				utils.post_mattermost(config.alarm_name,subject,message,filename=attachment)
+				utils.post_mattermost(config,subject,message,filename=attachment)
 
 				# delete the file you just sent
 				if attachment:
@@ -133,7 +143,6 @@ def create_message(alert,instrument,height_text,volcs):
 
 
 def scrape_web(alert):
-	from bs4 import BeautifulSoup
 
 	soup    = BeautifulSoup(requests.get(alert.alert_url).content)
 	redir = soup.select_one("#loginform-custom")["action"]
@@ -166,7 +175,6 @@ def get_instrument(soup):
 	return instrument
 
 def get_height_txt(soup):
-	import re
 
 	height_txt=soup.find(text=re.compile('AMSL'))
 	if height_txt:
@@ -176,9 +184,6 @@ def get_height_txt(soup):
 
 
 def get_cimss_image(soup,alert):
-	
-	# from urllib.parse import urlparse, urljoin    # python 3
-	from urlparse import urlparse, urljoin          # python 2
 	
 	base_url='://'.join(urlparse(alert.alert_url)[:2])
 	image_files=soup.find(class_="alert_images").find_all('img')
@@ -193,19 +198,12 @@ def get_cimss_image(soup,alert):
 					out.write(bits)
 
 
-def plot_fig(alert,volcs):
-	import matplotlib as m
+def plot_fig(alert,volcs,config):	
 	m.use('Agg')
-	from mpl_toolkits.basemap import Basemap
-	import matplotlib.pyplot as plt
-	from matplotlib.patches import Polygon
-	from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-	from PIL import Image
-	from textwrap import wrap
 
 	latlims=[alert.lat_rc-2,alert.lat_rc+2]
 	lonlims=[alert.lon_rc-4,alert.lon_rc+4]
-	m = Basemap(projection='tmerc',llcrnrlat=latlims[0],urcrnrlat=latlims[1],
+	m_map = Basemap(projection='tmerc',llcrnrlat=latlims[0],urcrnrlat=latlims[1],
 								  llcrnrlon=lonlims[0],urcrnrlon=lonlims[1],lat_0=alert.lat_rc,lon_0=alert.lon_rc,
 								  resolution='i',area_thresh=25.0)
 
@@ -213,28 +211,24 @@ def plot_fig(alert,volcs):
 	plt.figure(figsize=(3,6.6))
 
 	ax=plt.subplot(3,1,3)
-	m.drawcoastlines()
-	m.drawmapboundary(fill_color='gray')
-	m.fillcontinents(color='black',lake_color='gray')
-	m.plot(alert.lon_rc,alert.lat_rc,'yo',latlon=True,markeredgecolor='white',markersize=6,markeredgewidth=0.5)
+	m_map.drawcoastlines()
+	m_map.drawmapboundary(fill_color='gray')
+	m_map.fillcontinents(color='black',lake_color='gray')
+	m_map.plot(alert.lon_rc,alert.lat_rc,'yo',latlon=True,markeredgecolor='white',markersize=6,markeredgewidth=0.5)
 	v=volcs.copy().sort_values('distance')
-	m.plot(v.Lon.values[:10],v.Lat.values[:10],'^r',latlon=True,markeredgecolor='black',markersize=4,markeredgewidth=0.5)
-	# plt.title(str(alert.object_date_time)+' UTC',fontsize=9)
+	m_map.plot(v.Lon.values[:10],v.Lat.values[:10],'^r',latlon=True,markeredgecolor='black',markersize=4,markeredgewidth=0.5)
 
 	parallels=np.array([np.round(alert.lat_rc*10)/10.-0.8,np.round(alert.lat_rc*10)/10.+0.8])
 	meridians=np.array([np.round(alert.lon_rc*10)/10.-1.5,np.round(alert.lon_rc*10)/10.+1.5])
-	m.drawparallels(parallels,color='w',textcolor='k',linewidth=0.5,dashes=[1,4],labels=[True,False,False,True],fontsize=6)
-	m.drawmeridians(meridians,color='w',textcolor='k',linewidth=0.5,dashes=[1,4],labels=[False,True,False,True],fontsize=6)
-	# plt.xlabel('Method: '+alert.method,labelpad=10,fontsize=8)
+	m_map.drawparallels(parallels,color='w',textcolor='k',linewidth=0.5,dashes=[1,4],labels=[True,False,False,True],fontsize=6)
+	m_map.drawmeridians(meridians,color='w',textcolor='k',linewidth=0.5,dashes=[1,4],labels=[False,True,False,True],fontsize=6)
 
-	m.ax = ax
+	m_map.ax = ax
 
     # Inset map.
-	axin = inset_axes(m.ax, width="25%", height="25%", loc=1,borderpad=0.3)
+	axin = inset_axes(m_map.ax, width="25%", height="25%", loc=1,borderpad=0.3)
 	latlims=[50.0,58.0]
 	lonlims=[-189.9,-145]
-	# inmap = Basemap(projection='tmerc',llcrnrlat=alert.lat_rc-20,urcrnrlat=alert.lat_rc+20,
-	# 							  llcrnrlon=alert.lon_rc-50,urcrnrlon=alert.lon_rc+50,lat_0=np.mean(latlims),lon_0=np.mean(lonlims),resolution='l')
 
 	inmap = Basemap(projection='eqdc',lat_1=latlims[0],lat_2=latlims[1],
 					lat_0=alert.lat_rc,lon_0=alert.lon_rc,width=3500000,height=3000000,
@@ -244,13 +238,12 @@ def plot_fig(alert,volcs):
 	inmap.fillcontinents(color='gray')
 	inmap.drawmapboundary(color='white',fill_color='gray')
 	inmap.fillcontinents(color='black',lake_color='gray')
-	bx, by = inmap(m.boundarylons, m.boundarylats)
+	bx, by = inmap(m_map.boundarylons, m_map.boundarylats)
 	xy = list(zip(bx, by))
 	mapboundary = Polygon(xy, edgecolor='y', linewidth=1, fill=False)
 	axin.add_patch(mapboundary)
 
 
-	import matplotlib.image as mpimg
 	img1 = mpimg.imread('alarm_aux_files/noaa_out1.png')
 	img2 = mpimg.imread('alarm_aux_files/noaa_out2.png')
 
@@ -260,8 +253,6 @@ def plot_fig(alert,volcs):
 	plt.gca().set_yticks([])
 	title_str='{} UTC\n{}\nMethod: {}'.format(str(alert.object_date_time),alert.alert_header.capitalize(),alert.method)
 	plt.title(title_str,fontsize=8)
-	# plt.title(alert.alert_header.capitalize(),fontsize=10)
-	# plt.xlabel('Method: '+alert.method,labelpad=10,fontsize=8)
 
 	plt.subplot(3,1,2)
 	plt.imshow(img2)
@@ -270,11 +261,6 @@ def plot_fig(alert,volcs):
 
 	plt.tight_layout(pad=0.5)
 
-	filename=os.environ['TMP_FIGURE_DIR']+'/'+UTCDateTime.utcnow().strftime('%Y%m%d_%H%M%S_%f')
-	plt.savefig(filename,dpi=500,format='png')
-	plt.close()
-	im=Image.open(filename)
-	os.remove(filename)
-	filename=filename+'.jpg'
-	im.save(filename)
-	return filename
+	jpg_file=utils.save_file(plt,config,dpi=500)
+
+	return jpg_file

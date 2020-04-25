@@ -8,8 +8,15 @@ import numpy as np
 import pandas as pd
 from obspy import UTCDateTime
 from obspy.geodetics.base import gps2dist_azimuth
-import utils
+from . import utils
 import warnings
+import matplotlib as m
+import matplotlib.pyplot as plt
+from matplotlib.patches import Polygon
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+from matplotlib.dates import date2num
+from mpl_toolkits.basemap import Basemap
+from PIL import Image
 warnings.filterwarnings("ignore")
 
 
@@ -31,7 +38,7 @@ def run_alarm(config,T0):
 				break
 				state='WARNING'
 				state_message='{} (UTC) webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
-				# utils.icinga_state(config.alarm_name,state,state_message)
+				# utils.icinga_state(config,state,state_message)
 				return
 			print('Error opening .json file. Trying again')
 			attempt+=1
@@ -60,7 +67,7 @@ def run_alarm(config,T0):
 			print('--- Processing detects at {} volcano ---'.format(v))
 
 			V_new = A_new[A_new['volcanoName']==v]
-			V_recent = get_distances2(A_recent,V_new.iloc[0].volcanoLatitude,V_new.iloc[0].volcanoLongitude)
+			V_recent = get_distances(A_recent,V_new.iloc[0].volcanoLatitude,V_new.iloc[0].volcanoLongitude)
 			V_recent = V_recent[V_recent['latest_distance']<config.dist2]
 			
 			
@@ -99,6 +106,7 @@ def run_alarm(config,T0):
 					### Send Email Notification ####
 					print('Crafting message...')
 					subject, message = create_message(V_recent,V_new,config)
+					attachment = plot_fig(V_recent, config, T0)
 					try:
 						attachment = plot_fig(V_recent, config, T0)
 					except:
@@ -107,12 +115,12 @@ def run_alarm(config,T0):
 					print('Sending message...')
 					utils.send_alert(config.alarm_name,subject,message,filename=attachment)
 					print('Posting message to Mattermost...')
-					utils.post_mattermost(config.alarm_name,subject,message,filename=attachment)
+					utils.post_mattermost(config,subject,message,filename=attachment)
 					if attachment:
 						os.remove(attachment)
 		
 
-		# utils.icinga_state(config.alarm_name,state,state_message)
+		# utils.icinga_state(config,state,state_message)
 
 
 def make_blank_df():
@@ -179,7 +187,8 @@ def get_new_strokes(A,T0,config):
 	X=np.array([])
 	for i, row in A_recent.iterrows():
 		if row.volcanoName:
-			A_recent.loc[i,'volcanoName']=row.volcanoName.encode('utf-8')
+			# A_recent.loc[i,'volcanoName']=row.volcanoName.encode('utf-8')
+			pass
 		x=gps2dist_azimuth(row.lightningLatitude,row.lightningLongitude,row.volcanoLatitude,row.volcanoLongitude)[0]/1000.
 		X=np.append(X,x)
 	A_recent['nearestDistanceKm']=X
@@ -199,30 +208,18 @@ def sort_by_time(df):
 
 	# sort from most recent down to oldest
 	df2=df.copy()
-	df2.sort('datetime',inplace=True,ascending=False)
+	df2.sort_values('datetime',inplace=True,ascending=False)
 	df2.reset_index()
 
 	return df2
 
-def get_distances2(df,vlat,vlon):
+def get_distances(df,vlat,vlon):
 
 	df2=df.copy()
 
 	# get distance in km for all strokes to volcano nearest to most recent stroke
 	X =np.array([gps2dist_azimuth(vlat,vlon,row.lightningLatitude,row.lightningLongitude)[0]/1000 for i,row in df.iterrows()])
 	AZ=np.array([gps2dist_azimuth(vlat,vlon,row.lightningLatitude,row.lightningLongitude)[1] for i,row in df.iterrows()])
-	
-	df2['latest_distance']=X
-	df2['latest_azimuth']=AZ
-	return df2
-
-def get_distances(df):
-
-	df2=df.copy()
-
-	# get distance in km for all strokes to volcano nearest to most recent stroke
-	X =np.array([gps2dist_azimuth(df.iloc[0].volcanoLatitude,df.iloc[0].volcanoLongitude,row.lightningLatitude,row.lightningLongitude)[0]/1000 for i,row in df.iterrows()])
-	AZ=np.array([gps2dist_azimuth(df.iloc[0].volcanoLatitude,df.iloc[0].volcanoLongitude,row.lightningLatitude,row.lightningLongitude)[1] for i,row in df.iterrows()])
 	
 	df2['latest_distance']=X
 	df2['latest_azimuth']=AZ
@@ -262,14 +259,7 @@ def create_message(A_recent,A_new,config):
 	return subject, message
 
 def plot_fig(A_recent, config, T0):
-	import matplotlib as m
 	m.use('Agg')
-	from mpl_toolkits.basemap import Basemap
-	import matplotlib.pyplot as plt
-	from matplotlib.patches import Polygon
-	from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-	from matplotlib.dates import date2num
-	from PIL import Image
 
 	dist=50
 	lat0=A_recent.iloc[0].volcanoLatitude
@@ -281,7 +271,7 @@ def plot_fig(A_recent, config, T0):
 	lonmin= lon0 - dlon
 	lonmax= lon0 + dlon
 
-	m = Basemap(projection='merc',llcrnrlat=latmin,urcrnrlat=latmax,
+	m_map = Basemap(projection='merc',llcrnrlat=latmin,urcrnrlat=latmax,
 							  llcrnrlon=lonmin,urcrnrlon=lonmax,lat_ts=lat0,resolution='h')		
 
 	#Create figure
@@ -291,42 +281,45 @@ def plot_fig(A_recent, config, T0):
 
 	land_color='silver'
 	water_color='lightblue'
-	m.drawcoastlines(linewidth=0.5)
-	m.drawmapboundary(fill_color=water_color)
-	m.fillcontinents(color=land_color,lake_color=water_color)
-	m.drawparallels([lat0-dlat/2,lat0+dlat/2],labels=[0,1,0,0],dashes=[8, 4],linewidth=0.2,fmt='%.2f',fontsize=6)
-	m.drawmeridians([lon0-dlon/2,lon0+dlon/2],labels=[0,0,0,1],dashes=[8, 4],linewidth=0.2,fmt='%.2f',fontsize=6)
-	m.drawmapscale(lon0-.7*dlon, lat0-.8*dlat, lon0, lat0, 15, barstyle='simple', units='km', fontsize=8, 
+	try:
+		m_map.drawcoastlines(linewidth=0.5)
+	except:
+		pass
+	m_map.drawmapboundary(fill_color=water_color)
+	m_map.fillcontinents(color=land_color,lake_color=water_color)
+	m_map.drawparallels([lat0-dlat/2,lat0+dlat/2],labels=[0,1,0,0],dashes=[8, 4],linewidth=0.2,fmt='%.2f',fontsize=6)
+	m_map.drawmeridians([lon0-dlon/2,lon0+dlon/2],labels=[0,0,0,1],dashes=[8, 4],linewidth=0.2,fmt='%.2f',fontsize=6)
+	m_map.drawmapscale(lon0-.7*dlon, lat0-.8*dlat, lon0, lat0, 15, barstyle='simple', units='km', fontsize=8, 
 				    labelstyle='simple', fontcolor='k', linewidth=0.5, ax=None, format='%d', zorder=None)
 
-	m.plot(lon0,lat0,'^',latlon=True,markeredgecolor='white',markerfacecolor='forestgreen',markersize=6,markeredgewidth=0.5)
+	m_map.plot(lon0,lat0,'^',latlon=True,markeredgecolor='white',markerfacecolor='forestgreen',markersize=6,markeredgewidth=0.5)
 	try:
 		volcs=pd.read_csv('alarm_aux_files/volcanoes_kml.txt',delimiter='\t',names=['Volcano','kml','Lon','Lat'])
 		volcs['dist']= [gps2dist_azimuth(lat,lon,lat0,lon0)[0]/1000 for lat,lon in zip(volcs.Lat.values,volcs.Lon.values)]
 		volcs.sort_values('dist',inplace=True)
-		m.plot(volcs.Lon.values[1:10],volcs.Lat.values[1:10],'^',latlon=True,markerfacecolor='forestgreen',markeredgecolor='black',markersize=4,markeredgewidth=0.5)
+		m_map.plot(volcs.Lon.values[1:10],volcs.Lat.values[1:10],'^',latlon=True,markerfacecolor='forestgreen',markeredgecolor='black',markersize=4,markeredgewidth=0.5)
 	except:
 		pass
 
-	m.ax = ax
+	m_map.ax = ax
 
 	if len(A_recent)>1:
 		G=A_recent.copy()
-		G.sort('datetime',inplace=True,ascending=True)
+		G.sort_values('datetime',inplace=True,ascending=True)
 		time=date2num(G.datetime)
-		map_hdl=m.scatter(G.lightningLongitude.values,G.lightningLatitude.values,s=18,c=time,cmap='plasma',vmin=date2num((T0-config.duration).datetime), vmax=date2num(T0.datetime),edgecolors='k',linewidth=0.2,latlon=True,zorder=1e5)
-		cbaxes = inset_axes(m.ax, height="70%", width="4%", loc=6,borderpad=-1) 
+		map_hdl=m_map.scatter(G.lightningLongitude.values,G.lightningLatitude.values,s=18,c=time,cmap='plasma',vmin=date2num((T0-config.duration).datetime), vmax=date2num(T0.datetime),edgecolors='k',linewidth=0.2,latlon=True,zorder=1e5)
+		cbaxes = inset_axes(m_map.ax, height="70%", width="4%", loc=6,borderpad=-1) 
 		cbar=plt.colorbar(map_hdl,cax=cbaxes,orientation='vertical')
 		cbaxes.yaxis.set_ticks_position('left')
 		cbar.set_ticks([date2num((T0-config.duration).datetime), date2num(T0.datetime)])
 		cbar.set_ticklabels(['{:.0f}\nmin\nago'.format(config.duration/60.0),'Now'])
 		cbar.ax.tick_params(labelsize=6)
 	else:
-		m.plot(A_recent.lightningLongitude.values,A_recent.lightningLatitude.values,'o',latlon=True,markerfacecolor='yellow',markeredgecolor='black',markersize=4,markeredgewidth=0.2)
+		m_map.plot(A_recent.lightningLongitude.values,A_recent.lightningLatitude.values,'o',latlon=True,markerfacecolor='yellow',markeredgecolor='black',markersize=4,markeredgewidth=0.2)
 	
 
     # Inset map.
-	axin = inset_axes(m.ax, width="25%", height="25%", loc=1,borderpad=-1.5)
+	axin = inset_axes(m_map.ax, width="25%", height="25%", loc=1,borderpad=-1.5)
 	latlims=[50.0,58.0]
 	lonlims=[-189.9,-145]
 
@@ -351,11 +344,6 @@ def plot_fig(A_recent, config, T0):
 	inmap.fillcontinents(color=land_color,lake_color=water_color)
 	inmap.plot(lon0,lat0,'^',latlon=True,markerfacecolor='forestgreen',markeredgecolor='white',markersize=4,markeredgewidth=0.5)
 
-	filename=os.environ['TMP_FIGURE_DIR']+'/'+UTCDateTime.utcnow().strftime('%Y%m%d_%H%M%S_%f')
-	plt.savefig(filename,dpi=300,format='png')
-	plt.close()
-	im=Image.open(filename)
-	os.remove(filename)
-	filename=filename+'.jpg'
-	im.save(filename)
-	return filename
+	jpg_file=utils.save_file(plt,config,dpi=300)
+
+	return jpg_file

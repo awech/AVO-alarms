@@ -1,16 +1,14 @@
 from __future__ import division
-import matplotlib as m
-m.use('Agg')
-import utils
+from . import utils
+from alarm_codes.RSAM import make_figure
 from obspy import UTCDateTime
 from obspy.core.util import AttribDict
 import numpy as np
-import pandas as pd
+from pandas import DataFrame, Timestamp, read_csv
 import os
 import time
 from obspy.signal.filter import envelope
 from XC_loc import XC_main
-# import sys_config
 
 
 # main function called by alarm.py
@@ -18,12 +16,12 @@ def run_alarm(config,T0):
 
 	time.sleep(config.latency+config.taper)
 	state_message='{} (UTC) {}'.format(T0.strftime('%Y-%m-%d %H:%M'),config.alarm_name)
-	CAT=pd.read_csv(config.catalog_file,delimiter='\t',parse_dates=['time'])
+	CAT=read_csv(config.catalog_file,delimiter='\t',parse_dates=['time'])
 	CAT=CAT[CAT['time']>(T0-config.duration).strftime('%Y%m%d %H%M%S.%f')]
 
 	#################################
 	######### download data #########
-	SCNL=pd.DataFrame.from_dict(config.SCNL)
+	SCNL=DataFrame.from_dict(config.SCNL)
 	t1 = T0-1.5*config.window_length-config.taper
 	t2 = T0+config.taper
 	st = utils.grab_data(SCNL['scnl'].tolist(),t1,t2,fill_value=0)
@@ -74,7 +72,7 @@ def run_alarm(config,T0):
 	#################################
 	######## check past hour ########
 	for l in loc.events:
-		CAT=CAT.append(pd.DataFrame([[l.latitude,l.longitude,l.starttime.datetime]],columns=['lats','lons','time']))
+		CAT=CAT.append(DataFrame([[l.latitude,l.longitude,l.starttime.datetime]],columns=['lats','lons','time']))
 	#################################
 
 
@@ -90,7 +88,7 @@ def run_alarm(config,T0):
 	duration           = (config.window_length*len(CAT)-(config.window_length/2)*num_overlap)/60
 	duration_text = 'Correlated seismicity in {} of past {} minutes.'.format(minutes2string(duration),minutes2string(config.duration/60))
 	if duration>0:
-		last=UTCDateTime(pd.Timestamp(CAT.time.values[-1]).to_pydatetime())+config.window_length
+		last=UTCDateTime(Timestamp(CAT.time.values[-1]).to_pydatetime())+config.window_length
 		recency_text = 'Most recent: {} minutes ago'.format(minutes2string((T0-last)/60))
 	else:
 		duration_text = 'No correlated seismicity in the past {} minutes.'.format(minutes2string(config.duration/60))
@@ -113,7 +111,7 @@ def run_alarm(config,T0):
 
         #### Generate Figure ####
 		try:
-			filename=make_figure(SCNL['scnl'].tolist(),T0,'Pavlof Tremor')
+			filename=make_figure(SCNL['scnl'].tolist(),T0,config)
 		except:
 			filename=[]
 
@@ -122,17 +120,16 @@ def run_alarm(config,T0):
 
         ### Send message ###
         utils.send_alert(config.alarm_name,subject,message,filename)
-        utils.post_mattermost(config.alarm_name,subject,message,filename)
+        utils.post_mattermost(config,subject,message,filename)
         # delete the file you just sent
         if filename:
             os.remove(filename)
 	#################################
 
-	utils.icinga_state(config.alarm_name,state,state_message)
+	utils.icinga_state(config,state,state_message)
 
 
 def create_message(t1,t2,alarm_name,statement):
-	from pandas import Timestamp
 
 	# create the subject line
 	subject='--- {} ---'.format(alarm_name)
@@ -148,37 +145,6 @@ def create_message(t1,t2,alarm_name,statement):
 	message = ''.join([message,statement])
 
 	return subject, message
-
-
-def craft_and_send_email(t1,t2,alarm_name,filename,statement):
-	from pandas import Timestamp
-
-	# create the subject line
-	subject='--- {} ---'.format(alarm_name)
-
-	# create the text for the message you want to send
-	message='Start: {} (UTC)\nEnd: {} (UTC)\n\n'.format(t1.strftime('%Y-%m-%d %H:%M'),t2.strftime('%Y-%m-%d %H:%M'))
-	t1_local=Timestamp(t1.datetime,tz='UTC')
-	t2_local=Timestamp(t2.datetime,tz='UTC')
-	t1_local=t1_local.tz_convert(os.environ['TIMEZONE'])
-	t2_local=t2_local.tz_convert(os.environ['TIMEZONE'])
-	message='{}Start: {} ({})'.format(message,t1_local.strftime('%Y-%m-%d %H:%M'),t1_local.tzname())
-	message='{}\nEnd: {} ({})\n\n'.format(message,t2_local.strftime('%Y-%m-%d %H:%M'),t2_local.tzname())
-	message = ''.join([message,statement])
-
-
-	utils.send_alert(alarm_name,subject,message,filename)
-	utils.post_mattermost(subject,message,alarm_name,filename)
-	# delete the file you just sent
-	if filename:
-		os.remove(filename)
-
-
-def make_figure(scnl,T0,alarm_name):
-
-	from alarm_codes.RSAM import make_figure
-	filename=make_figure(scnl,T0,alarm_name)
-	return filename
 
 
 def minutes2string(min):

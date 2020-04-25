@@ -8,3 +8,5 @@ outfile        = 'alarm_aux_files/PIREPs.txt'
 max_distance  = 200		# maximum distance for sending an alert
 cron_interval = 60*60	# time window of data to grab before present
 non_urgent    = False	# send notification if classified as non-urgent or not
+
+mattermost_channel_id = 'fdde17wkrfdqze785wt69mrqeo'

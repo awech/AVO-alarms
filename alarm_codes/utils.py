@@ -6,11 +6,23 @@
 #
 # Wech, updated 2020-04-22
 
-import os
-import subprocess
+import smtplib
+from email import encoders
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from obspy import Trace
+from numpy import zeros, round, dtype
 from obspy import Stream
 from obspy.clients.earthworm import Client
-from numpy import round, dtype
+from pandas import read_excel
+from tomputils import mattermost as mm
+from obspy import UTCDateTime
+from PIL import Image
+import time
+import re
+import os
+import subprocess
 
 
 def grab_data(scnl,T1,T2,fill_value=0):
@@ -51,8 +63,6 @@ def grab_data(scnl,T1,T2,fill_value=0):
 			tr=Stream()
 		# if no data, create a blank trace for that channel
 		if not tr:
-			from obspy import Trace
-			from numpy import zeros
 			tr=Trace()
 			tr.stats['station']=sta.split('.')[0]
 			tr.stats['channel']=sta.split('.')[1]
@@ -68,7 +78,7 @@ def grab_data(scnl,T1,T2,fill_value=0):
 	return st
 
 
-def icinga_state(alarm_name,state,state_message):
+def icinga_state(config,state,state_message):
 
 	print('Sending state and message to icinga:')
 
@@ -79,52 +89,31 @@ def icinga_state(alarm_name,state,state_message):
 
 	state_num=states[state]
 
-	##### ignore this block #####
-	#############################
-	if alarm_name=='Pavlof Tremor':
-		alarm_name='generic alarm 1'
-		if state_num==2:
-			state_num=1
-	# if alarm_name=='ADKI Infrasound Hf':
-	# 	alarm_name='generic alarm 2'
-	# 	if state_num==2:
-	# 		state_num=1
-	if alarm_name=='Great Sitkin RSAM':
-		alarm_name='generic alarm 2'
-		if state_num==2:
-			state_num=1
-	if alarm_name=='Okmok RSAM':
-		alarm_name='generic alarm 3'
-		if state_num==2:
-			state_num=1
-	if alarm_name=='SO2':
-		alarm_name='generic alarm 4'
-	#############################
-	#############################
+	#### which icinga service ####
+	##############################
+	if hasattr(config,'icinga_service_name'):
+		icinga_service_name=config.icinga_service_name
+	else:
+		icinga_service_name=config.alarm_name
+	##############################
+	##############################
 
 
-	cmd='echo "{}\t{}\t{}\t{}\\n" | {} -H {} -c {}'.format(os.environ['ICINGA_HOST_NAME'],alarm_name,state_num,
+	cmd='echo "{}\t{}\t{}\t{}\\n" | {} -H {} -c {}'.format(os.environ['ICINGA_HOST_NAME'],icinga_service_name,state_num,
 																state_message,os.environ['SEND_NSCA_CMD'],
 																os.environ['ICINGA_IP'],os.environ['SEND_NSCA_CFG'])
 	print(cmd)
 	try:
 		output=subprocess.check_output(cmd,shell=True)
 	except:
-		import time
 		time.sleep(1.5)
 		output=subprocess.check_output(cmd,shell=True)
-	print(output.split('\n')[0])
+	print(output)
 
 	return
 
 
 def send_alert(alarm_name,subject,body,filename=None):
-	import smtplib
-	from email.MIMEMultipart import MIMEMultipart
-	from email.MIMEText import MIMEText
-	from email.MIMEBase import MIMEBase
-	from email import encoders
-	from pandas import read_excel
 
 	print('Sending alarm email and sms...')
 
@@ -164,25 +153,14 @@ def send_alert(alarm_name,subject,body,filename=None):
 		server.quit()
 
 
-def post_mattermost(alarm_name,subject,body,filename=None):
-	from tomputils import mattermost as mm
-	import re
+def post_mattermost(config,subject,body,filename=None):
 
 	conn = mm.Mattermost(timeout=5,retries=4)
 
-	if alarm_name=='PIREP':
-		conn.channel_id='fdde17wkrfdqze785wt69mrqeo'
-	elif alarm_name=='SO2':
-		conn.channel_id='qkkbtrmbi7nijed9457gsrix6o'
-	elif alarm_name=='NOAA_CIMSS':
-		conn.channel_id='jcusdzgyhfb4jq65af3zw6pcwa'
-	# elif alarm_name=='Pavlof Tremor':
-	# 	conn.channel_id='jewennqiq7rd5kdubg8t1j9b8a'
-	elif alarm_name=='Lightning_new':
-		conn.channel_id='bbee81rp13n68mstu33xf3b88a'
+	if hasattr(config,'mattermost_channel_id'):
+		conn.channel_id=config.mattermost_channel_id
 	else:
-		conn.channel_id='wssypqro9igfznesgzx64xtd3c'
-
+		conn.channel_id=os.environ['MATTERMOST_DEFAULT_CHANNEL_ID']
 
 	if not filename:
 		files=[]
@@ -198,7 +176,7 @@ def post_mattermost(alarm_name,subject,body,filename=None):
 	body=body.replace('Start: ','Start:  ')
 	body=body.replace('End: ',  'End:    ')
 
-	if alarm_name!='PIREP':
+	if config.alarm_name!='PIREP':
 		subject=subject.replace('--- ','')
 		subject=subject.replace(' ---','')
 		message='### **{}**\n\n{}'.format(subject,body)
@@ -212,3 +190,20 @@ def post_mattermost(alarm_name,subject,body,filename=None):
 		conn.post(message, file_paths=files)
 	except:
 		conn.post(message, file_paths=files)
+
+
+def save_file(plt,config,dpi=250):
+	png_file=''.join([os.environ['TMP_FIGURE_DIR'],
+					  '/',
+					  config.alarm_name.replace(' ','_'),
+					  '_',
+					  UTCDateTime.utcnow().strftime('%Y%m%d_%H%M'),
+					  '.png'])
+	jpg_file=png_file.split('.')[0]+'.jpg'
+
+	plt.savefig(png_file,dpi=dpi,format='png')
+	im=Image.open(png_file)
+	im.convert('RGB').save(jpg_file,'JPEG')
+	os.remove(png_file)
+
+	return jpg_file

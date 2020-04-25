@@ -67,7 +67,7 @@ def run_alarm(config,T0):
 				dist, azimuth, az2=gps2dist_azimuth(V_LAT,V_LON,lats.mean(),lons.mean())
 				craft_and_send_email(config,volcano,dist,azimuth,times,CAT)
 			
-	utils.icinga_state(config.alarm_name,state,state_message)
+	utils.icinga_state(config,state,state_message)
 
 
 def count_events(V_LAT,V_LON,lats,lons,config):
@@ -148,4 +148,4 @@ def craft_and_send_email(config,volcano,dist,azimuth,times,CAT):
 
 	utils.send_alert(config.alarm_name,subject,message,filename=None)
 	# utils.post_mattermost(subject,message,filename=None)
-	utils.post_mattermost(config.alarm_name,subject,message,filename=None)
+	utils.post_mattermost(config,subject,message,filename=None)

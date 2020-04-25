@@ -30,8 +30,5 @@ f2		  = 10.0 # maximum frequency for bandpass filter
 
 digouti   = (1/419430.0)/(1e-2)	# convert counts to Pressure in Pa (Q330 + VDP-10 mics)
 min_cc    = 0.6					# min normalized correlation coefficient to accept
-min_pa    = 0.3					# min absolute pressure value for a trigger
-vmin 	  = 0.25				# minimum allowable trace velocity for detection (km/s)
-vmax 	  = 0.60				# maximum allowable trace velocity for detection (km/s)
 min_chan  = 4					# minimum # of channels for code to run
 cc_shift_length = 3*50			# maximum samples to shift in cross-correlation (usually at 50 sps)

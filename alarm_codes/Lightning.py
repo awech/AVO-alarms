@@ -1,151 +1,296 @@
-# Lightning alarm based on WWLLN data
+# Lightning alarm based on WWLLN & Earth Networks data
 #
-# Wech 2017-06-08
+# Wech 2020-04-09
 
 import os
-
-######## WWLLN configuration ########
-kml_map_file='alarm_aux_files/volcanoes_kml.txt'
-url_base = os.environ['WWLLN_URL']
-#####################################
-
-import utils
-# import sys_config
-from obspy import UTCDateTime
+import json
 import numpy as np
 import pandas as pd
+from obspy import UTCDateTime
 from obspy.geodetics.base import gps2dist_azimuth
+from . import utils
+import warnings
+import matplotlib as m
+import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+from matplotlib.dates import date2num
+warnings.filterwarnings("ignore")
 
-# main function called by alarm.py
+
 def run_alarm(config,T0):
-	# Download the stroke data from the kml files
-	kmls, v_lats, v_lons = get_kml_name(config.volcanoes)
-	# Parse the stroke data into a pandas DataFrame
-	CAT = parse_data(kmls)
 
-	if len(CAT)==0:
+	### get alerts from volcview api
+	print('Reading in alerts from volcview api .json file')
+	attempt=1
+	max_tries=3
+	while attempt<=max_tries:
+		try:
+			data = json.load(os.popen('curl -H \"username:{}\" -H \"password:{}\" -X GET {}'.format(
+											os.environ['API_USERNAME'],os.environ['API_PASSWORD'],os.environ['LIGHTNING_URL'])))
+			A=pd.DataFrame(data['lightning'])
+			break
+		except:
+			if attempt==max_tries:
+				print('whoops')
+				break
+				state='WARNING'
+				state_message='{} (UTC) Volcview-API webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
+				utils.icinga_state(config,state,state_message)
+				return
+			print('Error opening .json file. Trying again')
+			attempt+=1
+	#################################
+	#################################
+
+	if len(A)>0:
+		A_recent, A_new = get_new_strokes(A,T0,config)
+		volcanoes=A_new.volcanoName.unique()
+	else:
+		volcanoes=[]
+		A_recent=make_blank_df()
+
+	if len(volcanoes)==0:
 		print('****** No lightning detected ******')
 		state='OK'
-		state_message='{} (UTC) {} normal'.format(T0.strftime('%Y-%m-%d %H:%M'),config.alarm_name)
-		CAT=CAT[CAT['time']>(T0-config.duration).strftime('%Y%m%d %H%M%S.%f')]
-		CAT.to_csv(config.outfile,float_format='%.4f',index=False,sep='\t',date_format='%Y%m%dT%H%M%S.%f')
+		state_message='{} (UTC) No new strokes detected'.format(T0.strftime('%Y-%m-%d %H:%M'))
+		A_recent.to_csv(config.outfile,index=False)
+	
 	else:
-		# determine which volcano is closest the most recent stroke
-		CAT=CAT.sort_values(by='time')
-		X=np.array([gps2dist_azimuth(v_lats[i],v_lons[i],CAT.iloc[-1].lats,CAT.iloc[-1].lons) for i,v in enumerate(v_lons)])
-		volcano=config.volcanoes[X[:,0].argmin()]
-		V_LAT=v_lats[X[:,0].argmin()]
-		V_LON=v_lons[X[:,0].argmin()]
+		print('Lightning detected at {:.0f} volcanoe(s)'.format(len(volcanoes)))
+		for v in volcanoes:
+			if not v:
+				print('Null volcano. Skipping...')
+				continue
+			print('--- Processing detects at {} volcano ---'.format(v))
 
-		# count how many in 2 rings in past hour
-		n_ring1, n_ring2 = count_events(V_LAT,V_LON,CAT.lats.values,CAT.lons.values,config)
-		# now check if there are any new strokes
-		lats, lons, times = check_new_strokes(CAT,config,T0)
-		if len(lats)==0:
-			print('********** OLD DETECTION **********')
-			state='WARNING'
-			state_message='{} (UTC) {} Lightning Detection!'.format(T0.strftime('%Y-%m-%d %H:%M'),volcano)
-			state_message='{} {} strokes < 20 km (20 km < {} < 100 km) in past {:.0f} minutes.'.format(state_message,n_ring1,n_ring2,config.duration/60.0)
-		else:
-			print('********** NEW DETECTION **********')
-			dx=np.array([gps2dist_azimuth(V_LAT,V_LON,CAT.lats.values[i],CAT.lons.values[i]) for i,n in enumerate(lats)])[:,0]/1000.
-
-			CAT=CAT[CAT['time']>(T0-config.duration).strftime('%Y%m%d %H%M%S.%f')]
-			CAT.to_csv(config.outfile,float_format='%.4f',index=False,sep='\t',date_format='%Y%m%dT%H%M%S.%f')
-
-			if dx[0]>config.dist1:
-				print('********** DISTAL DETECTION 1st **********')
-				state='WARNING'
-				state_message='{} (UTC) {} Distal Lightning Detection!'.format(T0.strftime('%Y-%m-%d %H:%M'),volcano)
-				state_message='{} {} strokes < 20 km (20 km < {} < 100 km) in past {:.0f} minutes.'.format(state_message,n_ring1,n_ring2,config.duration/60.0)
-			else:
-				print('********** PROXIMAL DETECTION 1st **********')
-				state='CRITICAL'
-				state_message='{} (UTC) {} Lightning Detection!'.format(T0.strftime('%Y-%m-%d %H:%M'),volcano)
-				state_message='{} {} new strokes! {} strokes < 20 km (20 km < {} < 100 km) in past {:.0f} minutes.'.format(state_message,len(lats),n_ring1,n_ring2,config.duration/60.0)
-				### Send Email Notification ####
-				dist, azimuth, az2=gps2dist_azimuth(V_LAT,V_LON,lats.mean(),lons.mean())
-				craft_and_send_email(config,volcano,dist,azimuth,times,CAT)
+			V_new = A_new[A_new['volcanoName']==v]
+			V_recent = get_distances(A_recent,V_new.iloc[0].volcanoLatitude,V_new.iloc[0].volcanoLongitude)
+			V_recent = V_recent[V_recent['latest_distance']<config.dist2]
 			
+			
+			# check if changing volcanoes means no events < dist2 ???????
+			# ????????
+			if len(V_recent)==0:
+				continue
+			
+
+			V_recent = sort_by_time(V_recent)
+			n_ring1, n_ring2 = inner_outer(V_recent.latest_distance,config)
+		
+			if len(A_new)==0:
+				print('********** OLD DETECTION **********')
+				state='WARNING'
+				state_message='{} (UTC) {} Lightning Detection!'.format(T0.strftime('%Y-%m-%d %H:%M'),V_recent.iloc[0].volcanoName)
+				state_message='{} {} strokes < 20 km (20 km < {} < 100 km) in past {:.0f} minutes.'.format(state_message,n_ring1,n_ring2,config.duration/60.0)
+				A_recent.to_csv(config.outfile,index=False)
+
+			else:
+				print('********** NEW DETECTION **********')
+				A_recent.to_csv(config.outfile,index=False)
+			
+				if V_recent.iloc[-1].latest_distance>config.dist1:
+					print('********** DISTAL DETECTION 1st **********')
+					state='WARNING'
+					state_message='{} (UTC) {} Distal Lightning Detection!'.format(T0.strftime('%Y-%m-%d %H:%M'),V_recent.iloc[0].volcanoName)
+					state_message='{} {} strokes < 20 km (20 km < {} < 100 km) in past {:.0f} minutes.'.format(state_message,n_ring1,n_ring2,config.duration/60.0)
+			
+				else:
+					print('********** PROXIMAL DETECTION 1st **********')
+					state='CRITICAL'
+					state_message='{} (UTC) {} Lightning Detection!'.format(T0.strftime('%Y-%m-%d %H:%M'),V_recent.iloc[0].volcanoName)
+					state_message='{} {} new strokes! {} strokes < 20 km (20 km < {} < 100 km) in past {:.0f} minutes.'.format(state_message,len(A_new),n_ring1,n_ring2,config.duration/60.0)
+					
+					### Send Email Notification ####
+					print('Crafting message...')
+					subject, message = create_message(V_recent,V_new,config)
+					try:
+						attachment = plot_fig(V_recent, config, T0)
+					except:
+						attachment = None
+					
+					print('Sending message...')
+					utils.send_alert(config.alarm_name,subject,message,filename=attachment)
+					print('Posting message to Mattermost...')
+					utils.post_mattermost(config,subject,message,filename=attachment)
+					if attachment:
+						os.remove(attachment)
+		
+
 	utils.icinga_state(config,state,state_message)
 
 
-def count_events(V_LAT,V_LON,lats,lons,config):
-	X=np.array([gps2dist_azimuth(V_LAT,V_LON,lats[i],lons[i]) for i,n in enumerate(lats)])
-	X=X[:,0]/1000.0
+def make_blank_df():
+	columns=['dataSource',
+			 'lightningId',
+			 'lightningLatitude',
+			 'lightningLongitude',
+			 'lightningTimestamp',
+			 'nearestDistanceKm',
+			 'volcanoLatitude',
+			 'volcanoLongitude',
+			 'volcanoName',
+			 'datetime']
+	df=pd.DataFrame([],columns=columns)
+
+	for c in df.columns:
+		if c in ['dataSource','volcanoName','datetime']:
+			continue
+		df[c]=pd.to_numeric(df[c])
+	
+	return df
+
+
+def get_new_strokes(A,T0,config):
+
+	# clean up the dataframe, removing excess columns
+	A_recent=A.drop( ['volcanoElevationM', 
+				'nearestVnum', 
+				'peakCurrent', 
+				'residual',
+				'stationTotal', 
+				'usgsDelaySeconds', 
+				'usgsInsertDate',
+				'usgsTimestamp', 
+				'flashType', 
+				'icHeight',
+				'icMultiplicity', 
+				'isAvoInd', 
+				'lightningDate', 
+				'cgMultiplicity'],
+				axis=1)
+
+	# convert strings to numbers
+	for c in A_recent.columns:
+		if c in ['dataSource','volcanoName','datetime']:
+			continue
+		A_recent[c]=pd.to_numeric(A_recent[c])
+
+
+	# get old detections
+	B=pd.read_csv(config.outfile)
+
+	# convert linux time to datetime
+	A_recent['datetime']= pd.to_datetime(A_recent.lightningTimestamp,unit='s')
+	B['datetime'] = pd.to_datetime( B.lightningTimestamp,unit='s')
+
+	# remove detections > X time ago
+	A_recent=A_recent[A_recent['datetime']>(T0-config.duration).strftime('%Y%m%d %H%M%S.%f')]
+	B = B[ B['datetime']>(T0-config.duration).strftime('%Y%m%d %H%M%S.%f')]
+
+
+	# Calculate distance from each stroke to the volcano
+	# & deal with encoding issue in volcanoe name
+	X=np.array([])
+	for i, row in A_recent.iterrows():
+		if row.volcanoName:
+			# A_recent.loc[i,'volcanoName']=row.volcanoName.encode('utf-8')
+			pass
+		x=gps2dist_azimuth(row.lightningLatitude,row.lightningLongitude,row.volcanoLatitude,row.volcanoLongitude)[0]/1000.
+		X=np.append(X,x)
+	A_recent['nearestDistanceKm']=X
+
+	# restric strokes to within the outer ring
+	A_recent=A_recent[A_recent['nearestDistanceKm']<config.dist2]
+	
+	# convert lightningId to integer
+	A_recent['lightningId'] = pd.to_numeric(A_recent['lightningId'])
+
+	# get dataframe containing strokes that haven't already been alerted on
+	A_new = A_recent[ ~A_recent.lightningId.isin(B.lightningId) ]
+
+	return A_recent, A_new
+
+def sort_by_time(df):
+
+	# sort from most recent down to oldest
+	df2=df.copy()
+	df2.sort_values('datetime',inplace=True,ascending=False)
+	df2.reset_index()
+
+	return df2
+
+def get_distances(df,vlat,vlon):
+
+	df2=df.copy()
+
+	# get distance in km for all strokes to volcano nearest to most recent stroke
+	X =np.array([gps2dist_azimuth(vlat,vlon,row.lightningLatitude,row.lightningLongitude)[0]/1000 for i,row in df.iterrows()])
+	AZ=np.array([gps2dist_azimuth(vlat,vlon,row.lightningLatitude,row.lightningLongitude)[1] for i,row in df.iterrows()])
+	
+	df2['latest_distance']=X
+	df2['latest_azimuth']=AZ
+	return df2
+
+def inner_outer(X,config):
+
 	n_ring1=len(X[X<config.dist1])
 	Y=X[X>config.dist1]
 	n_ring2=len(Y[Y<config.dist2])
 
 	return n_ring1, n_ring2
 
-def check_new_strokes(CAT,config,T0):
-
-	L=pd.read_csv(config.outfile,delimiter='\t',parse_dates=['time'])
-	L=L.append(CAT)
-	L=L.drop_duplicates(keep=False)
-	L=L[L['time']>(T0-3600).strftime('%Y%m%d %H%M%S.%f')]
-
-
-	lats=L.lats.values.astype('float')
-	lons=L.lons.values.astype('float')
-	times=L.time.values
-
-	return lats, lons, times
-
-def get_kml_name(volcanoes):
-	V=pd.read_csv(kml_map_file,delim_whitespace=True,names=['Volcano','kml','lon','lat'])
-	kmls=[V[V['Volcano']==v].kml.tolist()[0] for v in volcanoes]
-	v_lats=np.array([V[V['Volcano']==v].lat.tolist()[0] for v in volcanoes])
-	v_lons=np.array([V[V['Volcano']==v].lon.tolist()[0] for v in volcanoes])
-
-	return kmls, v_lats, v_lons
-
-def parse_data(kmls):
-	import urllib2
-	import re
+def get_direction(azimuth):
+	dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW']
+	ix = int(np.round(azimuth / (360. / len(dirs))))
 	
-	lats=list()
-	lons=list()
-	time=list()
+	return dirs[ix % len(dirs)]
 
-	for kml in kmls:
-		data=[]
-		for i in range(3):
-			try:
-				file=urllib2.urlopen(url_base+kml,timeout=4)
-				data=file.read()
-				break
-			except:
-				continue
-
-		lats += re.findall('<li>Lat: ([^<]*)</li>',data)
-		lons += re.findall('<li>Lon: ([^<]*)</li>',data)
-		time += re.findall('<name>(\d[^<]*)</name>',data)
-
-
-	lats=np.array(lats).astype('float')
-	lons=np.array(lons).astype('float')
-	time=pd.to_datetime([t.replace('60Z','59.99Z') for t in time])
-	CAT=pd.DataFrame({'time':time,'lats':lats,'lons':lons})
-	CAT=CAT.drop_duplicates()
-
-	return CAT
-
-def craft_and_send_email(config,volcano,dist,azimuth,times,CAT):
+def create_message(A_recent,A_new,config):
 	# create the subject line
-	subject='--- {} Lightning ---'.format(volcano)
+	subject='--- {} Lightning ---'.format(A_recent.iloc[0].volcanoName)	
 
 	# create the test for the message you want to send
-	message='\n{} new strokes! ({} total)'.format(len(times),len(CAT))
-	message='{}\n{:.0f} km from {}'.format(message,dist/1000.0,volcano)
-	message='{}\nAzimuth: {:.0f} degrees'.format(message,azimuth)
-	message='{}\n\nMost recent:'.format(message)
-	t=pd.Timestamp(times[-1],tz='UTC')
+	if len(A_new)==1:
+		message='\n{} new stroke! ({} total)'.format(len(A_new),len(A_recent))
+	else:
+		message='\n{} new strokes! ({} total)'.format(len(A_new),len(A_recent))
+	message='{}\n\n-- Most recent --'.format(message)
+	t=pd.Timestamp(A_recent.iloc[0].datetime,tz='UTC')
 	message='{}\n{} (UTC)'.format(message,t.strftime('%Y-%m-%d %H:%M:%S'))
 	t_local=t.tz_convert(os.environ['TIMEZONE'])
 	message='{}\n{} ({})'.format(message,t_local.strftime('%Y-%m-%d %H:%M:%S'),t_local.tzname())
+	message='{}\n{:.0f} km {} of {}'.format(message,A_recent.iloc[0].latest_distance,get_direction(A_recent.iloc[0].latest_azimuth),A_recent.iloc[0].volcanoName)
+	message='{}\n\nData source: {}'.format(message,', '.join(A_new.dataSource.unique()).replace('EN','Earth Networks'))
+	
+	return subject, message
 
-	utils.send_alert(config.alarm_name,subject,message,filename=None)
-	# utils.post_mattermost(subject,message,filename=None)
-	utils.post_mattermost(config,subject,message,filename=None)
+def plot_fig(A_recent, config, T0):
+	m.use('Agg')
+
+	# Create figure
+	plt.figure(figsize=(3.4,3.15))	
+	ax=plt.subplot(1,1,1)
+	plt.title('--- {} Lightning ---\n{} UTC'.format(A_recent.iloc[0].volcanoName,A_recent.iloc[0].datetime.strftime('%Y-%m-%d %H:%M:%S')),fontsize=8)
+
+	# Make the map
+	lat0=A_recent.iloc[0].volcanoLatitude
+	lon0=A_recent.iloc[0].volcanoLongitude
+	m_map,inmap=utils.make_map(ax,lat0,lon0,main_dist=50,inset_dist=500,scale=15)
+
+	try:
+		volcs=pd.read_csv('alarm_aux_files/volcanoes_kml.txt',delimiter='\t',names=['Volcano','kml','Lon','Lat'])
+		volcs['dist']= [gps2dist_azimuth(lat,lon,lat0,lon0)[0]/1000 for lat,lon in zip(volcs.Lat.values,volcs.Lon.values)]
+		volcs.sort_values('dist',inplace=True)
+		m_map.plot(volcs.Lon.values[1:10],volcs.Lat.values[1:10],'^',latlon=True,markerfacecolor='forestgreen',markeredgecolor='black',markersize=4,markeredgewidth=0.5)
+	except:
+		pass
+
+	if len(A_recent)>1:
+		G=A_recent.copy()
+		G.sort_values('datetime',inplace=True,ascending=True)
+		time=date2num(G.datetime)
+		map_hdl=m_map.scatter(G.lightningLongitude.values,G.lightningLatitude.values,s=18,c=time,cmap='plasma',vmin=date2num((T0-config.duration).datetime), vmax=date2num(T0.datetime),edgecolors='k',linewidth=0.2,latlon=True,zorder=1e5)
+		cbaxes = inset_axes(m_map.ax, height="70%", width="4%", loc=6,borderpad=-1) 
+		cbar=plt.colorbar(map_hdl,cax=cbaxes,orientation='vertical')
+		cbaxes.yaxis.set_ticks_position('left')
+		cbar.set_ticks([date2num((T0-config.duration).datetime), date2num(T0.datetime)])
+		cbar.set_ticklabels(['{:.0f}\nmin\nago'.format(config.duration/60.0),'Now'])
+		cbar.ax.tick_params(labelsize=6)
+	else:
+		m_map.plot(A_recent.lightningLongitude.values,A_recent.lightningLatitude.values,'o',latlon=True,markerfacecolor='yellow',markeredgecolor='black',markersize=4,markeredgewidth=0.2)
+	
+	inmap.plot(lon0,lat0,'^',latlon=True,markerfacecolor='forestgreen',markeredgecolor='white',markersize=4,markeredgewidth=0.5)
+
+	jpg_file=utils.save_file(plt,config,dpi=300)
+
+	return jpg_file

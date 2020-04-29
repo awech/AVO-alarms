@@ -1,4 +1,4 @@
-alarm_type = 'Lightning'
+alarm_type = 'Lightning_old'
 alarm_name = 'East Aleutians Lightning' 
 
 # Volcano names in question

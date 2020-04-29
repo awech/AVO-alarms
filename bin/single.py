@@ -1,41 +1,33 @@
 #!/home/rtem/miniconda/envs/py_alarms/bin/python
 # -*- coding: utf-8 -*-
-import sys,os
+from __future__ import print_function
+import sys,os, errno
 
 doc="""Usage: {me} [options] -c command args..
-
 {me}: A wrapper command to provide an advisory lock, without leaving stale lock files.
-
 Options:
   -h, --help            show this help message and exit
   -f LOCK_FILE, --lock-file=LOCK_FILE
                         Path to the lock file. Default is provided based on the command path if omitted.
   -s, --status          Check to see if the file is locked, and if so, by which process. Exit status is 0
                         if unlocked, 1 if locked.
-
 flock(2)'ed file is used to provide locking. This will not leave stale lock files around. 
 Note that the existance of lock file does not mean that there is an outstanding lock; 
 exclusive flock must be held by a process. 
 So use '{me} --status -f /tmp/foo.lock' to see if the lock is held. 
-
 The OS releases the lock upon process termination, so the lock file is released 
 regardless of how the job terminated.
-
 Invocations: 
-
 * {me} -c long-running-scrit arg1 arg2
   will ensure only one long-running-scrit will run at a time.
   Default lock file, specific to the command, is used in the absence of -f option.
-
 * Lockfile can be explicitely specified as:
   {me} -f /tmp/lrs-foo.lock -c long-running-scrit foo
   Two jobs using the same command could be run concurrently by using different lock files, like:
   {me} -f /tmp/lrs-bar.lock -c long-running-scrit bar
-
 * Use --status (-s) option to check if a command or a file is locked:
   {me} -s -f /tmp/foo.lock
   {me} -s -c long-running-scrit 
-
 Example: $ {me} -c sleep 3 & for x in {{0..6}}; do {me} -s -c sleep; sleep 1; done
   [1] 32567
   locked by 32567: /tmp/single.py_bin_sleep.flock
@@ -44,12 +36,11 @@ Example: $ {me} -c sleep 3 & for x in {{0..6}}; do {me} -s -c sleep; sleep 1; do
   [1]+  Done                    {me} sleep 5
   not locked: /tmp/single.py_bin_sleep.flock
   not locked: /tmp/single.py_bin_sleep.flock
-
 """.format(me=os.path.basename(sys.argv[0]))
 
 from datetime import datetime
 from optparse import OptionParser
-from fcntl import flock,LOCK_SH,LOCK_EX,LOCK_UN,LOCK_NB
+from fcntl import flock,LOCK_SH,LOCK_EX,LOCK_UN,LOCK_NB,F_GETFD,F_SETFD,FD_CLOEXEC,fcntl
 from subprocess import Popen, PIPE
 
 class CommandNotFound(Exception): pass
@@ -66,9 +57,15 @@ class Lock(object):
 
         self.lock_fh=os.open(self.lock_file, os.O_CREAT|os.O_RDWR) # read/write without truncate
         try:
+            flags = fcntl(self.lock_fh, F_GETFD, 0)
+            if flags & FD_CLOEXEC:
+                flags &= ~FD_CLOEXEC
+            fcntl(self.lock_fh, F_SETFD, flags)
+
             flock(self.lock_fh, LOCK_EX|LOCK_NB)
-        except IOError, e:
-            if e.args[0]==11: # Resource temporarily unavailable
+        except IOError as e:
+
+            if e.args[0]==errno.EAGAIN: # Resource temporarily unavailable
                 return False
             else:
                 raise
@@ -95,7 +92,7 @@ class Lock(object):
 
     def write_pid(self):
         os.ftruncate(self.lock_fh, 0)
-        os.write(self.lock_fh, '%d\n' % os.getpid())
+        os.write(self.lock_fh, b'%d\n' % os.getpid())
         os.fsync(self.lock_fh)
 
     def read_pid(self):
@@ -107,7 +104,7 @@ class Lock(object):
 
         try:
             return int(content.strip())
-        except Exception, e:
+        except Exception as e:
             e.args+=(content, self.lock_file)
             raise
 
@@ -125,7 +122,7 @@ def default_lock_file(cmd):
     Thus the resolved command executable (without regards to the args) should be used for the name space.
     """
     out,err=Popen(['which', cmd], stdout=PIPE, stderr=PIPE).communicate()
-    cmd_path=out.strip()
+    cmd_path=out.strip().decode()
     if not cmd_path:
         raise CommandNotFound('no such command:', cmd)
     return '/tmp/%s%s.flock' % (os.path.basename(sys.argv[0]), cmd_path.replace('/','_'))
@@ -139,10 +136,10 @@ def do_status(lock_file):
     lock=Lock(lock_file)
     gotit,pid=lock.lock_pid()
     if gotit:
-        print 'not locked: %s' % (lock_file)
+        print('not locked: %s' % (lock_file))
         return 0
 
-    print 'locked by %d: %s' % (pid, lock_file)
+    print('locked by %d: %s' % (pid, lock_file))
     return 1
 
 def wrap(lock_file, cmd_tokens):
@@ -150,8 +147,8 @@ def wrap(lock_file, cmd_tokens):
     lock=Lock(lock_file)
     gotlock, pid=lock.lock_pid()
     if not gotlock:
-        print >>sys.stderr, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), \
-            'locked by ', pid, 'exiting:', ' '.join(cmd_tokens)
+        print(datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 'locked by ', pid,
+              'exiting:', ' '.join(cmd_tokens), file=sys.stderr)
         sys.exit(1)
     else:
         os.execvp(cmd_tokens[0], cmd_tokens)
@@ -192,17 +189,17 @@ def main():
     (opt, xargs) = parser.parse_args(args_for_me)
 
     if opt.help:
-        print doc
+        print(doc)
         sys.exit(0)
     
     if not cmd_tokens:
-        print doc
+        print(doc)
         sys.exit(1)
     
     try:
         lock_file=opt.lock_file or default_lock_file(cmd_tokens[0])
-    except CommandNotFound, e:  # concise message for unresolved command
-        print >>sys.stderr, ' '.join(e.args)
+    except CommandNotFound as e:  # concise message for unresolved command
+        print(' '.join(e.args), file=sys.stderr)
         sys.exit(1)
 
     if opt.status:

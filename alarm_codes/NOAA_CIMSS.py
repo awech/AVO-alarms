@@ -10,10 +10,8 @@ from urllib.parse import urlparse, urljoin
 from bs4 import BeautifulSoup
 import re
 import matplotlib as m
-from mpl_toolkits.basemap import Basemap
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
-from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import matplotlib.image as mpimg
 from textwrap import wrap
 
@@ -38,8 +36,8 @@ def run_alarm(config,T0):
 				print('whoops')
 				break
 				state='WARNING'
-				state_message='{} (UTC) webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
-				# utils.icinga_state(config,state,state_message)
+				state_message='{} (UTC) Volcview webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
+				utils.icinga_state(config,state,state_message)
 				return
 			print('Error opening .json file. Trying again')
 			attempt+=1
@@ -58,12 +56,18 @@ def run_alarm(config,T0):
 			dist, azimuth, az2=gps2dist_azimuth(lat,lon,alert.lat_rc,alert.lon_rc)
 			DIST=np.append(DIST,dist/1000.)
 		
-		if DIST.min()<config.max_distance:
+		if DIST.min()>=config.max_distance:
+			state='OK'
+			state_message='{} (UTC) No new NOAA CIMMS alerts'.format(T0.strftime('%Y-%m-%d %H:%M'))
+		
+		else:
 			
 			print('Found alert <{:g} km from volcanoes!'.format(config.max_distance))
 			old_alerts=pd.read_csv(config.outfile,names=['ids']).ids.values
 			if int(alert.alert_url.split('/')[-1]) in old_alerts:
 				print('....just kidding! Old alert.')
+				state='OK'
+				state_message='{} (UTC) No new NOAA CIMMS alerts'.format(T0.strftime('%Y-%m-%d %H:%M'))
 				continue
 			else:
 				print('New Alert! Getting images and additional info from NOAA CIMSS webpage...')
@@ -78,16 +82,16 @@ def run_alarm(config,T0):
 					except:
 						if attempt==max_tries:
 							print('Error reading NOAA CIMSS page')
+							state='WARNING'
+							state_message='{} (UTC) NOAA/CIMSS webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
 							continue
 						attempt+=1
-
 
 				instrument=get_instrument(soup)
 				height_text=get_height_txt(soup)
 				get_cimss_image(soup,alert)
 				print('Done.')
 				print('Trying to make figure attachment')
-				attachment=plot_fig(alert,volcs,config)
 				try:
 					attachment=plot_fig(alert,volcs,config)
 					print('Figure generated successfully')
@@ -111,9 +115,14 @@ def run_alarm(config,T0):
 				print('Posting to mattermost...')
 				utils.post_mattermost(config,subject,message,filename=attachment)
 
+				state='CRITICAL'
+				state_message='{} (UTC) {}'.format(T0.strftime('%Y-%m-%d %H:%M'),subject)
+
 				# delete the file you just sent
 				if attachment:
 					os.remove(attachment)
+
+	utils.icinga_state(config,state,state_message)
 
 
 def create_message(alert,instrument,height_text,volcs):
@@ -201,47 +210,23 @@ def get_cimss_image(soup,alert):
 def plot_fig(alert,volcs,config):	
 	m.use('Agg')
 
-	latlims=[alert.lat_rc-2,alert.lat_rc+2]
-	lonlims=[alert.lon_rc-4,alert.lon_rc+4]
-	m_map = Basemap(projection='tmerc',llcrnrlat=latlims[0],urcrnrlat=latlims[1],
-								  llcrnrlon=lonlims[0],urcrnrlon=lonlims[1],lat_0=alert.lat_rc,lon_0=alert.lon_rc,
-								  resolution='i',area_thresh=25.0)
-
 	#Create figure
-	plt.figure(figsize=(3,6.6))
-
+	plt.figure(figsize=(3,6.6))	
 	ax=plt.subplot(3,1,3)
-	m_map.drawcoastlines()
-	m_map.drawmapboundary(fill_color='gray')
-	m_map.fillcontinents(color='black',lake_color='gray')
-	m_map.plot(alert.lon_rc,alert.lat_rc,'yo',latlon=True,markeredgecolor='white',markersize=6,markeredgewidth=0.5)
+
+	lat0=alert.lat_rc
+	lon0=alert.lon_rc
+	m_map,inmap=utils.make_map(ax,lat0,lon0,main_dist=150,inset_dist=400,scale=50)
+
+	m_map.plot(lat0,lon0,'o',latlon=True,markeredgecolor='black',markerfacecolor='gold',markersize=6,markeredgewidth=0.5)
 	v=volcs.copy().sort_values('distance')
-	m_map.plot(v.Lon.values[:10],v.Lat.values[:10],'^r',latlon=True,markeredgecolor='black',markersize=4,markeredgewidth=0.5)
+	m_map.plot(v.Lon.values[:10],v.Lat.values[:10],'^',latlon=True,markerfacecolor='forestgreen',markeredgecolor='black',markersize=4,markeredgewidth=0.5)
 
-	parallels=np.array([np.round(alert.lat_rc*10)/10.-0.8,np.round(alert.lat_rc*10)/10.+0.8])
-	meridians=np.array([np.round(alert.lon_rc*10)/10.-1.5,np.round(alert.lon_rc*10)/10.+1.5])
-	m_map.drawparallels(parallels,color='w',textcolor='k',linewidth=0.5,dashes=[1,4],labels=[True,False,False,True],fontsize=6)
-	m_map.drawmeridians(meridians,color='w',textcolor='k',linewidth=0.5,dashes=[1,4],labels=[False,True,False,True],fontsize=6)
-
-	m_map.ax = ax
-
-    # Inset map.
-	axin = inset_axes(m_map.ax, width="25%", height="25%", loc=1,borderpad=0.3)
-	latlims=[50.0,58.0]
-	lonlims=[-189.9,-145]
-
-	inmap = Basemap(projection='eqdc',lat_1=latlims[0],lat_2=latlims[1],
-					lat_0=alert.lat_rc,lon_0=alert.lon_rc,width=3500000,height=3000000,
-					resolution='i',area_thresh=100.0)
-
-	inmap.drawcountries(color='0.2',linewidth=0.5)
-	inmap.fillcontinents(color='gray')
-	inmap.drawmapboundary(color='white',fill_color='gray')
-	inmap.fillcontinents(color='black',lake_color='gray')
+	# draw rectangle on inset map
 	bx, by = inmap(m_map.boundarylons, m_map.boundarylats)
 	xy = list(zip(bx, by))
-	mapboundary = Polygon(xy, edgecolor='y', linewidth=1, fill=False)
-	axin.add_patch(mapboundary)
+	mapboundary = Polygon(xy, edgecolor='firebrick', linewidth=0.5, fill=False)
+	inmap.ax.add_patch(mapboundary)
 
 
 	img1 = mpimg.imread('alarm_aux_files/noaa_out1.png')

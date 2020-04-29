@@ -69,7 +69,7 @@ def run_alarm(config,T0):
 																UTCDateTime(date + time).strftime('%Y-%m-%d %H:%M'))
 		state='WARNING'
 	else:
-		state_message='{} (UTC) SO2 normal'.format(T0.strftime('%Y-%m-%d %H:%M'))
+		state_message='{} (UTC) No new SO2 detections'.format(T0.strftime('%Y-%m-%d %H:%M'))
 		state='OK'
 
 	# send heartbeat status message to icinga

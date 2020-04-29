@@ -12,7 +12,7 @@ from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from obspy import Trace
-from numpy import zeros, round, dtype
+from numpy import zeros, round, dtype, cos, pi
 from obspy import Stream
 from obspy.clients.earthworm import Client
 from pandas import read_excel
@@ -190,6 +190,61 @@ def post_mattermost(config,subject,body,filename=None):
 		conn.post(message, file_paths=files)
 	except:
 		conn.post(message, file_paths=files)
+
+
+def make_map(ax,lat0,lon0,main_dist=50,inset_dist=500,scale=15):
+	from mpl_toolkits.basemap import Basemap
+	from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+
+	dlat=1*(main_dist/111.1)
+	dlon=dlat/cos(lat0*pi/180)
+	latmin= lat0 - dlat
+	latmax= lat0 + dlat
+	lonmin= lon0 - dlon
+	lonmax= lon0 + dlon
+
+	m_map = Basemap(projection='merc',llcrnrlat=latmin,urcrnrlat=latmax,
+							  llcrnrlon=lonmin,urcrnrlon=lonmax,lat_ts=lat0,resolution='h')		
+
+
+	land_color='silver'
+	water_color='lightblue'
+	try:
+		m_map.drawcoastlines(linewidth=0.5)
+	except:
+		pass
+	m_map.drawmapboundary(fill_color=water_color)
+	m_map.fillcontinents(color=land_color,lake_color=water_color)
+	m_map.drawparallels([lat0-dlat/2,lat0+dlat/2],labels=[0,1,0,0],dashes=[8, 4],linewidth=0.2,fmt='%.2f',fontsize=6)
+	m_map.drawmeridians([lon0-dlon/2,lon0+dlon/2],labels=[0,0,0,1],dashes=[8, 4],linewidth=0.2,fmt='%.2f',fontsize=6)
+	m_map.drawmapscale(lon0-.7*dlon, lat0-.8*dlat, lon0, lat0, scale, barstyle='simple', units='km', fontsize=8, 
+				    labelstyle='simple', fontcolor='k', linewidth=0.5, ax=None, format='%d', zorder=None)
+
+	m_map.ax = ax
+
+	# Inset map.
+	axin = inset_axes(m_map.ax, width="25%", height="25%", loc=1,borderpad=-1.5)
+
+	dlat=1.75*(inset_dist/111.1)
+	dlon=2*dlat/cos(lat0*pi/180)
+	latmin= lat0 - dlat
+	latmax= lat0 + dlat
+	lonmin= lon0 - dlon
+	lonmax= lon0 + dlon
+
+
+	inmap = Basemap(projection='merc',llcrnrlat=latmin,urcrnrlat=latmax,
+							  llcrnrlon=lonmin,urcrnrlon=lonmax,lat_ts=lat0,resolution='i',area_thresh=50.0)		
+
+	inmap.drawcoastlines(linewidth=0.2)
+	inmap.drawcountries(color='0.2',linewidth=0.2)
+	inmap.fillcontinents(color=land_color)
+	inmap.drawmapboundary(color='black',fill_color=water_color,linewidth=0.5)
+	inmap.fillcontinents(color=land_color,lake_color=water_color)
+
+	inmap.ax=axin
+
+	return m_map, inmap
 
 
 def save_file(plt,config,dpi=250):

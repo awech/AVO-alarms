@@ -3,8 +3,8 @@ import os
 import sys
 from obspy import UTCDateTime
 
-sys.path.append(os.environ['HOME_DIR'])
-os.chdir(os.environ['HOME_DIR'])
+import sys
+sys.path.append('/alarms3')
 from alarm_codes import utils
 
 if os.getenv('FROMCRON') == 'yep':

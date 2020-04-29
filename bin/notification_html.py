@@ -6,6 +6,10 @@ import pandas as pd
 from glob import glob
 import numpy as np
 
+import sys
+sys.path.append('/alarms3')
+from alarm_codes import utils
+
 A=pd.read_excel(os.environ['HOME_DIR']+'/distribution.xlsx')
 del A['Error']
 A.rename(columns={'Name':'who','Email':'address'},inplace=True)
@@ -54,6 +58,6 @@ A=A.replace('phone','cell',regex=True)
 B=A.style.set_properties(**{'font-family':'Hevletica'})
 B=B.applymap(highlight_vals)
 a=B.render()
-g=open(os.environ['HOME_DIR']+'/www/distribution.html','w')
+g=open(os.environ['HOME_DIR']+'/www/index.html','w')
 g.write(a)
 g.close()

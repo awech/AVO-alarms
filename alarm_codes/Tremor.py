@@ -1,6 +1,5 @@
-from __future__ import division
 from . import utils
-from alarm_codes.RSAM import make_figure
+from . import RSAM
 from obspy import UTCDateTime
 from obspy.core.util import AttribDict
 import numpy as np
@@ -15,7 +14,7 @@ from XC_loc import XC_main
 def run_alarm(config,T0):
 
 	time.sleep(config.latency+config.taper)
-	state_message='{} (UTC) {}'.format(T0.strftime('%Y-%m-%d %H:%M'),config.alarm_name)
+	state_message='{} (UTC)'.format(T0.strftime('%Y-%m-%d %H:%M'))
 	CAT=read_csv(config.catalog_file,delimiter='\t',parse_dates=['time'])
 	CAT=CAT[CAT['time']>(T0-config.duration).strftime('%Y%m%d %H%M%S.%f')]
 
@@ -38,10 +37,10 @@ def run_alarm(config,T0):
 		state='WARNING'
 		utils.icinga_state(config.alarm_name,state,state_message)
 		return
-    #################################
-    
+	#################################
 
-    #################################
+
+	#################################
 	######## preprocess data ########
 	band_env, high_env, band = preprocess(st,config,t1,t2)
 	rsam_st=st.select(id=config.rsam_station)
@@ -52,14 +51,12 @@ def run_alarm(config,T0):
 
 	#################################
 	######### get locations #########
-	grid_file=None
-	if hasattr(config,'grid_file') and os.path.exists(config.grid_file):
-		grid_file=config.grid_file
-	try:
+	# if hasattr(config,'grid_file') and os.path.exists(config.grid_file):
+	if test_traveltime(st,config):
 		XC  = XC_main.XCOR(band_env,visual=False,bootstrap=config.bstrap,bootstrap_prct=config.bstrap_prct,
 						Cmin=config.Cmin,Cmax=config.Cmax,env_hp=high_env,grid_size=config.grid,
-						tt_file=grid_file,phase_types=config.phase_list)
-	except:
+						tt_file=config.grid_file,phase_types=config.phase_list)
+	else:
 		XC  = XC_main.XCOR(band_env,visual=False,bootstrap=config.bstrap,bootstrap_prct=config.bstrap_prct,
 							Cmin=config.Cmin,Cmax=config.Cmax,env_hp=high_env,grid_size=config.grid)
 		XC.save_traveltimes(config.grid_file)
@@ -86,6 +83,7 @@ def run_alarm(config,T0):
 	##### create icinga message #####
 	num_overlap        = len(np.where(np.diff(CAT['time'].values))[0]==config.window_length/2)
 	duration           = (config.window_length*len(CAT)-(config.window_length/2)*num_overlap)/60
+
 	duration_text = 'Correlated seismicity in {} of past {} minutes.'.format(minutes2string(duration),minutes2string(config.duration/60))
 	if duration>0:
 		last=UTCDateTime(Timestamp(CAT.time.values[-1]).to_pydatetime())+config.window_length
@@ -96,37 +94,60 @@ def run_alarm(config,T0):
 	recency_text = '{} {} RSAM:{:.0f}/{:.0f}'.format(recency_text, config.rsam_station.split('.')[1],rsam,config.rsam_threshold)
 
 	####### set icinga statu##s #####
-	if len(CAT)<config.threshold/2:
-		state_message='{} - Normal seismicity. {} {}'.format(state_message,duration_text,recency_text)
+	if duration<config.threshold/2:
+		state_message='{} Seismicity normal. {} {}'.format(state_message,duration_text,recency_text)
 		state='OK'
-	elif len(CAT)>=config.threshold/2 and len(CAT)< config.threshold:
-		state_message='{} - Elevated seismicity. {} {}'.format(state_message,duration_text,recency_text)
+	elif duration>=config.threshold/2 and duration< config.threshold:
+		state_message='{} Elevated seismicity. {} {}'.format(state_message,duration_text,recency_text)
 		state='WARNING'
-	elif len(CAT)>config.threshold and rsam < config.rsam_threshold:
-		state_message='{} - Tremor/Swarm detection, but low amplitude. {} {}'.format(state_message,duration_text,recency_text)
+	elif duration>=config.threshold and rsam < config.rsam_threshold:
+		state_message='{} Tremor/Swarm detection, but low amplitude. {} {}'.format(state_message,duration_text,recency_text)
 		state='WARNING'
 	else:
-		state_message='{} - Tremor/Swarm detection! {} {}'.format(state_message,duration_text,recency_text)
+		state_message='{} Tremor/Swarm detection! {} {}'.format(state_message,duration_text,recency_text)
 		state='CRITICAL'
 
-        #### Generate Figure ####
+		#### Generate Figure ####
 		try:
-			filename=make_figure(SCNL['scnl'].tolist(),T0,config)
+			filename=RSAM.make_figure(SCNL['scnl'].tolist(),T0,config)
 		except:
 			filename=[]
 
-        ### Craft message text ####
+		### Craft message text ####
 		subject, message = create_message(T0-config.duration,T0,config.alarm_name,duration_text)
 
-        ### Send message ###
-        utils.send_alert(config.alarm_name,subject,message,filename)
-        utils.post_mattermost(config,subject,message,filename)
-        # delete the file you just sent
-        if filename:
-            os.remove(filename)
+		### Send message ###
+		utils.send_alert(config.alarm_name,subject,message,filename)
+		utils.post_mattermost(config,subject,message,filename)
+		# delete the file you just sent
+		if filename:
+			os.remove(filename)
 	#################################
 
 	utils.icinga_state(config,state,state_message)
+
+
+def test_traveltime(st,config):
+	if not os.path.exists(config.grid_file):
+		return False
+
+	npzfile = np.load(config.grid_file)
+	new_grd = config.grid
+	if not np.array_equal(new_grd['lats'],npzfile['lats']):
+		print('Latitude grid nodes do not match. Calculate new travel times')
+		return False
+	elif not np.array_equal(new_grd['lons'],npzfile['lons']):
+		print('Longitude grid nodes do not match. Calculate new travel times')
+		return False
+	elif not np.array_equal(new_grd['deps'],npzfile['deps']):	
+		print('Depth grid nodes do not match. Calculate new travel times')
+		return False
+	for tr in st:
+		if tr.id.replace('.','_') not in npzfile.keys():
+			print('No travel times for {}! Calculate new travel times'.format(tr.id))
+			return False
+
+	return True
 
 
 def create_message(t1,t2,alarm_name,statement):
@@ -160,8 +181,8 @@ def preprocess(st,config,t1,t2):
 	st.detrend('demean')
 	st.taper(max_percentage=None,max_length=config.taper)
 
-	band=st.copy().filter('bandpass',freqmin=config.f1,freqmax=config.f2,corners=2,zerophase=True)
-	high=st.copy().filter('highpass',freq=config.highpass,corners=2,zerophase=True)
+	band=st.copy().filter('bandpass',freqmin=config.f1,freqmax=config.f2,corners=3,zerophase=True)
+	high=st.copy().filter('highpass',freq=config.highpass,corners=3,zerophase=True)
 
 	band_env=make_env(band.copy(),config,t1,t2)
 	high_env=make_env(high,config,t1,t2)
@@ -172,13 +193,14 @@ def preprocess(st,config,t1,t2):
 def qc_checks(st):
 	for tr in st:
 		num_zeros=len(np.where(tr.data==0)[0])
-        if num_zeros/float(tr.stats.npts)>0.03:
-            st.remove(tr)
+		if num_zeros/float(tr.stats.npts)>0.03:
+			st.remove(tr)
 	lats=[]
 	for tr in st:
 		lats.append(tr.stats.coordinates.latitude)
 
 	return len(np.unique(lats))
+
 
 def remove_hp_detects(loc):
 	A=loc.copy()
@@ -190,13 +212,6 @@ def remove_hp_detects(loc):
 def make_env(st,config,t1,t2):
 	new_st = st.copy()
 	for tr in new_st:
-		# if tr.stats['sampling_rate']==100:
-		# 	tr.decimate(2)
-		# if tr.stats['sampling_rate']==50:
-		# 	tr.decimate(2)
-		# if tr.stats['sampling_rate']!=25:
-		# 	tr.resample(25.0)
-		# tr.data = envelope(tr.data)
 		if tr.stats.sampling_rate>21:
 			tr.resample(25.0)
 		if tr.stats.npts % 2 ==1:
@@ -205,7 +220,6 @@ def make_env(st,config,t1,t2):
 		tr.resample(5.0)
 
 	new_st.filter('lowpass',freq=config.lowpass,corners=2,zerophase=True)
-	# new_st.decimate(5)
 
 	new_st.trim(t1+config.taper,t2-config.taper+1,fill_value=0,pad=True)
 
@@ -213,19 +227,19 @@ def make_env(st,config,t1,t2):
 
 
 def add_coordinate_info(st,SCNL):
-    #### compare remaining stations with lat/lon station info in config file
-    #### to attach lat/lon info with each corresponding trace
-    for tr in st:
-        if tr.stats.location=='':
-            tr.stats.location='--'
-        tmp_scnl='{}.{}.{}.{}'.format(tr.stats.station,
+	#### compare remaining stations with lat/lon station info in config file
+	#### to attach lat/lon info with each corresponding trace
+	for tr in st:
+		if tr.stats.location=='':
+			tr.stats.location='--'
+		tmp_scnl='{}.{}.{}.{}'.format(tr.stats.station,
                                       tr.stats.channel,
                                       tr.stats.network,
                                       tr.stats.location)
-        tmp_lat=SCNL[SCNL['scnl']==tmp_scnl].lat.values[0]
-        tmp_lon=SCNL[SCNL['scnl']==tmp_scnl].lon.values[0]
-        tr.stats.coordinates=AttribDict({
+		tmp_lat=SCNL[SCNL['scnl']==tmp_scnl].lat.values[0]
+		tmp_lon=SCNL[SCNL['scnl']==tmp_scnl].lon.values[0]
+		tr.stats.coordinates=AttribDict({
                                 'latitude': tmp_lat,
                                 'longitude': tmp_lon,
                                 'elevation': 0.0})
-    return st
+	return st

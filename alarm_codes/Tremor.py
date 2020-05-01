@@ -45,13 +45,20 @@ def run_alarm(config,T0):
 	band_env, high_env, band = preprocess(st,config,t1,t2)
 	rsam_st=st.select(id=config.rsam_station)
 	rsam_st.filter('bandpass',freqmin=config.f1,freqmax=config.f2,corners=3,zerophase=True)
-	rsam=np.sqrt(np.mean(np.square(rsam_st[0].data)))
+	if rsam_st:
+		rsam=np.sqrt(np.mean(np.square(rsam_st[0].data)))
+		rsam_test=rsam
+	else:
+		rsam=0
+		rsam_test=config.rsam_threshold+1 # test station missing data, make sure alarm can still fire
+		subject = config.alarm_name + ' error'
+		message = 'RSAM test station: ' +config.rsam_station +' is missing. Consider replacing SCNL'
+		utils.send_alert('Error',subject,message) # warn of missing station
 	#################################
 
 
 	#################################
 	######### get locations #########
-	# if hasattr(config,'grid_file') and os.path.exists(config.grid_file):
 	if test_traveltime(st,config):
 		XC  = XC_main.XCOR(band_env,visual=False,bootstrap=config.bstrap,bootstrap_prct=config.bstrap_prct,
 						Cmin=config.Cmin,Cmax=config.Cmax,env_hp=high_env,grid_size=config.grid,
@@ -84,12 +91,12 @@ def run_alarm(config,T0):
 	num_overlap        = len(np.where(np.diff(CAT['time'].values))[0]==config.window_length/2)
 	duration           = (config.window_length*len(CAT)-(config.window_length/2)*num_overlap)/60
 
-	duration_text = 'Correlated seismicity in {} of past {} minutes.'.format(minutes2string(duration),minutes2string(config.duration/60))
+	duration_text = 'Seismicity detected in {} of past {} minutes.'.format(minutes2string(duration),minutes2string(config.duration/60))
 	if duration>0:
 		last=UTCDateTime(Timestamp(CAT.time.values[-1]).to_pydatetime())+config.window_length
 		recency_text = 'Most recent: {} minutes ago'.format(minutes2string((T0-last)/60))
 	else:
-		duration_text = 'No correlated seismicity in the past {} minutes.'.format(minutes2string(config.duration/60))
+		duration_text = 'No seismicity detected in the past {} minutes.'.format(minutes2string(config.duration/60))
 		recency_text = ''
 	recency_text = '{} {} RSAM:{:.0f}/{:.0f}'.format(recency_text, config.rsam_station.split('.')[1],rsam,config.rsam_threshold)
 
@@ -100,28 +107,37 @@ def run_alarm(config,T0):
 	elif duration>=config.threshold/2 and duration< config.threshold:
 		state_message='{} Elevated seismicity. {} {}'.format(state_message,duration_text,recency_text)
 		state='WARNING'
-	elif duration>=config.threshold and rsam < config.rsam_threshold:
+	elif duration>=config.threshold and rsam_test < config.rsam_threshold:
 		state_message='{} Tremor/Swarm detection, but low amplitude. {} {}'.format(state_message,duration_text,recency_text)
 		state='WARNING'
 	else:
-		state_message='{} Tremor/Swarm detection! {} {}'.format(state_message,duration_text,recency_text)
-		state='CRITICAL'
+		# elevated seismicity but no new events
+		if len(loc.events)==0:
+			print('elevated seismicity but no new events')
+			state_message='{} Tremor/Swarm detection! {} {}'.format(state_message,duration_text,recency_text)
+			state='WARNING'
+		# elevated seismicity + new events
+		else:
+			print('Elevated Seismicity. New event(s) detected!')
+			state_message='{} Tremor/Swarm detection! {} {}'.format(state_message,duration_text,recency_text)
+			state='CRITICAL'
+			#### Generate Figure ####
+			try:
+				print('Making figure')
+				filename=RSAM.make_figure(SCNL['scnl'].tolist(),T0,config)
+			except:
+				print('Figure failed. Continue...')
+				filename=[]
 
-		#### Generate Figure ####
-		try:
-			filename=RSAM.make_figure(SCNL['scnl'].tolist(),T0,config)
-		except:
-			filename=[]
+			### Craft message text ####
+			subject, message = create_message(T0-config.duration,T0,config.alarm_name,duration_text)
 
-		### Craft message text ####
-		subject, message = create_message(T0-config.duration,T0,config.alarm_name,duration_text)
-
-		### Send message ###
-		utils.send_alert(config.alarm_name,subject,message,filename)
-		utils.post_mattermost(config,subject,message,filename)
-		# delete the file you just sent
-		if filename:
-			os.remove(filename)
+			### Send message ###
+			utils.send_alert(config.alarm_name,subject,message,filename)
+			utils.post_mattermost(config,subject,message,filename)
+			# delete the file you just sent
+			if filename:
+				os.remove(filename)
 	#################################
 
 	utils.icinga_state(config,state,state_message)

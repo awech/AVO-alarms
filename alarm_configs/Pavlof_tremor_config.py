@@ -1,6 +1,9 @@
 alarm_type = 'Tremor'				# this designates which alarm module will be imported and executed
 alarm_name = 'Pavlof Tremor'		# this is the alarm name sent to icinga and in message alerts
 
+
+##############################################
+######### alarm threshold parameters #########
 SCNL=[
 {'scnl':  'HAG.SHZ.AV.--', 'lat':	55.317, 'lon':	-161.905 },
 {'scnl': 'PS4A.BHZ.AV.--', 'lat':	55.346, 'lon':	-161.857 },
@@ -9,6 +12,18 @@ SCNL=[
 {'scnl': 'PN7A.BHZ.AV.--', 'lat':	55.433, 'lon':	-161.997 },
 {'scnl': 'PV6A.SHZ.AV.--', 'lat':	55.507, 'lon':	-161.9714},
 ]
+##############################################
+##############################################
+
+
+##############################################
+######### alarm threshold parameters #########
+duration	  = 3600 			 # [seconds] how far into past to look for detections
+threshold     = 25   			 # [minutes] required in past hour for notification
+rsam_station  = 'AV.PS4A.--.BHZ' # S.C.N.L - channel to be used for RSAM threshold test
+rsam_threshold= 200  			 # RSAM threshold for above scnl. Alarm won't send if below this level
+##############################################
+##############################################
 
 
 ##############################################
@@ -49,16 +64,6 @@ catalog_file  = 'alarm_aux_files/Pavlof_Tremor.txt'		 # catalog of events in pas
 ##############################################
 
 
-##############################################
-######### alarm threshold parameters #########
-duration	  = 3600 # how far into past to look for detections
-threshold     = 30   # number of detections required in past hour for notification
-rsam_station  = 'AV.PS4A.--.BHZ'
-rsam_threshold= 200
-##############################################
-##############################################
-
-
 #### The following for testing purposes
 # icinga_service_name='generic alarm 4'
-mattermost_channel_id='jewennqiq7rd5kdubg8t1j9b8a'
+# mattermost_channel_id='jewennqiq7rd5kdubg8t1j9b8a'

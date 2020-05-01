@@ -1,9 +1,14 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
+*.pyc
+
 bin/perms.sh
 common/
 www/
-*.pyc
+alarm_aux_files/*.txt
+alarm_aux_files/*.npz
 logs/*.out
+
 distribution.xlsx
 .env
+

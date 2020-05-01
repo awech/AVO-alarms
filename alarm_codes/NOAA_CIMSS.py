@@ -202,7 +202,7 @@ def get_cimss_image(soup,alert):
 		r = requests.get(im_url)
 
 		if r.status_code == 200:
-			with open('alarm_aux_files/noaa_out'+str(i+1)+'.png', 'wb') as out:
+			with open(config.img_file.replace('.png',str(i+1)+'.png'), 'wb') as out:
 				for bits in r.iter_content():
 					out.write(bits)
 
@@ -228,9 +228,11 @@ def plot_fig(alert,volcs,config):
 	mapboundary = Polygon(xy, edgecolor='firebrick', linewidth=0.5, fill=False)
 	inmap.ax.add_patch(mapboundary)
 
-
-	img1 = mpimg.imread('alarm_aux_files/noaa_out1.png')
-	img2 = mpimg.imread('alarm_aux_files/noaa_out2.png')
+	# read in images downloaded from NOAA/CIMSS webpage
+	tmp_file1=config.img_file.replace('.png','1.png')
+	tmp_file2=config.img_file.replace('.png','2.png')
+	img1 = mpimg.imread(tmp_file1)
+	img2 = mpimg.imread(tmp_file2)
 
 	plt.subplot(3,1,1)
 	plt.imshow(img1)
@@ -247,5 +249,9 @@ def plot_fig(alert,volcs,config):
 	plt.tight_layout(pad=0.5)
 
 	jpg_file=utils.save_file(plt,config,dpi=500)
+
+	# remove images downloaded from NOAA/CIMSS webpage
+	os.remove(tmp_file1)
+	os.remove(tmp_file2)
 
 	return jpg_file

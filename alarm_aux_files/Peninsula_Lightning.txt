@@ -1,1 +1,1 @@
-lats	lons	time
+time	lats	lons

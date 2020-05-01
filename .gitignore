@@ -5,8 +5,6 @@ __pycache__/
 bin/perms.sh
 common/
 www/
-alarm_aux_files/*.txt
-alarm_aux_files/*.npz
 logs/*.out
 
 distribution.xlsx

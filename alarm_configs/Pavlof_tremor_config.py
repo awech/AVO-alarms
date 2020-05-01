@@ -52,10 +52,13 @@ catalog_file  = 'alarm_aux_files/Pavlof_Tremor.txt'		 # catalog of events in pas
 ##############################################
 ######### alarm threshold parameters #########
 duration	  = 3600 # how far into past to look for detections
-threshold     = 12   # number of detections required in past hour for notification
+threshold     = 30   # number of detections required in past hour for notification
 rsam_station  = 'AV.PS4A.--.BHZ'
 rsam_threshold= 200
-# rsam_station  = 'AV.PS4A.--.EHZ'
-# rsam_threshold= 400
 ##############################################
 ##############################################
+
+
+#### The following for testing purposes
+# icinga_service_name='generic alarm 4'
+mattermost_channel_id='jewennqiq7rd5kdubg8t1j9b8a'

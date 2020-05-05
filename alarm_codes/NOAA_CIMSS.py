@@ -89,7 +89,7 @@ def run_alarm(config,T0):
 
 				instrument=get_instrument(soup)
 				height_text=get_height_txt(soup)
-				get_cimss_image(soup,alert)
+				get_cimss_image(soup,alert,config)
 				print('Done.')
 				print('Trying to make figure attachment')
 				try:
@@ -192,7 +192,7 @@ def get_height_txt(soup):
 	return height_txt
 
 
-def get_cimss_image(soup,alert):
+def get_cimss_image(soup,alert,config):
 	
 	base_url='://'.join(urlparse(alert.alert_url)[:2])
 	image_files=soup.find(class_="alert_images").find_all('img')

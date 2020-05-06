@@ -5,12 +5,14 @@ python codes used for geophysical alarms at AVO
 - pandas<br>
 - numpy<br>
 - obspy<br>
+- scipy<br>
 - matplotlib<br>
 - Basemap<br>
 - PIL (pillow)<br>
 - xlrd<br>
 - dotenv<br>
-- beautifulsoup4<br>
+- shapefile (for Pilot_Report module)<br>
+- beautifulsoup4 (for SO2 & NOAA_CIMSS modules)<br>
 - tomputils (optional for Mattermost)<br>
 
 ## Running it...

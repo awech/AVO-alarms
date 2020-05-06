@@ -1,7 +1,12 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
-bin/
-common/
-Pavlof_seismic/
-www/
 *.pyc
+
+bin/perms.sh
+common/
+www/
+logs/*.out
+
+distribution.xlsx
+.env
+

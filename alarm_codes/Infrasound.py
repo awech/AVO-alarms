@@ -3,15 +3,22 @@
 #
 # Wech 2017-06-08
 
-import utils
+from . import utils
 from obspy import UTCDateTime, Stream
 from obspy.core.util import AttribDict
 from obspy.geodetics.base import gps2dist_azimuth
-from obspy.signal.cross_correlation import xcorr
+from obspy.signal.cross_correlation import correlate, xcorr_max
+from itertools import combinations
 import numpy as np
-from os import remove
-from pandas import DataFrame
+import os
+from pandas import DataFrame, Timestamp
 import time
+import matplotlib as m
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+from matplotlib.colors import LinearSegmentedColormap
+import matplotlib.dates as mdates
+
 
 # main function called by alarm.py
 def run_alarm(config,T0):
@@ -34,7 +41,7 @@ def run_alarm(config,T0):
     if len(st)<config.min_chan:
         state_message='{} - Not enough channels!'.format(state_message)
         state='WARNING'
-        utils.icinga_state(config.alarm_name,state,state_message)
+        utils.icinga_state(config,state,state_message)
         return
     ########################
 
@@ -46,7 +53,7 @@ def run_alarm(config,T0):
     if len(st)<config.min_chan:
         state_message='{} - Gappy data!'.format(state_message)
         state='WARNING'
-        utils.icinga_state(config.alarm_name,state,state_message)
+        utils.icinga_state(config,state,state_message)
         return
     ########################
 
@@ -67,7 +74,7 @@ def run_alarm(config,T0):
     if len(st)<config.min_chan:
         state_message='{} - not enough channels exceeding amplitude threshold!'.format(state_message)
         state='OK'
-        utils.icinga_state(config.alarm_name,state,state_message)
+        utils.icinga_state(config,state,state_message)
         return
     ########################
 
@@ -90,7 +97,7 @@ def run_alarm(config,T0):
         #### check if this is airwave velocity from a volcano in config file list ####
         if np.any(np.abs(d_Azimuth) < az_tolerance):
             v_ind=np.argmax(np.abs(d_Azimuth) < az_tolerance)
-            mx_pressure=np.max(np.array([tr.data for tr in st]))*config.digouti
+            mx_pressure=np.max(np.array([np.max(np.abs(tr.data)) for tr in st]))*config.digouti
             if config.VOLCANO[v_ind]['vmin'] < velocity < config.VOLCANO[v_ind]['vmax'] and mx_pressure > config.VOLCANO[v_ind]['min_pa']:
                 #### DETECTION ####
                 volcano=config.VOLCANO[v_ind]
@@ -99,11 +106,7 @@ def run_alarm(config,T0):
                 print('Airwave Detection!!!')
                 state_message='{} - {} detection! {:.1f} Pa peak pressure'.format(state_message,volcano['volcano'],mx_pressure)
                 state='CRITICAL'
-                try:
-                    filename=make_figure(st,volcano,T0,config,mx_pressure)
-                except:
-                    filename=None
-                craft_and_send_email(t1,t2,config,volcano,d_Azimuth,velocity,mx_pressure,filename)
+
             else:
                 print('Non-volcano detect!!!')
                 state_message='{} - Detection with wrong velocity ({:.1f} km/s) or maximum pressure ({:.1f} Pa)'.format(state_message,velocity,mx_pressure)
@@ -114,8 +117,26 @@ def run_alarm(config,T0):
             state_message='{} - Detection with wrong backazimuth ({:.0f} from N)'.format(state_message,azimuth)
             state='WARNING'
 
+    if state=='CRITICAL':
+        #### Generate Figure ####
+        filename=make_figure(st,volcano,T0,config,mx_pressure)
+        # try:
+        #     filename=make_figure(st,volcano,T0,config,mx_pressure)
+        # except:
+        #     filename=None
+        
+        ### Craft message text ####
+        subject, message = create_message(t1,t2,config,volcano,azimuth,d_Azimuth,velocity,mx_pressure)
+
+        ### Send message ###
+        utils.send_alert(config.alarm_name,subject,message,filename)
+        utils.post_mattermost(config,subject,message,filename)
+        # delete the file you just sent
+        if filename:
+            os.remove(filename)
+
     # send heartbeat status message to icinga
-    utils.icinga_state(config.alarm_name,state,state_message)
+    utils.icinga_state(config,state,state_message)
 
 
 def add_coordinate_info(st,SCNL):
@@ -136,13 +157,15 @@ def add_coordinate_info(st,SCNL):
                                 'elevation': 0.0})
     return st
 
-def get_volcano_backazimuth(st,config):
-    lon0=np.mean([tr.stats.coordinates.longitude for tr in st])
-    lat0=np.mean([tr.stats.coordinates.latitude for tr in st])
+def get_volcano_backazimuth(st, config):
+    lon0 = np.mean([tr.stats.coordinates.longitude for tr in st])
+    lat0 = np.mean([tr.stats.coordinates.latitude for tr in st])
     for volc in config.VOLCANO:
-        tmp=gps2dist_azimuth(lat0,lon0,volc['v_lat'],volc['v_lon'])
-        volc['back_azimuth']=tmp[1]
+        if "back_azimuth" not in volc:
+            tmp = gps2dist_azimuth(lat0, lon0, volc["v_lat"], volc["v_lon"])
+            volc["back_azimuth"] = tmp[1]
     return config
+
 
 def setup_coordinate_system(st):
     R = 6372.7976   # radius of the earth
@@ -168,26 +191,28 @@ def calc_triggers(st,config,intsd):
     lags_inds2 = np.array([])
     #### cross correlate all station pairs ####
     for ii in range(len(st[:-1])):
-        for jj in range(ii+1,len(st)):
-            index,value,cc_vector=xcorr(st[ii],st[jj],shift_len=config.cc_shift_length,full_xcorr=True)
+        for jj in range(ii + 1, len(st)):
+            cc_vector = correlate(
+                st[ii].data, st[jj].data, config.cc_shift_length
+            )
+            index, value = xcorr_max(cc_vector)
             #### if best xcorr value is negative, find the best positive one ####
-            if value<0:
-                index=cc_vector.argmax()-config.cc_shift_length
-                value=cc_vector.max()
-            dt = index/st[0].stats.sampling_rate
+            if value < 0:
+                index = cc_vector.argmax() - config.cc_shift_length
+                value = cc_vector.max()
+            dt = index / st[0].stats.sampling_rate
             #### check that the best lag is at least the vmin value
             #### and check for minimum cross correlation value
-            all_vmin=np.array([v['vmin'] for v in config.VOLCANO]).min()
-            if np.abs(dt) < intsd[ii,jj]/all_vmin and value > config.min_cc:
-                lags   = np.append(lags,dt)
-                lags_inds1 = np.append(lags_inds1,ii)
-                lags_inds2 = np.append(lags_inds2,jj)
+            all_vmin = np.array([v["vmin"] for v in config.VOLCANO]).min()
+            if np.abs(dt) < intsd[ii, jj] / all_vmin and value > config.min_cc:
+                lags = np.append(lags, dt)
+                lags_inds1 = np.append(lags_inds1, ii)
+                lags_inds2 = np.append(lags_inds2, jj)
 
-    #### return lag times, and 
+    #### return lag times, and
     return lags, lags_inds1, lags_inds2
 
 def associator(lags_inds1,lags_inds2,st,config):
-    from itertools import combinations
     #### successively try to associate, starting with all stations
     #### and quit at config.min_sta
 
@@ -280,20 +305,22 @@ def inversion(cmbm2n,cmbm2,intsd,ints_az,lags_inds1,lags_inds2,lags,mpk):
     return velocity, azimuth, rms
 
 def make_figure(st,volcano,T0,config,mx_pressure):
-    import matplotlib as m
     m.use('Agg')
-    import matplotlib.pyplot as plt
-    import matplotlib.cm as cm
-    from matplotlib.colors import LinearSegmentedColormap
-    from PIL import Image
-    import matplotlib.dates as mdates
+
+    infrasound_plot_duration=600
+    seismic_plot_duration=3600
+    if hasattr(config,'infrasound_plot_duration'):
+        infrasound_plot_duration=config.infrasound_plot_duration
+    if hasattr(config,'seismic_plot_duration'):
+        seismic_plot_duration=config.seismic_plot_duration
+
 
     start = time.time()
     ##### get seismic data #####
-    seis = utils.grab_data(volcano['seismic_scnl'],T0-3600, T0,fill_value='interpolate')
+    seis = utils.grab_data(volcano['seismic_scnl'],T0-seismic_plot_duration, T0,fill_value='interpolate')
     ##### get infrasound data #####
     infra_scnl = ['{}.{}.{}.{}'.format(tr.stats.station,tr.stats.channel,tr.stats.network,tr.stats.location) for tr in st]
-    infra = utils.grab_data(infra_scnl,T0-600, T0,fill_value='interpolate')
+    infra = utils.grab_data(infra_scnl,T0-infrasound_plot_duration, T0,fill_value='interpolate')
     end = time.time()
     print('{:.2f} seconds to grab figure data.'.format(end - start))
 
@@ -336,9 +363,11 @@ def make_figure(st,volcano,T0,config,mx_pressure):
     ##### plot stack trace #####
     ax=plt.subplot(len(seis)+3,1,2)
     t1=mdates.date2num(infra[0].stats.starttime.datetime)
-    t1=round(t1*24*60)/(24*60) # round to nearest minute
+    # round to nearest minute
+    t1=round(t1*24*60)/(24*60)
     t2=mdates.date2num(infra[0].stats.endtime.datetime)
-    t2=round(t2*24*60)/(24*60) # round to nearest minute
+    # round to nearest minute
+    t2=round(t2*24*60)/(24*60)
     t_vector=np.linspace(t1,t2,stack.stats.npts)
     plt.plot(t_vector,stack.data,color='k',LineWidth=0.2)
     ax.set_ylabel(stack.stats.station+'\nstack',fontsize=5,
@@ -349,12 +378,21 @@ def make_figure(st,volcano,T0,config,mx_pressure):
     ax.yaxis.set_ticks_position('right')
     ax.tick_params('y',labelsize=4)
     ax.set_xlim(t1,t2)
-    t_ticks=np.linspace(t1,t2,6)
+    infra_tick_fmt='%H:%M'
+    if infrasound_plot_duration in [1800,3600,5400,7200]:
+        n_infra_ticks=7
+    elif infrasound_plot_duration in [300,600,900,1200,1500,2100,2400,2700,3000,3300]:
+        n_infra_ticks=6
+    else:
+        n_infra_ticks=6
+        infra_tick_fmt='%H:%M:%S'
+
+    t_ticks=np.linspace(t1,t2,n_infra_ticks)
     ax.set_xticks(t_ticks)
-    ax.set_xticklabels([mdates.num2date(t).strftime('%H:%M') for t in t_ticks])
+    ax.set_xticklabels([mdates.num2date(t).strftime(infra_tick_fmt) for t in t_ticks])
     ax.tick_params('x',labelsize=5)
     ax.set_xlabel('{:.0f} Minute Infrasound Stack\n{} UTC,   Peak Pressure: {:.1f} Pa'.format(round((t2-t1)*24*60),
-                                                        tr.stats.starttime.strftime('%Y-%b-%d'),
+                                                        infra[0].stats.starttime.strftime('%Y-%b-%d'),
                                                         mx_pressure))
     ###################################################
     ###################################################
@@ -369,6 +407,14 @@ def make_figure(st,volcano,T0,config,mx_pressure):
     [tr.decimate(2,no_filter=True) for tr in seis if tr.stats.sampling_rate==50]
     [tr.resample(25) for tr in seis if tr.stats.sampling_rate!=25]
 
+    seis_tick_fmt='%H:%M'
+    if seismic_plot_duration in [1800,3600,5400,7200]:
+        n_seis_ticks=7
+    elif seismic_plot_duration in [300,600,900,1200,1500,2100,2400,2700,3000,3300]:
+        n_seis_ticks=6
+    else:
+        n_seis_ticks=6
+        seis_tick_fmt='%H:%M:%S'
 
     for i,tr in enumerate(seis):
         ax=plt.subplot(len(seis)+3,1,i+1+3)
@@ -385,10 +431,10 @@ def make_figure(st,volcano,T0,config,mx_pressure):
         if i!=len(seis)-1:
             ax.set_xticks([])
         else:
-            d_sec=np.linspace(0,3600,7)
+            d_sec=np.linspace(0,seismic_plot_duration,n_seis_ticks)
             ax.set_xticks(d_sec)
             T=[tr.stats.starttime+dt for dt in d_sec]
-            ax.set_xticklabels([t.strftime('%H:%M') for t in T])
+            ax.set_xticklabels([t.strftime(seis_tick_fmt) for t in T])
             ax.tick_params('x',labelsize=5)
             ax.set_xlabel('{:.0f} Minute Local Seismic Data'.format(round(tr.stats.endtime-tr.stats.starttime)/60))
 
@@ -397,44 +443,45 @@ def make_figure(st,volcano,T0,config,mx_pressure):
 
 
     plt.subplots_adjust(left=0.08,right=.94,top=0.92,bottom=0.1,hspace=0.1)
-    filename=utils.tmp_figure_dir+'/'+UTCDateTime.utcnow().strftime('%Y%m%d_%H%M%S_%f')
-    plt.savefig(filename,dpi=250,format='png')
-    im=Image.open(filename)
-    remove(filename)
-    filename=filename+'.jpg'
-    im.save(filename)
+    
+    jpg_file=utils.save_file(plt,config,dpi=250)
 
-    return filename
+    return jpg_file
 
 def xcorr_align_stream(st,config):
 
-    shift_len=config.cc_shift_length
-    shifts=[]
-    for i,tr in enumerate(st):
-        a,b,c=xcorr(st[0],tr,shift_len,full_xcorr=True)
-        if b<0:
-            a=c.argmax()-shift_len
-        shifts.append(a/tr.stats.sampling_rate)
-
-    group_streams=Stream()
-    T1=st[0].copy().stats.starttime
-    T2=st[0].copy().stats.endtime
+    shift_len = config.cc_shift_length
+    shifts = []
     for i, tr in enumerate(st):
-        tr = tr.copy().trim(tr.stats.starttime-shifts[i],tr.stats.endtime-shifts[i],
-            pad=True, fill_value=0)
-        tr.trim(tr.stats.starttime+1,tr.stats.endtime-1,pad=True,fill_value=0)
-        tr.stats.starttime=T1
+        c = correlate(st[0].data, tr.data, shift_len)
+        a, b = xcorr_max(c)
+        if b < 0:
+            a = c.argmax() - shift_len
+        shifts.append(a / tr.stats.sampling_rate)
+
+    group_streams = Stream()
+    T1 = st[0].copy().stats.starttime
+    T2 = st[0].copy().stats.endtime
+    for i, tr in enumerate(st):
+        tr = tr.copy().trim(
+            tr.stats.starttime - shifts[i],
+            tr.stats.endtime - shifts[i],
+            pad=True,
+            fill_value=0,
+        )
+        tr.trim(tr.stats.starttime + 1, tr.stats.endtime - 1, pad=True, fill_value=0)
+        tr.stats.starttime = T1
         group_streams += tr
 
-    ST=st[0].copy()
+    ST = st[0].copy()
     for tr in st[1:]:
-        ST.data=ST.data+tr.data
-    ST.data=(ST.data/len(st))*config.digouti
-    ST.trim(T1,T2)
+        ST.data = ST.data + tr.data
+    ST.data = (ST.data / len(st)) * config.digouti
+    ST.trim(T1, T2)
     return ST
 
-def craft_and_send_email(t1,t2,config,volcano,d_Azimuth,velocity,mx_pressure,filename):
-    from pandas import Timestamp
+
+def create_message(t1,t2,config,volcano,azimuth,d_Azimuth,velocity,mx_pressure):
     # create the subject line
     subject='{} Airwave Detection'.format(volcano['volcano'])
 
@@ -444,17 +491,14 @@ def craft_and_send_email(t1,t2,config,volcano,d_Azimuth,velocity,mx_pressure,fil
     message='{}Start: {} (UTC)\nEnd: {} (UTC)\n\n'.format(message,t1.strftime('%Y-%m-%d %H:%M'),t2.strftime('%Y-%m-%d %H:%M'))
     t1_local=Timestamp(t1.datetime,tz='UTC')
     t2_local=Timestamp(t2.datetime,tz='UTC')
-    t1_local=t1_local.tz_convert('US/Alaska')
-    t2_local=t2_local.tz_convert('US/Alaska')
+    t1_local=t1_local.tz_convert(os.environ['TIMEZONE'])
+    t2_local=t2_local.tz_convert(os.environ['TIMEZONE'])
     message='{}Start: {} ({})'.format(message,t1_local.strftime('%Y-%m-%d %H:%M'),t1_local.tzname())
     message='{}\nEnd: {} ({})\n\n'.format(message,t2_local.strftime('%Y-%m-%d %H:%M'),t2_local.tzname())
 
+    message='{}Azimuth: {:+.1f} degrees\n'.format(message,azimuth)
     message='{}d_Azimuth: {:+.1f} degrees\n'.format(message,d_Azimuth)
     message='{}Velocity: {:.0f} m/s\n'.format(message,velocity*1000)
     message='{}Max Pressure: {:.1f} Pa'.format(message,mx_pressure)
 
-    utils.send_alert(config.alarm_name,subject,message,filename)
-    utils.post_mattermost(subject,message,config.alarm_name,filename)
-    # delete the file you just sent
-    if filename:
-        remove(filename)
+    return subject, message

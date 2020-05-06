@@ -1,15 +1,17 @@
-alarm_type = 'Airwave'			# this designates which alarm module will be imported and executed
-alarm_name = 'ADKI Infrasound'	# this is the alarm name sent to icinga and in message alerts
+alarm_type = 'Infrasound'			# this designates which alarm module will be imported and executed
+alarm_name = 'ADKI Infrasound Hf'	# this is the alarm name sent to icinga and in message alerts
 
 # Infrasound channels list
 SCNL=[
-{'scnl':'ADKI.BDF.AV.01'	, 'sta_lat': 51.86190727	, 'sta_lon': -176.6438598},
-{'scnl':'ADKI.BDF.AV.02'	, 'sta_lat': 51.86324162	, 'sta_lon': -176.6435998},
-{'scnl':'ADKI.BDF.AV.03'	, 'sta_lat': 51.86226962	, 'sta_lon': -176.6446503},
-{'scnl':'ADKI.BDF.AV.04'	, 'sta_lat': 51.86246609	, 'sta_lon': -176.6457851},
-{'scnl':'ADKI.BDF.AV.05'	, 'sta_lat': 51.86326916	, 'sta_lon': -176.6461231},
-{'scnl':'ADKI.BDF.AV.06'	, 'sta_lat': 51.86157572	, 'sta_lon': -176.6469340},
+{'scnl':'ADKI.HDF.AV.01'	, 'sta_lat': 51.86190727	, 'sta_lon': -176.6438598},
+{'scnl':'ADKI.HDF.AV.02'	, 'sta_lat': 51.86324162	, 'sta_lon': -176.6435998},
+{'scnl':'ADKI.HDF.AV.03'	, 'sta_lat': 51.86226962	, 'sta_lon': -176.6446503},
+{'scnl':'ADKI.HDF.AV.04'	, 'sta_lat': 51.86246609	, 'sta_lon': -176.6457851},
+{'scnl':'ADKI.HDF.AV.05'	, 'sta_lat': 51.86326916	, 'sta_lon': -176.6461231},
+{'scnl':'ADKI.HDF.AV.06'	, 'sta_lat': 51.86157572	, 'sta_lon': -176.6469340},
 ]
+
+
 
 # Volcano list to be monitored
 # Need volcano name and location for each volcano
@@ -32,10 +34,10 @@ VOLCANO=[
 		'seismic_scnl': ['OKER.EHZ.AV.--','OKTU.EHZ.AV.--','MAPS.BHN.AV.--']},
 ]
 
-duration  = 3*60 # duration value in seconds
+duration  = 70 # duration value in seconds
 latency   = 10.0 # seconds between timestamps and end of data window
 taper_val = 5.0  # seconds to taper beginning and end of trace before filtering
-f1		  = 0.4  # minimum frequency for bandpass filter
+f1		  = 5.0  # minimum frequency for bandpass filter
 f2		  = 10.0 # maximum frequency for bandpass filter
 
 digouti   = (1/419430.0)/(0.05)	# convert counts to Pressure in Pa (Q330 + Chaparral mics)

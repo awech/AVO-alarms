@@ -3,12 +3,16 @@
 #
 # Wech 2017-06-08
 
-import utils
+from . import utils
 from obspy import UTCDateTime
 import numpy as np
-from pandas import DataFrame
-from os import remove
+from pandas import DataFrame, Timestamp
+import os
 import time
+import matplotlib as m
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+from matplotlib.colors import LinearSegmentedColormap
 
 # main function called by main.py
 def run_alarm(config,T0):
@@ -42,16 +46,6 @@ def run_alarm(config,T0):
 		print('********** DETECTION **********')
 		state_message='{} (UTC) RSAM detection! {}'.format(T0.strftime('%Y-%m-%d %H:%M'),state_message)
 		state='CRITICAL'
-		#### Generate Figure ####
-		start = time.time()
-		try:
-			filename=make_figure(scnl,T0,config.alarm_name)
-		except:
-			filename=None
-		### Send Email Notification ####
-		craft_and_send_email(t1,t2,stas,rms,lvlv,config.alarm_name,filename)
-		end = time.time()
-		print('{:.2f} seconds to make figure & send email.'.format(end - start))
 		#
 	elif (rms[-1]<lvlv[-1]) & (sum(rms[:-1]>lvlv[:-1]/2)>=config.min_sta):
 		#### elevated RSAM ####
@@ -77,11 +71,29 @@ def run_alarm(config,T0):
 		state_message='{} (UTC) RSAM normal. {}'.format(T0.strftime('%Y-%m-%d %H:%M'),state_message)
 		state='OK'
 
-	# send heartbeat status message to icinga
-	utils.icinga_state(config.alarm_name,state,state_message)
 
-def craft_and_send_email(t1,t2,stations,rms,lvlv,alarm_name,filename):
-	from pandas import Timestamp
+	if state=='CRITICAL':
+		#### Generate Figure ####
+		try:
+			filename=make_figure(scnl,T0,config)
+		except:
+			filename=None
+		
+		### Craft message text ####
+		subject, message = create_message(t1,t2,stas,rms,lvlv,config.alarm_name)
+
+		### Send message ###
+		utils.send_alert(config.alarm_name,subject,message,filename)
+		utils.post_mattermost(config,subject,message,filename)
+		# delete the file you just sent
+		if filename:
+			os.remove(filename)
+
+	# send heartbeat status message to icinga
+	utils.icinga_state(config,state,state_message)
+
+
+def create_message(t1,t2,stations,rms,lvlv,alarm_name):
 
 	# create the subject line
 	subject='--- {} ---'.format(alarm_name)
@@ -90,36 +102,33 @@ def craft_and_send_email(t1,t2,stations,rms,lvlv,alarm_name,filename):
 	message='Start: {} (UTC)\nEnd: {} (UTC)\n\n'.format(t1.strftime('%Y-%m-%d %H:%M'),t2.strftime('%Y-%m-%d %H:%M'))
 	t1_local=Timestamp(t1.datetime,tz='UTC')
 	t2_local=Timestamp(t2.datetime,tz='UTC')
-	t1_local=t1_local.tz_convert('US/Alaska')
-	t2_local=t2_local.tz_convert('US/Alaska')
+	t1_local=t1_local.tz_convert(os.environ['TIMEZONE'])
+	t2_local=t2_local.tz_convert(os.environ['TIMEZONE'])
 	message='{}Start: {} ({})'.format(message,t1_local.strftime('%Y-%m-%d %H:%M'),t1_local.tzname())
 	message='{}\nEnd: {} ({})\n\n'.format(message,t2_local.strftime('%Y-%m-%d %H:%M'),t2_local.tzname())
 
 	a=np.array([''] * len(rms[:-1]))
 	a[np.where(rms>lvlv)]='*'
-	sta_message = ''.join('{}{}: {:.0f}/{}\n'.format(sta,a[i],rms[i],lvlv[i]) for i,sta in enumerate(stations[:-1]))
-	sta_message = ''.join([sta_message,'\nArrestor: {} {:.0f}/{}'.format(stations[-1],rms[-1],lvlv[-1])])
+	if 'Semisopochnoi' in alarm_name:
+		sta_message = ''.join('{}{}: {:,.0f}k/{:.0f}k\n'.format(sta,a[i],rms[i]/1000.0,lvlv[i]/1000.0) for i,sta in enumerate(stations[:-1]))
+	else:
+		sta_message = ''.join('{}{}: {:.0f}/{}\n'.format(sta,a[i],rms[i],lvlv[i]) for i,sta in enumerate(stations[:-1]))
+	sta_message = ''.join([sta_message,'\nArrestor: {} {:.0f}/{:.0f}'.format(stations[-1],rms[-1],lvlv[-1])])
 	message = ''.join([message,sta_message])
 
-	utils.send_alert(alarm_name,subject,message,filename)
-	# utils.post_mattermost(subject,message,filename)
-	utils.post_mattermost(subject,message,alarm_name,filename)
-	# delete the file you just sent
-	if filename:
-		remove(filename)
+	return subject, message
 
 
-def make_figure(scnl,T0,alarm_name):
-	import matplotlib as m
+def make_figure(scnl,T0,config):
 	m.use('Agg')
-	import matplotlib.pyplot as plt
-	import matplotlib.cm as cm
-	from matplotlib.colors import LinearSegmentedColormap
-	from PIL import Image
+
+	plot_duration=3600
+	if hasattr(config,'plot_duration'):
+		plot_duration=config.plot_duration
 
 	#### grab data ####
 	start = time.time()	
-	st = utils.grab_data(scnl,T0-3600, T0,fill_value='interpolate')
+	st = utils.grab_data(scnl,T0-plot_duration, T0,fill_value='interpolate')
 	end = time.time()
 	print('{:.2f} seconds to grab figure data.'.format(end - start))
 
@@ -144,24 +153,28 @@ def make_figure(scnl,T0,alarm_name):
 		ax.yaxis.set_ticks_position('right')
 		ax.tick_params('y',labelsize=4)
 		if i==0:
-			ax.set_title(alarm_name+' Alarm')
+			ax.set_title(config.alarm_name+' Alarm')
 		if i<len(st)-1:
 			ax.set_xticks([])
 		else:
-			d_sec=np.linspace(0,3600,7)
+			seis_tick_fmt='%H:%M'
+			if plot_duration in [1800,3600,5400,7200]:
+				n_seis_ticks=7
+			elif plot_duration in [300,600,900,1200,1500,2100,2400,2700,3000,3300]:
+				n_seis_ticks=6
+			else:
+				n_seis_ticks=6
+				seis_tick_fmt='%H:%M:%S'
+			d_sec=np.linspace(0,plot_duration,n_seis_ticks)
 			ax.set_xticks(d_sec)
 			T=[tr.stats.starttime+dt for dt in d_sec]
-			ax.set_xticklabels([t.strftime('%H:%M') for t in T])
+			ax.set_xticklabels([t.strftime(seis_tick_fmt) for t in T])
 			ax.tick_params('x',labelsize=5)
 			ax.set_xlabel(tr.stats.starttime.strftime('%Y-%m-%d')+' UTC')
 
 
 	plt.subplots_adjust(left=0.08,right=.94,top=0.92,bottom=0.1,hspace=0.1)
-	filename=utils.tmp_figure_dir+'/'+UTCDateTime.utcnow().strftime('%Y%m%d_%H%M%S_%f')
-	plt.savefig(filename,dpi=250,format='png')
-	im=Image.open(filename)
-	remove(filename)
-	filename=filename+'.jpg'
-	im.save(filename)
+	
+	jpg_file=utils.save_file(plt,config,dpi=250)
 
-	return filename
+	return jpg_file

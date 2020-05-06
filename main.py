@@ -1,52 +1,73 @@
-#!/usr/bin/env python
+#!/home/rtem/miniconda/envs/py_alarms/bin/python
 # -*- coding: utf-8 -*-
 
+# alarm_codes is a directory
+# utils is file. Importing it allows for error email delivery & importing environment variables
+from alarm_codes import utils
+from obspy import UTCDateTime
 import os
 import sys
+import traceback
 import warnings
-from obspy import UTCDateTime
-import sys_config
 
-sys.dont_write_bytecode = True	# don't write .pyc files (probably slightly faster without this, but more cluttered)
+# don't write .pyc files (probably slightly faster without this, but more cluttered)
+sys.dont_write_bytecode = True
 
-# if run from a cron, write output to hourly file in the logs directory
+# if run from a cron, write output to 4-hourly file in the logs directory
 if os.getenv('FROMCRON') == 'yep':
-    file=sys_config.logs_dir+'/'+sys.argv[1]+'-'+UTCDateTime.now().strftime('%Y%m%d-%H')+'.out'
-    os.system('touch {}'.format(file))
-    f=open(file,'a')
-    sys.stdout=sys.stderr=f
+	T0=UTCDateTime.now()
+	d_hour=int(T0.strftime('%H'))%4
+	f_time=UTCDateTime(T0.strftime('%Y%m%d'))+(int(T0.strftime('%H'))-d_hour)*3600
+	file=os.environ['LOGS_DIR']+'/'+sys.argv[1]+'-'+f_time.strftime('%Y%m%d-%H')+'.out'
+	os.system('touch {}'.format(file))
+	f=open(file,'a')
+	sys.stdout=sys.stderr=f
+	
+	# keep .keep file from getting pruned by other cron deleting old log-files
+	os.system('touch {}'.format(os.environ['LOGS_DIR']+'/.keep'))
 
 print('')
 print('-----------------------------------------')
 
 # check input arguments. 1st argument is config file, 2nd is time (optional, otherwise right now)
 if len(sys.argv) == 1:		
-	warnings.warn('Wrong input arguments. eg: alarm.py Pavlof_RSAM 201701020205')
+	warnings.warn('Wrong input arguments. eg: main.py Pavlof_RSAM 201701020205')
 	sys.exit()
-if len(sys.argv) == 2:								# no time given, use current time
-	T0=UTCDateTime.utcnow() 						# get current timestamp
-	T0=UTCDateTime(T0.strftime('%Y-%m-%d %H:%M')) 	# round down to the nearest minute
-else:												# time given, use it
-	if len(sys.argv)==3:							# time given as single string (eg. 201705130301)
+
+# no time given, use current time
+if len(sys.argv) == 2:
+	# get current timestamp
+	T0=UTCDateTime.utcnow()
+	# round down to the nearest minute
+	T0=UTCDateTime(T0.strftime('%Y-%m-%d %H:%M'))
+# time given, use it
+else:
+	# time given as single string (eg. 201705130301)
+	if len(sys.argv)==3:
 		T0 = sys.argv[2]
-	elif len(sys.argv)==4:							# time given as 2 strings (eg. 20170513 03:01)
+	# time given as 2 strings (eg. 20170513 03:01)
+	elif len(sys.argv)==4:
 		T0='{}{}'.format(sys.argv[2],sys.argv[3])
 	else:
-		warnings.warn('Too many input arguments. eg: alarm.py Pavlof_RSAM 201701020205')
+		warnings.warn('Too many input arguments. eg: main.py Pavlof_RSAM 201701020205')
 		sys.exit()		
 	try:
 		T0 = UTCDateTime(T0)
 	except:
-		warnings.warn('Needs end-time argument. eg: alarm.py Pavlof_RSAM 201701020205')
+		warnings.warn('Needs end-time argument. eg: main.py Pavlof_RSAM 201701020205')
 		sys.exit()
 try:
-	exec('import alarm_configs.{} as config'.format(sys.argv[1]))			# import the config file for the alarm you're running
-	ALARM=__import__('alarm_codes.'+config.alarm_type)					# import alarm module specified in config file
-	eval('ALARM.{}.run_alarm(config,T0)'.format(config.alarm_type))	# run the alarm
-except:																# if error, send message to designated recipients
+	# import the config file for the alarm you're running
+	exec('import alarm_configs.{} as config'.format(sys.argv[1]))
+	# import alarm module specified in config file
+	ALARM=__import__('alarm_codes.'+config.alarm_type)
+
+	# run the alarm
+	eval('ALARM.{}.run_alarm(config,T0)'.format(config.alarm_type))
+
+# if error, send message to designated recipients
+except:
 	print('Error...')
-	import traceback
-	from alarm_codes import utils
 	b=traceback.format_exc()
 	message = ''.join('{}\n'.format(a) for a in b.splitlines())
 	message = '{}\n\n{}'.format(T0.strftime('%Y-%m-%d %H:%M'),message)

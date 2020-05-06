@@ -17,7 +17,7 @@ python codes used for geophysical alarms at AVO
 You'll need to edit .env_example with the relevant system parameters and rename the file .env<br>
 These variables get committed to environment variables when importing anything from /alarm_codes<br><br>
 Run the code:<br>
-`main.py <alarm_config> <datetime> <br>`
+`main.py <alarm_config> <datetime>` <br>
 For example:<br>
 `./main.py Pavlof_RSAM_config 201701020205`<br><br>
 It can also be run without a datestamp, in which case it will use the most recent minute as its time.<br><br>

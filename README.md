@@ -24,8 +24,8 @@ For example:<br>
 `./main.py Pavlof_RSAM_config 201701020205`<br><br>
 It can also be run without a datestamp, in which case it will use the most recent minute as its time.<br><br>
 An example of how we run a cron minutely on the Cleveland infrasound array, CLCO:<br>
-`* * * * * cd /alarms; python main.py CLCO_Infrasound_config > /dev/null 2>&1`
-
+`* * * * * cd /alarms; python main.py CLCO_Infrasound_config > /dev/null 2>&1`<br><br>
+Note: if using the Tremor.py module, you'll need to add bin/XC_loc/ to your python path
 
 ## Notifications:
 Edit the .distribution_example.xlsx to include the relevant recipient addresses and rename to distribution.xlsx<br>

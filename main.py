@@ -22,6 +22,9 @@ if os.getenv('FROMCRON') == 'yep':
 	os.system('touch {}'.format(file))
 	f=open(file,'a')
 	sys.stdout=sys.stderr=f
+	
+	# keep .keep file from getting pruned by other cron deleting old log-files
+	os.system('touch {}'.format(os.environ['LOGS_DIR']+'/.keep'))
 
 print('')
 print('-----------------------------------------')

@@ -3,7 +3,6 @@ import os
 import pandas as pd
 import numpy as np
 import requests
-from obspy import UTCDateTime
 from obspy.geodetics.base import gps2dist_azimuth
 import warnings
 from urllib.parse import urlparse, urljoin
@@ -13,7 +12,7 @@ import matplotlib as m
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
 import matplotlib.image as mpimg
-from textwrap import wrap
+
 
 warnings.filterwarnings("ignore")
 
@@ -46,10 +45,27 @@ def run_alarm(config,T0):
 
 
 	volcs=pd.read_csv('alarm_aux_files/volcanoes_kml.txt',
-		delimiter='\t',names=['Volcano','kml','Lon','Lat'])	
+					  delimiter='\t',
+					  names=['Volcano','kml','Lon','Lat'])
+
+	# update DataFrame with unique NOAA/CIMSS id
+	A['NOAA_id']=''
+	for i in A.index:
+		A.at[i, 'NOAA_id'] = int(A.at[i,'alert_url'].split('/')[-1])
+
+	# convert time to datetime in DataFrame
+	A['object_date_time']=pd.to_datetime(A['object_date_time'])
+	# limit DataFrame to alerts in the past 12 hours
+	recent_alerts=A[A['object_date_time']>(T0-3600*12).strftime('%Y-%m-%d %H:%M')]
+	
+	# read in old alerts
+	old_alerts=pd.read_csv(config.outfile)
+
+	# now update alerts file
+	A[['object_date_time','NOAA_id','vv_id']].to_csv(config.outfile,index=False)
 
 	print('Looping through alerts...')
-	for i, alert in A.iterrows():
+	for i, alert in recent_alerts.iterrows():
 		
 		DIST=np.array([])
 		for lat,lon in zip(volcs.Lat.values,volcs.Lon.values):
@@ -63,14 +79,14 @@ def run_alarm(config,T0):
 		else:
 			
 			print('Found alert <{:g} km from volcanoes!'.format(config.max_distance))
-			old_alerts=pd.read_csv(config.outfile,names=['ids']).ids.values
-			if int(alert.alert_url.split('/')[-1]) in old_alerts:
+			if alert.NOAA_id in old_alerts.NOAA_id.values:
 				print('....just kidding! Old alert.')
 				state='OK'
 				state_message='{} (UTC) No new NOAA CIMMS alerts'.format(T0.strftime('%Y-%m-%d %H:%M'))
 				continue
 			else:
 				print('New Alert! Getting images and additional info from NOAA CIMSS webpage...')
+				print(alert)
 				volcs['distance']=DIST
 				
 				attempt=1
@@ -99,12 +115,6 @@ def run_alarm(config,T0):
 					attachment=[]
 					print('Problem making figure. Continue anyway')
 					pass
-
-				# update old alerts file so you don't keep sending same one
-				print('Update list of known alerts to avoid resending...')
-				old_alerts=np.append(old_alerts,alert.alert_url.split('/')[-1])
-				G=pd.DataFrame(old_alerts)
-				G.to_csv(config.outfile,index=False,header=False)
 
 				# craft and send the message
 				print('Crafting message...')

@@ -37,6 +37,7 @@ def grab_data(scnl,T1,T2,fill_value=0):
 
 	st=Stream()
 
+	t_test1=UTCDateTime.now()
 	for sta in scnl:
 		if sta.split('.')[2]=='MI':
 			client = Client(os.environ['CNMI_WINSTON'], int(os.environ['CNMI_PORT']))
@@ -72,6 +73,8 @@ def grab_data(scnl,T1,T2,fill_value=0):
 			tr.stats['starttime']=T1
 			tr.data=zeros(int((T2-T1)*tr.stats['sampling_rate']),dtype='int32')
 		st+=tr
+	print('{} seconds'.format(UTCDateTime.now()-t_test1))
+	
 	print('Detrending data...')
 	st.detrend('demean')
 	st.trim(T1,T2,pad=0)

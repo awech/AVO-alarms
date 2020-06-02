@@ -7,7 +7,7 @@ from pandas import DataFrame, Timestamp, read_csv
 import os
 import time
 from obspy.signal.filter import envelope
-from XC_loc import XC_main
+from enveloc.core import XCOR
 
 
 # main function called by alarm.py
@@ -35,7 +35,7 @@ def run_alarm(config,T0):
 	if Nsta<config.min_sta:
 		state_message='{} - Data missing!'.format(state_message)
 		state='WARNING'
-		utils.icinga_state(config.alarm_name,state,state_message)
+		utils.icinga_state(config,state,state_message)
 		return
 	#################################
 
@@ -60,11 +60,11 @@ def run_alarm(config,T0):
 	#################################
 	######### get locations #########
 	if test_traveltime(st,config):
-		XC  = XC_main.XCOR(band_env,visual=False,bootstrap=config.bstrap,bootstrap_prct=config.bstrap_prct,
+		XC  = XCOR(band_env,plot=False,bootstrap=config.bstrap,bootstrap_prct=config.bstrap_prct,
 						Cmin=config.Cmin,Cmax=config.Cmax,env_hp=high_env,grid_size=config.grid,
 						tt_file=config.grid_file,phase_types=config.phase_list)
 	else:
-		XC  = XC_main.XCOR(band_env,visual=False,bootstrap=config.bstrap,bootstrap_prct=config.bstrap_prct,
+		XC  = XCOR(band_env,plot=False,bootstrap=config.bstrap,bootstrap_prct=config.bstrap_prct,
 							Cmin=config.Cmin,Cmax=config.Cmax,env_hp=high_env,grid_size=config.grid)
 		XC.save_traveltimes(config.grid_file)
 	loc = XC.locate(window_length=config.window_length,step=config.window_length/2.,include_partial_windows=False)

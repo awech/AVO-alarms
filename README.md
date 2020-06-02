@@ -11,6 +11,7 @@ python codes used for geophysical alarms at AVO
 - PIL (pillow)<br>
 - xlrd<br>
 - dotenv<br>
+- enveloc (only for Tremor module)<br>
 - shapefile (for Pilot_Report module)<br>
 - beautifulsoup4 (for SO2 & NOAA_CIMSS modules)<br>
 - tomputils (optional for Mattermost)<br>

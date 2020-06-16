@@ -25,7 +25,7 @@ del af['address']
 
 
 sums=af.sum(axis='columns',numeric_only=True)
-sums=sums[np.invert(sums>=0)]
+sums=sums[np.invert(sums>0)]
 A=A.drop(sums.index)
 who=who.drop(sums.index)
 add=add.drop(sums.index)
@@ -55,7 +55,18 @@ A=A.replace(1.0,'x',regex=True)
 A=A.replace('_',' ',regex=True)
 A=A.replace('phone','cell',regex=True)
 
-B=A.style.set_properties(**{'font-family':'Hevletica'})
+B=A.copy().T
+
+names=B.loc['who']
+B.columns=names
+B=B.drop('who')
+
+df1 = B.pop('Wech email') # remove column b and store it in df1
+df2 = B.pop('Lopez cell') # remove column x and store it in df2
+B['Wech email']=df1 # add b series as a 'new' column.
+B['Lopez cell']=df2 # add b series as a 'new' column.
+
+B=B.style.set_properties(**{'font-family':'Hevletica'})
 B=B.applymap(highlight_vals)
 a=B.render()
 g=open(os.environ['HOME_DIR']+'/www/index.html','w')

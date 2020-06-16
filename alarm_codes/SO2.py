@@ -34,10 +34,10 @@ def run_alarm(config,T0):
 	table=table.get_text().split('\n')
 	table=table[1:-1]
 
-	date   = table[0].split(':')[-1].replace(' ','')
-	time   = table[1].split(' :')[-1].split('UTC')[0].replace(' ','')
-	lon    = float(table[2].split(':')[-1].split('deg')[0].replace(' ',''))
-	lat    = float(table[3].split(':')[-1].split('deg')[0].replace(' ',''))
+	date   = table[1].split(':')[-1].replace(' ','')
+	time   = table[2].split(' :')[-1].split('UTC')[0].replace(' ','')
+	lon    = float(table[3].split(':')[-1].split('deg')[0].replace(' ',''))
+	lat    = float(table[4].split(':')[-1].split('deg')[0].replace(' ',''))
 	# SZA    = table[4].split(':')[-1].split('deg')[0].replace(' ','')
 	# SO2max = table[5].split(':')[-1].split('DU')[0].replace(' ','')
 	# S02ht  = table[6].split(':')[-1].split('km')[0].replace(' ','')

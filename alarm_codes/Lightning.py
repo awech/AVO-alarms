@@ -271,6 +271,7 @@ def plot_fig(A_recent, config, T0):
 		volcs=pd.read_csv('alarm_aux_files/volcanoes_kml.txt',delimiter='\t',names=['Volcano','kml','Lon','Lat'])
 		volcs['dist']= [gps2dist_azimuth(lat,lon,lat0,lon0)[0]/1000 for lat,lon in zip(volcs.Lat.values,volcs.Lon.values)]
 		volcs.sort_values('dist',inplace=True)
+		m_map.plot(lon0,lat0,'^',latlon=True,markerfacecolor='forestgreen',markeredgecolor='white',markersize=5,markeredgewidth=0.5)
 		m_map.plot(volcs.Lon.values[1:10],volcs.Lat.values[1:10],'^',latlon=True,markerfacecolor='forestgreen',markeredgecolor='black',markersize=4,markeredgewidth=0.5)
 	except:
 		pass

@@ -36,6 +36,7 @@ def run_alarm(config,T0):
 				state='WARNING'
 				state_message='{} (UTC) Volcview-API webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
 				utils.icinga_state(config,state,state_message)
+				utils.icinga2_state(config,state,state_message)
 				return
 			print('Error opening .json file. Trying again')
 			attempt+=1
@@ -117,6 +118,7 @@ def run_alarm(config,T0):
 		
 
 	utils.icinga_state(config,state,state_message)
+	utils.icinga2_state(config,state,state_message)
 
 
 def make_blank_df():

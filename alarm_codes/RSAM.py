@@ -91,6 +91,7 @@ def run_alarm(config,T0):
 
 	# send heartbeat status message to icinga
 	utils.icinga_state(config,state,state_message)
+	utils.icinga2_state(config,state,state_message)
 
 
 def create_message(t1,t2,stations,rms,lvlv,alarm_name):

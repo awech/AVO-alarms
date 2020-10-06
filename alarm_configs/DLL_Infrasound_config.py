@@ -15,7 +15,7 @@ SCNL=[
 # Volcano list to be monitored
 # Need volcano name and location for each volcano
 # Azimuthal tolerance is in degrees
-# seismic_scnl is a list of seismic channels to be plotted with infrasound on detect 
+# seismic_scnl is a list of seismic channels to be plotted with infrasound on detect
 VOLCANO=[
 {'volcano':	'Semisopochnoi',	'v_lat': 51.947,	'v_lon': 179.623, 	'Azimuth_tolerance': 8, 'min_pa': 0.1, 'vmin':0.28, 'vmax':0.45,
 		'seismic_scnl': ['CERB.SHZ.AV.--','CESW.SHZ.AV.--','CEAP.SHZ.AV.--']},
@@ -56,6 +56,9 @@ VOLCANO=[
 {'volcano':	'Makushin',		'v_lat': 53.8900,	'v_lon': -166.9200, 	'Azimuth_tolerance': 4, 'min_pa': 0.1, 'vmin':0.28, 'vmax':0.45,
 		'seismic_scnl': ['MCIR.BHZ.AV.--','MGOD.BHZ.AV.--','MNAT.BHN.AV.--']},
 
+    {'volcano': 'Okmok', 'v_lat': 53.428865, 'v_lon': -168.131632,   'Azimuth_tolerance': 4, 'min_pa': 0.1, 'vmin':0.28, 'vmax':0.41,
+    'seismic_scnl': ['OKFG.BHZ.AV.--','OKAK.EHZ.AV.--','OKTU.EHZ.AV.--']},
+
 # {'volcano':	'Bogoslof',		'v_lat': 53.9310,	'v_lon': -168.0360, 	'Azimuth_tolerance': 2, 'min_pa': 0.1, 'vmin':0.28, 'vmax':0.45,
 # 		'seismic_scnl': ['OKER.EHZ.AV.--','OKTU.EHZ.AV.--','MAPS.BHN.AV.--']},
 
@@ -67,7 +70,7 @@ duration  = 3*60 # duration value in seconds
 latency   = 120.0 # seconds between timestamps and end of data window
 taper_val = 5.0  # seconds to taper beginning and end of trace before filtering
 # f1		  = 0.3  # minimum frequency for bandpass filter
-f1		  = 1.0  # temporary change on 20-Nov-2017 to remove microbarom false detects 
+f1		  = 1.0  # temporary change on 20-Nov-2017 to remove microbarom false detects
 f2		  = 8.0  # maximum frequency for bandpass filter
 
 # digouti   = (1/419430.0)/0.05	# convert counts to Pressure in Pa (Q330 + Chaparral mics)

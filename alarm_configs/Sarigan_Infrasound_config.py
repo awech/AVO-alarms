@@ -23,7 +23,7 @@ VOLCANO=[
 ]
 
 duration  = 3*60 # duration value in seconds
-latency   = 10.0 # seconds between timestamps and end of data window
+latency   = 120.0 # seconds between timestamps and end of data window
 taper_val = 5.0  # seconds to taper beginning and end of trace before filtering
 f1		  = 1.0  # minimum frequency for bandpass filter
 f2		  = 10.0 # maximum frequency for bandpass filter

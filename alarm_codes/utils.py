@@ -46,6 +46,7 @@ def grab_data(scnl,T1,T2,fill_value=0):
 		try:
 			tr=client.get_waveforms(sta.split('.')[2], sta.split('.')[0],sta.split('.')[3],sta.split('.')[1], T1, T2, cleanup=True)
 			if len(tr)>1:
+				print('{:.0f} traces for {}'.format(len(tr),sta))
 				if fill_value==0 or fill_value==None:
 					tr.detrend('demean')
 					tr.taper(max_percentage=0.01)

@@ -65,6 +65,9 @@ def run_alarm(config,T0):
 	# now update alerts file
 	A[['object_date_time','NOAA_id','vv_id']].to_csv(config.outfile,index=False)
 
+	if len(recent_alerts)==0:
+		state='WARNING'
+		state_message='{} (UTC) No new recent NOAA CIMSS alerts. Webpage or API problem?'.format(T0.strftime('%Y-%m-%d %H:%M'))
 	print('Looping through alerts...')
 	for i, alert in recent_alerts.iterrows():
 		

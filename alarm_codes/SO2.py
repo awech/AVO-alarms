@@ -81,7 +81,7 @@ def run_alarm(config,T0):
 
 
 def volcano_distance(lon,lat,config):
-	volcs=pd.read_csv('alarm_aux_files/volcanoes_kml.txt',delimiter='\t',names=['Volcano','kml','Lon','Lat'])
+	volcs=pd.read_csv(config.volc_file,delimiter='\t',names=['Volcano','kml','Lon','Lat'])
 
 	volcs['dist']=1e9
 	for i,row in volcs.iterrows():

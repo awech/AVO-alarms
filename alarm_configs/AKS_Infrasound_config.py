@@ -3,10 +3,10 @@ alarm_name = 'AKS Infrasound'	# this is the alarm name sent to icinga and in mes
 
 # Infrasound channels list
 SCNL=[
-{'scnl':'AKS.BDF.AV.--'	, 'sta_lat': 54.11050	, 'sta_lon': -165.69773},
-{'scnl':'AKS.BDG.AV.--'	, 'sta_lat': 54.11028	, 'sta_lon': -165.69618},
-{'scnl':'AKS.BDH.AV.--'	, 'sta_lat': 54.11105	, 'sta_lon': -165.69700},
-{'scnl':'AKS.BDI.AV.--'	, 'sta_lat': 54.11053	, 'sta_lon': -165.69683},
+{'scnl':'AKS.BDF.AV.01'	, 'sta_lat': 54.11050	, 'sta_lon': -165.69773},
+{'scnl':'AKS.BDF.AV.02'	, 'sta_lat': 54.11028	, 'sta_lon': -165.69618},
+{'scnl':'AKS.BDF.AV.03'	, 'sta_lat': 54.11105	, 'sta_lon': -165.69700},
+{'scnl':'AKS.BDF.AV.04'	, 'sta_lat': 54.11053	, 'sta_lon': -165.69683},
 ]
 
 # Volcano list to be monitored

@@ -24,8 +24,8 @@ VOLCANO=[
     {'volcano': 'Okmok', 'v_lat': 53.428865, 'v_lon': -168.131632,   'Azimuth_tolerance': 5, 'min_pa': 0.5, 'vmin':0.28, 'vmax':0.41,
     'seismic_scnl': ['OKFG.BHZ.AV.--','OKAK.EHZ.AV.--','OKTU.EHZ.AV.--']},
 
-    {'volcano': 'Korovin', 'v_lat': 52.379710, 'v_lon': -174.155718,   'Azimuth_tolerance': 6, 'min_pa': 0.2, 'vmin':0.28, 'vmax':0.41,
-    'seismic_scnl': ['KOKV.BHZ.AV.--','KONE.BHZ.AV.--','KONW.BHZ.AV.--']}
+    #{'volcano': 'Korovin', 'v_lat': 52.379710, 'v_lon': -174.155718,   'Azimuth_tolerance': 6, 'min_pa': 0.2, 'vmin':0.28, 'vmax':0.41,
+    #'seismic_scnl': ['KOKV.BHZ.AV.--','KONE.BHZ.AV.--','KONW.BHZ.AV.--']}
 ]
 
 duration  = 3*60 # duration value in seconds

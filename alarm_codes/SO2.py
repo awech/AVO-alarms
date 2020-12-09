@@ -29,6 +29,7 @@ def run_alarm(config,T0):
 				state='WARNING'
 				state_message='{} (UTC) webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
 				utils.icinga_state(config,state,state_message)
+				utils.icinga2_state(config,state,state_message)
 				return
 
 	table=table.get_text().split('\n')
@@ -76,10 +77,11 @@ def run_alarm(config,T0):
 
 	# send heartbeat status message to icinga
 	utils.icinga_state(config,state,state_message)
+	utils.icinga2_state(config,state,state_message)
 
 
 def volcano_distance(lon,lat,config):
-	volcs=pd.read_csv('alarm_aux_files/volcanoes_kml.txt',delimiter='\t',names=['Volcano','kml','Lon','Lat'])
+	volcs=pd.read_csv(config.volc_file,delimiter='\t',names=['Volcano','kml','Lon','Lat'])
 
 	volcs['dist']=1e9
 	for i,row in volcs.iterrows():

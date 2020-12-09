@@ -36,6 +36,7 @@ def run_alarm(config,T0):
 		state_message='{} - Data missing!'.format(state_message)
 		state='WARNING'
 		utils.icinga_state(config,state,state_message)
+		utils.icinga2_state(config,state,state_message)
 		return
 	#################################
 
@@ -141,6 +142,7 @@ def run_alarm(config,T0):
 	#################################
 
 	utils.icinga_state(config,state,state_message)
+	utils.icinga2_state(config,state,state_message)
 
 
 def test_traveltime(st,config):

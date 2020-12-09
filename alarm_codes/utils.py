@@ -46,6 +46,7 @@ def grab_data(scnl,T1,T2,fill_value=0):
 		try:
 			tr=client.get_waveforms(sta.split('.')[2], sta.split('.')[0],sta.split('.')[3],sta.split('.')[1], T1, T2, cleanup=True)
 			if len(tr)>1:
+				print('{:.0f} traces for {}'.format(len(tr),sta))
 				if fill_value==0 or fill_value==None:
 					tr.detrend('demean')
 					tr.taper(max_percentage=0.01)
@@ -112,6 +113,52 @@ def icinga_state(config,state,state_message):
 		time.sleep(1.5)
 		output=subprocess.check_output(cmd,shell=True)
 	print(output)
+
+	return
+
+
+def icinga2_state(config,state,state_message):
+	import requests, json
+
+	print('Sending state and message to icinga:')
+
+	states={      'OK': 0,
+			 'WARNING': 1,
+			'CRITICAL': 2,
+			 'UNKNOWN': 3}
+
+	state_num=states[state]
+
+	#### which icinga service ####
+	##############################
+	if hasattr(config,'icinga_service_name'):
+		icinga_service_name=config.icinga_service_name
+	else:
+		icinga_service_name=config.alarm_name
+	##############################
+	##############################
+
+	headers = {
+			    'Accept': 'application/json',
+			    'X-HTTP-Method-Override': 'POST'
+			  }
+	data = { 
+			 'type': 'Service',
+			 'filter': 'host.name==\"{}\" && service.name==\"{}\"'.format(os.environ['ICINGA_HOST_NAME'],icinga_service_name),
+			 'exit_status': state_num,
+			 'plugin_output': state_message
+		   }
+
+	resp = requests.get(os.environ['ICINGA2_URL'], 
+						headers=headers, 
+						auth=(os.environ['ICINGA2_USERNAME'], os.environ['ICINGA2_PASSWORD']), 
+						data=json.dumps(data), 
+						verify=False)
+
+	if (resp.status_code == 200):
+		print(resp.json()['results'][0]['status'])
+	else:
+		print(resp.text)
 
 	return
 

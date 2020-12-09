@@ -36,6 +36,7 @@ def run_alarm(config,T0):
 				state='WARNING'
 				state_message='{} (UTC) Volcview-API webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
 				utils.icinga_state(config,state,state_message)
+				utils.icinga2_state(config,state,state_message)
 				return
 			print('Error opening .json file. Trying again')
 			attempt+=1
@@ -117,6 +118,7 @@ def run_alarm(config,T0):
 		
 
 	utils.icinga_state(config,state,state_message)
+	utils.icinga2_state(config,state,state_message)
 
 
 def make_blank_df():
@@ -271,6 +273,7 @@ def plot_fig(A_recent, config, T0):
 		volcs=pd.read_csv('alarm_aux_files/volcanoes_kml.txt',delimiter='\t',names=['Volcano','kml','Lon','Lat'])
 		volcs['dist']= [gps2dist_azimuth(lat,lon,lat0,lon0)[0]/1000 for lat,lon in zip(volcs.Lat.values,volcs.Lon.values)]
 		volcs.sort_values('dist',inplace=True)
+		m_map.plot(lon0,lat0,'^',latlon=True,markerfacecolor='forestgreen',markeredgecolor='white',markersize=5,markeredgewidth=0.5)
 		m_map.plot(volcs.Lon.values[1:10],volcs.Lat.values[1:10],'^',latlon=True,markerfacecolor='forestgreen',markeredgecolor='black',markersize=4,markeredgewidth=0.5)
 	except:
 		pass

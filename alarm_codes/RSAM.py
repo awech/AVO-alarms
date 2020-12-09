@@ -56,7 +56,7 @@ def run_alarm(config,T0):
 	elif sum(rms[:-1]!=0)<config.min_sta:
 		#### not enough data ####
 		#########################
-		state_message='{} (UTC) data missing! {}'.format(T0.strftime('%Y-%m-%d %H:%M'),state_message)
+		state_message='{} (UTC) RSAM data missing! {}'.format(T0.strftime('%Y-%m-%d %H:%M'),state_message)
 		state='WARNING'
 		#
 	elif (rms[-1]>=lvlv[-1]) & (sum(rms[:-1]>lvlv[:-1])>=config.min_sta):
@@ -91,6 +91,7 @@ def run_alarm(config,T0):
 
 	# send heartbeat status message to icinga
 	utils.icinga_state(config,state,state_message)
+	utils.icinga2_state(config,state,state_message)
 
 
 def create_message(t1,t2,stations,rms,lvlv,alarm_name):

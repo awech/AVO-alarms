@@ -65,6 +65,7 @@ df1 = B.pop('Wech email') # remove column b and store it in df1
 df2 = B.pop('Lopez cell') # remove column x and store it in df2
 B['Wech email']=df1 # add b series as a 'new' column.
 B['Lopez cell']=df2 # add b series as a 'new' column.
+B.columns.name=''
 
 B=B.style.set_properties(**{'font-family':'Hevletica'})
 B=B.applymap(highlight_vals)

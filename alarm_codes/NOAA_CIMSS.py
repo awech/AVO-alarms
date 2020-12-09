@@ -37,6 +37,7 @@ def run_alarm(config,T0):
 				state='WARNING'
 				state_message='{} (UTC) Volcview webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
 				utils.icinga_state(config,state,state_message)
+				utils.icinga2_state(config,state,state_message)
 				return
 			print('Error opening .json file. Trying again')
 			attempt+=1
@@ -64,6 +65,9 @@ def run_alarm(config,T0):
 	# now update alerts file
 	A[['object_date_time','NOAA_id','vv_id']].to_csv(config.outfile,index=False)
 
+	if len(recent_alerts)==0:
+		state='WARNING'
+		state_message='{} (UTC) No new recent NOAA CIMSS alerts. Webpage or API problem?'.format(T0.strftime('%Y-%m-%d %H:%M'))
 	print('Looping through alerts...')
 	for i, alert in recent_alerts.iterrows():
 		
@@ -133,6 +137,7 @@ def run_alarm(config,T0):
 					os.remove(attachment)
 
 	utils.icinga_state(config,state,state_message)
+	utils.icinga2_state(config,state,state_message)
 
 
 def create_message(alert,instrument,height_text,volcs):

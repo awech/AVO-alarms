@@ -48,6 +48,7 @@ def run_alarm(config,T0):
 		state='WARNING'
 		state_message='{} (UTC) PIREP webpage error. Cannot retrieve shape file'.format(T0.strftime('%Y-%m-%d %H:%M'))
 		utils.icinga_state(config,state,state_message)
+		utils.icinga2_state(config,state,state_message)
 		return
 	try:
 		archive = ZipFile(config.zipfilename, 'r')
@@ -55,6 +56,7 @@ def run_alarm(config,T0):
 		print('No new pilot reports')
 		os.remove(config.zipfilename)
 		utils.icinga_state(config,state,state_message)
+		utils.icinga2_state(config,state,state_message)
 		return
 		# utils.icinga_state(config.alarm_name,state,state_message)
 
@@ -153,6 +155,7 @@ def run_alarm(config,T0):
 	rmtree(config.tmp_zipped_dir)
 
 	utils.icinga_state(config,state,state_message)
+	utils.icinga2_state(config,state,state_message)
 
 
 def check_volcano_mention(report):

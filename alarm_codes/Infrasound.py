@@ -42,6 +42,7 @@ def run_alarm(config,T0):
         state_message='{} - Not enough channels!'.format(state_message)
         state='WARNING'
         utils.icinga_state(config,state,state_message)
+        utils.icinga2_state(config,state,state_message)
         return
     ########################
 
@@ -54,6 +55,7 @@ def run_alarm(config,T0):
         state_message='{} - Gappy data!'.format(state_message)
         state='WARNING'
         utils.icinga_state(config,state,state_message)
+        utils.icinga2_state(config,state,state_message)
         return
     ########################
 
@@ -75,6 +77,7 @@ def run_alarm(config,T0):
         state_message='{} - not enough channels exceeding amplitude threshold!'.format(state_message)
         state='OK'
         utils.icinga_state(config,state,state_message)
+        utils.icinga2_state(config,state,state_message)
         return
     ########################
 
@@ -137,6 +140,7 @@ def run_alarm(config,T0):
 
     # send heartbeat status message to icinga
     utils.icinga_state(config,state,state_message)
+    utils.icinga2_state(config,state,state_message)
 
 
 def add_coordinate_info(st,SCNL):

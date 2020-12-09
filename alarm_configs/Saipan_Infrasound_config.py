@@ -4,9 +4,9 @@ alarm_name = 'Saipan Infrasound'	# this is the alarm name sent to icinga and in 
 # Infrasound channels list
 SCNL=[
 {'scnl':'FLX2.BDF.MI.01'	, 'sta_lat': 15.23481	, 'sta_lon': 145.79219},
-{'scnl':'FLX2.BDF.MI.02'	, 'sta_lat': 15.23325	, 'sta_lon': 145.79242},
+# {'scnl':'FLX2.BDF.MI.02'	, 'sta_lat': 15.23325	, 'sta_lon': 145.79242}, # dead channels. changed 23-Oct-2020
 {'scnl':'FLX2.BDF.MI.03'	, 'sta_lat': 15.23461	, 'sta_lon': 145.79097},
-{'scnl':'FLX2.BDF.MI.04'	, 'sta_lat': 15.23206	, 'sta_lon': 145.79389},
+# {'scnl':'FLX2.BDF.MI.04'	, 'sta_lat': 15.23206	, 'sta_lon': 145.79389}, # dead channels. changed 23-Oct-2020
 {'scnl':'FLX2.BDF.MI.05'	, 'sta_lat': 15.23217	, 'sta_lon': 145.79119},
 {'scnl':'FLX2.BDF.MI.06'	, 'sta_lat': 15.23650	, 'sta_lon': 145.79053},
 # {'scnl':'DPS.BDF.MI.--'		, 'sta_lat': 15.24082	, 'sta_lon': 145.78909},
@@ -25,7 +25,7 @@ VOLCANO=[
 ]
 
 duration  = 3*60 # duration value in seconds
-latency   = 10.0 # seconds between timestamps and end of data window
+latency   = 180.0 # seconds between timestamps and end of data window
 taper_val = 5.0  # seconds to taper beginning and end of trace before filtering
 f1		  = 1.0  # minimum frequency for bandpass filter
 f2		  = 10.0 # maximum frequency for bandpass filter

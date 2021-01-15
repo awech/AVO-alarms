@@ -32,16 +32,24 @@ def run_alarm(config,T0):
 				utils.icinga2_state(config,state,state_message)
 				return
 
-	table=table.get_text().split('\n')
-	table=table[1:-1]
+	try:
+		table=table.get_text().split('\n')
+		table=table[1:-1]
 
-	date   = table[1].split(':')[-1].replace(' ','')
-	time   = table[2].split(' :')[-1].split('UTC')[0].replace(' ','')
-	lon    = float(table[3].split(':')[-1].split('deg')[0].replace(' ',''))
-	lat    = float(table[4].split(':')[-1].split('deg')[0].replace(' ',''))
-	# SZA    = table[4].split(':')[-1].split('deg')[0].replace(' ','')
-	# SO2max = table[5].split(':')[-1].split('DU')[0].replace(' ','')
-	# S02ht  = table[6].split(':')[-1].split('km')[0].replace(' ','')
+		date   = table[1].split(':')[-1].replace(' ','')
+		time   = table[2].split(' :')[-1].split('UTC')[0].replace(' ','')
+		lon    = float(table[3].split(':')[-1].split('deg')[0].replace(' ',''))
+		lat    = float(table[4].split(':')[-1].split('deg')[0].replace(' ',''))
+		# SZA    = table[4].split(':')[-1].split('deg')[0].replace(' ','')
+		# SO2max = table[5].split(':')[-1].split('DU')[0].replace(' ','')
+		# S02ht  = table[6].split(':')[-1].split('km')[0].replace(' ','')
+	except:
+		print('Page error.')
+		state='WARNING'
+		state_message='{} (UTC) webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
+		utils.icinga_state(config,state,state_message)
+		utils.icinga2_state(config,state,state_message)	
+		return	
 
 	volcs    = volcano_distance(lon,lat,config)
 	new_time = time_check(date,time,config)

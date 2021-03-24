@@ -163,7 +163,7 @@ def get_new_strokes(A,T0,config):
 
 	# convert strings to numbers
 	for c in A_recent.columns:
-		if c in ['dataSource','volcanoName','datetime']:
+		if c in ['dataSource','volcanoName','datetime','obsAbbr']:
 			continue
 		A_recent[c]=pd.to_numeric(A_recent[c])
 

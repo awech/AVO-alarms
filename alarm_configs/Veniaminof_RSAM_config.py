@@ -4,11 +4,11 @@ alarm_name = 'Veniaminof RSAM'	# this is the alarm name sent to icinga and in me
 # Stations list. Last station is arrestor.
 SCNL=[
 # {'scnl':'VNSS.EHZ.AV.--'	, 'value': 800		},
-{'scnl':'VNSS.EHZ.AV.--'	, 'value': 1150		}, # changed 29-Oct-2018 to avoid network-wide noise spikes
-{'scnl':'VNFG.EHZ.AV.--'	, 'value': 150		},
+{'scnl':'VNSS.EHZ.AV.--'	, 'value': 1000		}, # changed 29-Oct-2018 to avoid network-wide noise spikes
+{'scnl':'VNFG.EHZ.AV.--'	, 'value': 2600		},
 # {'scnl':'VNHG.EHZ.AV.--'	, 'value': 600		},
-{'scnl':'VNHG.EHZ.AV.--'	, 'value': 750		}, # changed 29-Oct-2018 to avoid network-wide noise spikes
-{'scnl':'VNWF.EHZ.AV.--'	, 'value': 500		},
+{'scnl':'VNHG.EHZ.AV.--'	, 'value': 5200		}, # changed 29-Oct-2018 to avoid network-wide noise spikes
+{'scnl':'VNWF.EHZ.AV.--'	, 'value': 590		},
 # {'scnl':'CHGN.BHZ.AT.--'	, 'value': 80		}, # arrestor station
 {'scnl':'SDPT.BHZ.AT.--'	, 'value': 200	}, # arrestor station
 ]

@@ -18,3 +18,6 @@ min_sta   = 3    # minimum number of stations for detection
 taper_val = 5 	 # seconds to taper beginning and end of trace before filtering
 f1		  = 1.0  # minimum frequency for bandpass filter
 f2		  = 5.0  # maximum frequency for bandpass filter
+
+icinga_service_name = 'generic alarm 3'
+# mattermost_channel_id = 'jewennqiq7rd5kdubg8t1j9b8a'

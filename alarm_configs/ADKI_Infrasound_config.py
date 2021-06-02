@@ -27,7 +27,7 @@ VOLCANO=[
 
 {'volcano':	'Great Sitkin',			'v_lat': 52.077282,	'v_lon': -176.131317, 	'Azimuth_tolerance':   7, 'min_pa': 1.0, 'vmin':0.28, 'vmax':0.43,
 		'seismic_scnl': ['GSTD.BHZ.AV.--','GSSP.BHZ.AV.--','GSTR.BHZ.AV.--','GSMY.BHZ.AV.--','GSCK.BHZ.AV.--']},
-		
+
 {'volcano':	'Bogoslof',				'v_lat': 53.9310,	'v_lon': -168.0360, 	'Azimuth_tolerance': 1.5, 'min_pa': 0.4, 'vmin':0.28, 'vmax':0.43,
 		'seismic_scnl': ['OKER.EHZ.AV.--','OKTU.EHZ.AV.--','MAPS.BHN.AV.--']},
 

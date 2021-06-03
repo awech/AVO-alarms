@@ -22,6 +22,9 @@ VOLCANO=[
 {'volcano':	'Semisopochnoi',	'v_lat': 51.93,	'v_lon': 179.58, 	'Azimuth_tolerance':   7, 'min_pa': 0.4, 'vmin':0.28, 'vmax':0.43,
 		'seismic_scnl': ['CERB.BHZ.AV.--','CESW.BHZ.AV.--','CEPE.BHZ.AV.--','CERA.BHZ.AV.--','CETU.BHZ.AV.--']},
 
+{'volcano':	'Central Aleutians',	'v_lat': 52.076,	'v_lon': -176.13, 	'Azimuth_tolerance':   7, 'min_pa': 0.4, 'vmin':0.28, 'vmax':0.43,
+		'seismic_scnl': ['KOKV.BHZ.AV.--','GSTD.BHZ.AV.--','KIKV.BHZ.AV.--','TASE.BHZ.AV.--','GAEA.BHZ.AV.--']},
+
 ]
 
 duration  = 3*60 # duration value in seconds

@@ -3,12 +3,12 @@ alarm_name = 'AMKA Infrasound'	# this is the alarm name sent to icinga and in me
 
 # Infrasound channels list
 SCNL=[
-{'scnl':'AMKA.HDF.AV.01'	, 'sta_lat': 51.379251	, 'sta_lon': 179.301254},
-{'scnl':'AMKA.HDF.AV.02'	, 'sta_lat': 51.378508	, 'sta_lon': 179.301857},
-{'scnl':'AMKA.HDF.AV.03'	, 'sta_lat': 51.378079	, 'sta_lon': 179.301171},
-{'scnl':'AMKA.HDF.AV.04'	, 'sta_lat': 51.378409	, 'sta_lon': 179.299999},
-{'scnl':'AMKA.HDF.AV.05'	, 'sta_lat': 51.379032	, 'sta_lon': 179.300297},
-{'scnl':'AMKA.HDF.AV.06'	, 'sta_lat': 51.37868	, 'sta_lon': 179.300981},
+{'scnl':'AMKA.HDF.AV.01'	, 'sta_lat': 51.379130	, 'sta_lon': 179.30130},
+{'scnl':'AMKA.HDF.AV.02'	, 'sta_lat': 51.378489	, 'sta_lon': 179.30183},
+{'scnl':'AMKA.HDF.AV.03'	, 'sta_lat': 51.378105	, 'sta_lon': 179.301225},
+{'scnl':'AMKA.HDF.AV.04'	, 'sta_lat': 51.37831	, 'sta_lon': 179.30028},
+{'scnl':'AMKA.HDF.AV.05'	, 'sta_lat': 51.379055	, 'sta_lon': 179.30026},
+{'scnl':'AMKA.HDF.AV.06'	, 'sta_lat': 51.37871	, 'sta_lon': 179.30093},
 ]
 
 # Volcano list to be monitored

@@ -3,9 +3,10 @@ alarm_name = 'Barry Arm RSAM'	# this is the alarm name sent to icinga and in mes
 
 # Stations list. Last station is arrestor.
 SCNL=[
-{'scnl':'BAE.BHZ.AK.--'	, 'value':  5000	},
-{'scnl':'BAW.BHZ.AK.--'	, 'value':  5000	},
-{'scnl':'KNK.BHZ.AK.--'	, 'value':  800		}, # arrestor station
+{'scnl':'GLI.BHZ.AK.--'	, 'value':  500	},
+{'scnl':'KNK.BHZ.AK.--'	, 'value':  1000	},
+{'scnl':'PWL.BHZ.AK.--' , 'value':  500        },
+{'scnl':'SKN.BHZ.AK.--'	, 'value':  100		}, # arrestor station
 ]
 
 duration  = 5*60 # duration value in seconds

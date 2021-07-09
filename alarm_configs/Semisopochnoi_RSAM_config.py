@@ -3,11 +3,11 @@ alarm_name = 'Semisopochnoi RSAM'	# this is the alarm name sent to icinga and in
 
 # Stations list. Last station is arrestor.
 SCNL=[
-{'scnl':'CEAP.SHZ.AV.--'	, 'value':   75 * 1e3		},
+{'scnl':'CEAP.BHZ.AV.--'	, 'value':     475		},
 # {'scnl':'CEPE.SHZ.AV.--'	, 'value':  500 * 1e3		}, # removed Feb 28, 2020. Dead channel.
-{'scnl':'CERB.SHZ.AV.--'	, 'value':  110 * 1e3		},
-{'scnl':'CESW.SHZ.AV.--'	, 'value':  625 * 1e3		},
-{'scnl':'CETU.SHZ.AV.--'	, 'value':  150 * 1e3		},
+{'scnl':'CEPE.BHZ.AV.--'	, 'value':     600		},
+{'scnl':'CESW.BHZ.AV.--'	, 'value':     700		},
+{'scnl':'CETU.BHZ.AV.--'	, 'value':     475		},
 {'scnl':'AMKA.BHZ.AV.--'	, 'value':     100		}, # arrestor station
 ]
 

@@ -4,7 +4,7 @@ alarm_name = 'KENI Infrasound'	# this is the alarm name sent to icinga and in me
 # Infrasound channels list
 SCNL=[
 {'scnl':'KENI.HDF.AV.01'	, 'sta_lat': 60.6413700	, 'sta_lon': -151.070200},
-{'scnl':'KENI.HDF.AV.02'	, 'sta_lat': 60.6404567 , 'sta_lon': -151.070330},
+# {'scnl':'KENI.HDF.AV.02'	, 'sta_lat': 60.6404567 , 'sta_lon': -151.070330},
 {'scnl':'KENI.HDF.AV.03'	, 'sta_lat': 60.6406033	, 'sta_lon': -151.072020},
 {'scnl':'KENI.HDF.AV.04'	, 'sta_lat': 60.6412000	, 'sta_lon': -151.073000},
 {'scnl':'KENI.HDF.AV.05'	, 'sta_lat': 60.6415300	, 'sta_lon': -151.072000},

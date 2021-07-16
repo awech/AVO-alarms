@@ -189,6 +189,8 @@ def check_volcano_mention(report):
 		trigger = True
 	elif 'SULFUR' in report:
 		trigger = True
+	elif 'SULPHUR' in report:
+		trigger = True
 	elif 'PLUME' in report:
 		trigger = True
 	elif 'ERUPT' in report:

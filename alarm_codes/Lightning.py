@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from matplotlib.dates import date2num
 warnings.filterwarnings("ignore")
+import traceback
 
 
 def run_alarm(config,T0):
@@ -107,6 +108,10 @@ def run_alarm(config,T0):
 					try:
 						attachment = plot_fig(V_recent, config, T0)
 					except:
+						print('Error generating figure...')
+						b=traceback.format_exc()
+						err_message = ''.join('{}\n'.format(a) for a in b.splitlines())
+						print(err_message)
 						attachment = None
 					
 					print('Sending message...')

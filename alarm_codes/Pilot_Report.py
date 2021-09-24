@@ -14,6 +14,7 @@ import matplotlib as m
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
 from textwrap import wrap
+import traceback
 
 socket.setdefaulttimeout(15)
 
@@ -135,6 +136,10 @@ def run_alarm(config,T0):
 				try:
 					filename=plot_fig(config,df,i,A,UTC_time_text,height_text,pilot_remark)
 				except:
+					print('Error generating figure...')
+					b=traceback.format_exc()
+					err_message = ''.join('{}\n'.format(a) for a in b.splitlines())
+					print(err_message)
 					filename=[]
 
 				### Craft message text ####

@@ -12,6 +12,7 @@ import matplotlib as m
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
 import matplotlib.image as mpimg
+import traceback
 
 
 warnings.filterwarnings("ignore")
@@ -118,6 +119,9 @@ def run_alarm(config,T0):
 				except:
 					attachment=[]
 					print('Problem making figure. Continue anyway')
+					b=traceback.format_exc()
+					err_message = ''.join('{}\n'.format(a) for a in b.splitlines())
+					print(err_message)
 					pass
 
 				# craft and send the message

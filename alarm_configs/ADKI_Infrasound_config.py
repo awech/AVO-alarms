@@ -20,10 +20,10 @@ VOLCANO=[
 		'seismic_scnl': ['ADK.BHZ.IU.--','ADAG.BHZ.AV.--']},
 
 {'volcano':	'Central Aleutians',	'v_lat': 52.8222,	'v_lon': -169.9464, 	'Azimuth_tolerance':   8, 'min_pa': 0.4, 'vmin':0.28, 'vmax':0.43,
-		'seismic_scnl': ['KOKV.BHZ.AV.--','CLES.BHZ.AV.--','OKNC.BHZ.AV.--','MAPS.BHZ.AV.--']},
+		'seismic_scnl': ['KOKV.BHZ.AV.--','CLES.BHZ.AV.--','OKNC.BHZ.AV.--','MAPS.BHZ.AV.--'], 'traveltime':False},
 
-{'volcano':	'Western Aleutians',	'v_lat': 52.029530,	'v_lon': 178.231398, 	'Azimuth_tolerance':  10, 'min_pa': 0.3, 'vmin':0.28, 'vmax':0.43,
-		'seismic_scnl': ['LSSE.SHZ.AV.--','CEPE.SHZ.AV.--','GANO.BHZ.AV.--','TASE.BHZ.AV.--','KIKV.BHZ.AV.--']},
+{'volcano':	'Western Aleutians',	'v_lat': 52.029530,	'v_lon': 178.231398, 	'Azimuth_tolerance':  10, 'min_pa': 0.5, 'vmin':0.28, 'vmax':0.43,
+		'seismic_scnl': ['LSSE.BHZ.AV.--','CEPE.BHZ.AV.--','GANO.BHZ.AV.--','TASE.BHZ.AV.--','KIKV.BHZ.AV.--'], 'traveltime':False},
 
 {'volcano':	'Great Sitkin',			'v_lat': 52.077282,	'v_lon': -176.131317, 	'Azimuth_tolerance':   7, 'min_pa': 1.0, 'vmin':0.28, 'vmax':0.43,
 		'seismic_scnl': ['GSTD.BHZ.AV.--','GSSP.BHZ.AV.--','GSTR.BHZ.AV.--','GSMY.BHZ.AV.--','GSCK.BHZ.AV.--']},

@@ -23,7 +23,7 @@ VOLCANO=[
 		'seismic_scnl': ['CERB.BHZ.AV.--','CESW.BHZ.AV.--','CEPE.BHZ.AV.--','CERA.BHZ.AV.--','CETU.BHZ.AV.--']},
 
 {'volcano':	'Central Aleutians',	'v_lat': 52.076,	'v_lon': -176.13, 	'Azimuth_tolerance':   7, 'min_pa': 0.4, 'vmin':0.28, 'vmax':0.43,
-		'seismic_scnl': ['KOKV.BHZ.AV.--','GSTD.BHZ.AV.--','KIKV.BHZ.AV.--','TASE.BHZ.AV.--','GAEA.BHZ.AV.--']},
+		'seismic_scnl': ['KOKV.BHZ.AV.--','GSTD.BHZ.AV.--','KIKV.BHZ.AV.--','TASE.BHZ.AV.--','GAEA.BHZ.AV.--'], 'traveltime':False},
 
 ]
 
@@ -37,5 +37,3 @@ digouti   = (1/400000)/0.0275	# convert counts to Pressure in Pa (Q330 + Chaparr
 min_cc    = 0.6					# min normalized correlation coefficient to accept
 min_chan  = 3					# minimum # of channels for code to run
 cc_shift_length = 3*50			# maximum samples to shift in cross-correlation (usually at 50 sps)
-
-mattermost_channel_id = 'jewennqiq7rd5kdubg8t1j9b8a'

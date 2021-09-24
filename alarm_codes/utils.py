@@ -168,7 +168,8 @@ def send_alert(alarm_name,subject,body,filename=None):
 	print('Sending alarm email and sms...')
 
 	# read & parse notification list
-	A=read_excel('distribution.xlsx')
+	distribution_file=''.join([os.environ['HOME_DIR'],'/','distribution.xlsx'])
+	A=read_excel(distribution_file)
 
 	for recipient_group in ['x','o']:
 		# filter to appropriate recipients

@@ -38,6 +38,7 @@ def run_alarm(config,T0):
 	############################# Icinga message #############################
 	state_message = ''.join('{}: {:.0f}/{:.0f}, '.format(sta,rms[i],lvlv[i]) for i,sta in enumerate(stas[:-1]))
 	state_message = ''.join([state_message,'Arrestor ({}): {:.0f}/{:.0f}'.format(stas[-1],rms[-1],lvlv[-1])])
+	state_message = ''.join([state_message,'[{:.0f} station minimum,{:g} -- {:g} Hz]'.format(config.min_sta,config.f1,config.f2)])
 	###########################################################################
 
 	if (rms[-1]<lvlv[-1]) & (sum(rms[:-1]>lvlv[:-1])>=config.min_sta):
@@ -110,10 +111,11 @@ def create_message(t1,t2,stations,rms,lvlv,alarm_name):
 
 	a=np.array([''] * len(rms[:-1]))
 	a[np.where(rms>lvlv)]='*'
-	if 'Semisopochnoi' in alarm_name:
-		sta_message = ''.join('{}{}: {:,.0f}k/{:.0f}k\n'.format(sta,a[i],rms[i]/1000.0,lvlv[i]/1000.0) for i,sta in enumerate(stations[:-1]))
-	else:
-		sta_message = ''.join('{}{}: {:.0f}/{:.0f}\n'.format(sta,a[i],rms[i],lvlv[i]) for i,sta in enumerate(stations[:-1]))
+	# if 'Semisopochnoi' in alarm_name:
+	# 	sta_message = ''.join('{}{}: {:,.0f}k/{:.0f}k\n'.format(sta,a[i],rms[i]/1000.0,lvlv[i]/1000.0) for i,sta in enumerate(stations[:-1]))
+	# else:
+	# 	sta_message = ''.join('{}{}: {:.0f}/{:.0f}\n'.format(sta,a[i],rms[i],lvlv[i]) for i,sta in enumerate(stations[:-1]))
+	sta_message = ''.join('{}{}: {:.0f}/{:.0f}\n'.format(sta,a[i],rms[i],lvlv[i]) for i,sta in enumerate(stations[:-1]))
 	sta_message = ''.join([sta_message,'\nArrestor: {} {:.0f}/{:.0f}'.format(stations[-1],rms[-1],lvlv[-1])])
 	message = ''.join([message,sta_message])
 

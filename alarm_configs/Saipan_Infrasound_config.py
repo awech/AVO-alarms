@@ -3,7 +3,7 @@ alarm_name = 'Saipan Infrasound'	# this is the alarm name sent to icinga and in 
 
 # Infrasound channels list
 SCNL=[
-{'scnl':'FLX2.BDF.MI.01'	, 'sta_lat': 15.23481	, 'sta_lon': 145.79219},
+# {'scnl':'FLX2.BDF.MI.01'	, 'sta_lat': 15.23481	, 'sta_lon': 145.79219},
 # {'scnl':'FLX2.BDF.MI.02'	, 'sta_lat': 15.23325	, 'sta_lon': 145.79242}, # dead channels. changed 23-Oct-2020
 {'scnl':'FLX2.BDF.MI.03'	, 'sta_lat': 15.23461	, 'sta_lon': 145.79097},
 # {'scnl':'FLX2.BDF.MI.04'	, 'sta_lat': 15.23206	, 'sta_lon': 145.79389}, # dead channels. changed 23-Oct-2020
@@ -21,7 +21,7 @@ SCNL=[
 # seismic_scnl is a list of seismic channels to be plotted with infrasound on detect
 VOLCANO=[
 {'volcano':	'North (Anatahan?)',	'v_lat': 18.141555,	'v_lon': 145.786260, 	'Azimuth_tolerance': 15, 'min_pa': 0.1, 'vmin':0.28, 'vmax':0.45,
-		'seismic_scnl': ['ANNE.BHZ.MI.--','ANLB.BHZ.MI.--','DPS.BHZ.MI.--','GOLF.BHZ.MI.--']},
+		'seismic_scnl': ['ANNE.BHZ.MI.--','ANLB.BHZ.MI.--','DPS.BHZ.MI.--','GOLF.BHZ.MI.--'], 'traveltime':False},
 ]
 
 duration  = 3*60 # duration value in seconds
@@ -32,5 +32,5 @@ f2		  = 10.0 # maximum frequency for bandpass filter
 
 digouti   = (1/419430.0)/(1e-2)	# convert counts to Pressure in Pa (Q330 + VDP-10 mics)
 min_cc    = 0.6					# min normalized correlation coefficient to accept
-min_chan  = 4					# minimum # of channels for code to run
+min_chan  = 3					# minimum # of channels for code to run
 cc_shift_length = 3*50			# maximum samples to shift in cross-correlation (usually at 50 sps)

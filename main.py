@@ -10,6 +10,9 @@ import sys
 import traceback
 import warnings
 
+import time
+start=time.time()
+
 # don't write .pyc files (probably slightly faster without this, but more cluttered)
 sys.dont_write_bytecode = True
 
@@ -78,6 +81,9 @@ except:
 print(UTCDateTime.utcnow().strftime('%Y.%m.%d %H:%M:%S'))
 print('-----------------------------------------')
 print('')
+
+end = time.time()
+print('[{:.2f} seconds to complete alarm]'.format(end - start))
 
 if os.getenv('FROMCRON') == 'yep':
 	f.close()

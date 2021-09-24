@@ -505,4 +505,10 @@ def create_message(t1,t2,config,volcano,azimuth,d_Azimuth,velocity,mx_pressure):
     message='{}Velocity: {:.0f} m/s\n'.format(message,velocity*1000)
     message='{}Max Pressure: {:.1f} Pa'.format(message,mx_pressure)
 
+    if 'v_lat' in volcano:
+        lat0=np.mean([scnl['sta_lat'] for scnl in config.SCNL])
+        lon0=np.mean([scnl['sta_lon'] for scnl in config.SCNL])
+        travel_time=UTCDateTime(gps2dist_azimuth(lat0,lon0,volcano['v_lat'],volcano['v_lon'])[0]/333)
+        message='{}\nTravel Time: {:.0f} min {:.0f} s'.format(message,travel_time.minute,travel_time.second)    
+
     return subject, message

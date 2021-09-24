@@ -74,7 +74,8 @@ f1		  = 1.0  # temporary change on 20-Nov-2017 to remove microbarom false detect
 f2		  = 8.0  # maximum frequency for bandpass filter
 
 # digouti   = (1/419430.0)/0.05	# convert counts to Pressure in Pa (Q330 + Chaparral mics)
-digouti   = 0.00000409476	# convert counts to Pressure in Pa (Q330 + Chaparral mics)
+# digouti   = 0.00000409476	    # convert counts to Pressure in Pa (Q330 + Chaparral mics)
+digouti   = 1/33505.5968 # convert counts to Pressure in Pa 01-Jun-2021
 min_cc    = 0.5					# min normalized correlation coefficient to accept
 min_chan  = 3					# minimum # of channels for code to run
 cc_shift_length = 3*50			# maximum samples to shift in cross-correlation (usually at 50 sps)

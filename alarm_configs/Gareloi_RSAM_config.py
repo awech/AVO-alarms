@@ -1,14 +1,14 @@
 alarm_type = 'RSAM'				# this designates which alarm module will be imported and executed
-alarm_name = 'Semisopochnoi RSAM'	# this is the alarm name sent to icinga and in message alerts
+alarm_name = 'Gareloi RSAM'	    # this is the alarm name sent to icinga and in message alerts
 
 # Stations list. Last station is arrestor.
 SCNL=[
-{'scnl':'CEAP.BHZ.AV.--'	, 'value':     475		},
-# {'scnl':'CEPE.SHZ.AV.--'	, 'value':  500 * 1e3		}, # removed Feb 28, 2020. Dead channel.
-{'scnl':'CEPE.BHZ.AV.--'	, 'value':     600		},
-{'scnl':'CESW.BHZ.AV.--'	, 'value':     700		},
-{'scnl':'CETU.BHZ.AV.--'	, 'value':     475		},
-{'scnl':'AMKA.BHZ.AV.--'	, 'value':     100		}, # arrestor station
+{'scnl':'GAEA.BHZ.AV.--'	, 'value':  1200		},
+{'scnl':'GALA.BHZ.AV.--'	, 'value':  1150		},
+{'scnl':'GASW.BHZ.AV.--'	, 'value':   950		},
+{'scnl':'GANE.BHZ.AV.--'	, 'value':  1150		},
+{'scnl':'GANO.BHZ.AV.--'	, 'value':  1150		},
+{'scnl':'KIMD.BHZ.AV.--'	, 'value':   200		}, # arrestor station
 ]
 
 duration  = 5*60 # duration value in seconds
@@ -17,3 +17,6 @@ min_sta   = 3    # minimum number of stations for detection
 taper_val = 5 	 # seconds to taper beginning and end of trace before filtering
 f1		  = 1.0  # minimum frequency for bandpass filter
 f2		  = 5.0  # maximum frequency for bandpass filter
+
+icinga_service_name = 'generic alarm 4'
+# mattermost_channel_id = 'jewennqiq7rd5kdubg8t1j9b8a'

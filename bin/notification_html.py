@@ -1,4 +1,4 @@
-#!/home/rtem/miniconda/envs/py_alarms/bin/python
+#!/home/rtem/.conda/envs/alarms/bin/python
 # -*- coding: utf-8 -*-
 
 import os
@@ -16,9 +16,10 @@ A.rename(columns={'Name':'who','Email':'address'},inplace=True)
 
 who=A['who']
 add=A['address']
-A=A.replace(0.0,np.nan,regex=True)
-A=A.replace('x',1.0,regex=True)
-A=A.replace('o',0.0,regex=True)
+A=A.replace(r'\bx\b',1.0,regex=True)
+A=A.replace(r'\bo\b',0.0,regex=True)
+A=A.replace(np.nan,0.0,regex=True)
+
 af=A.copy()
 del af['who']
 del af['address']
@@ -50,7 +51,7 @@ def highlight_vals(val):
 	return string
 
 A=A.replace(np.nan,' ',regex=True)
-A=A.replace(0.0,'o',regex=True)
+A=A.replace(0.0,'',regex=True)
 A=A.replace(1.0,'x',regex=True)
 A=A.replace('_',' ',regex=True)
 A=A.replace('phone','cell',regex=True)

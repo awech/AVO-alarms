@@ -119,8 +119,10 @@ def icinga_state(config,state,state_message):
 
 def icinga2_state(config,state,state_message):
 	import requests, json
+	import urllib3
+	urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-	print('Sending state and message to icinga:')
+	print('Sending state and message to icinga2:')
 
 	states={      'OK': 0,
 			 'WARNING': 1,
@@ -157,8 +159,10 @@ def icinga2_state(config,state,state_message):
 
 	if (resp.status_code == 200):
 		print(resp.json()['results'][0]['status'])
+		print('Success. Message sent to icinga2')
 	else:
-		print(resp.text)
+		print('Status code = {:g}'.format(resp.status_code))
+		print('Failed to send message to icinga2')
 
 	return
 

@@ -8,7 +8,7 @@ DOCSTRING = __doc__.split("\n")
 
 setup(
     name="avo_alarm_codes",
-    version="0.0.1",
+    version="0.0.2",
     author="Aaron Wech",
     author_email="awech@usgs.gov",
     description=(DOCSTRING[1]),

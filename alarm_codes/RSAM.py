@@ -14,9 +14,28 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from matplotlib.colors import LinearSegmentedColormap
 
+
+# generate RSAM values
+def calculate_rsam(scnl, t1, t2):
+	"""Generate RSAM values.
+
+	:param scnl: list of SCNL's in the form STA.CHA.NET.LOC
+	:param t1: start time as obspy UTCDateTimes
+	:param t2: end time as obspy UTCDateTimes
+	:return: RSAM values
+	"""
+	st = utils.grab_data(scnl,t1,t2,fill_value=0)
+
+	st.detrend('demean')
+	st.taper(max_percentage=None,max_length=config.taper_val)
+	st.filter('bandpass',freqmin=config.f1,freqmax=config.f2)
+
+	rms=np.array([np.sqrt(np.mean(np.square(tr.data))) for tr in st])
+
+	return rms
+
 # main function called by main.py
 def run_alarm(config,T0):
-
 	time.sleep(config.latency)
 	SCNL=DataFrame.from_dict(config.SCNL)
 	lvlv=np.array(SCNL['value'])
@@ -25,15 +44,8 @@ def run_alarm(config,T0):
 
 	t1 = T0-config.duration
 	t2 = T0
-	st = utils.grab_data(scnl,t1,t2,fill_value=0)
 
-	#### preprocess data ####
-	st.detrend('demean')
-	st.taper(max_percentage=None,max_length=config.taper_val)
-	st.filter('bandpass',freqmin=config.f1,freqmax=config.f2)
-
-	#### calculate rsam ####
-	rms=np.array([np.sqrt(np.mean(np.square(tr.data))) for tr in st])
+	rms = calculate_rsam(scnl, t1, t2)
 
 	############################# Icinga message #############################
 	state_message = ''.join('{}: {:.0f}/{:.0f}, '.format(sta,rms[i],lvlv[i]) for i,sta in enumerate(stas[:-1]))

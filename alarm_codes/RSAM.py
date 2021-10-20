@@ -16,7 +16,7 @@ from matplotlib.colors import LinearSegmentedColormap
 
 
 # generate RSAM values
-def calculate_rsam(scnl, t1, t2):
+def calculate_rsam(scnl, t1, t2, taper_val, f1, f2):
 	"""Generate RSAM values.
 
 	:param scnl: list of SCNL's in the form STA.CHA.NET.LOC
@@ -27,8 +27,8 @@ def calculate_rsam(scnl, t1, t2):
 	st = utils.grab_data(scnl,t1,t2,fill_value=0)
 
 	st.detrend('demean')
-	st.taper(max_percentage=None,max_length=config.taper_val)
-	st.filter('bandpass',freqmin=config.f1,freqmax=config.f2)
+	st.taper(max_percentage=None,max_length=taper_val)
+	st.filter('bandpass',freqmin=f1,freqmax=f2)
 
 	rms=np.array([np.sqrt(np.mean(np.square(tr.data))) for tr in st])
 
@@ -45,7 +45,7 @@ def run_alarm(config,T0):
 	t1 = T0-config.duration
 	t2 = T0
 
-	rms = calculate_rsam(scnl, t1, t2)
+	rms = calculate_rsam(scnl, t1, t2, config.taper_val, config.f1, config.f2)
 
 	############################# Icinga message #############################
 	state_message = ''.join('{}: {:.0f}/{:.0f}, '.format(sta,rms[i],lvlv[i]) for i,sta in enumerate(stas[:-1]))

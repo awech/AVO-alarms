@@ -8,7 +8,7 @@ DOCSTRING = __doc__.split("\n")
 
 setup(
     name="avo_alarm_codes",
-    version="0.0.4",
+    version="0.0.5",
     author="Aaron Wech",
     author_email="awech@usgs.gov",
     description=(DOCSTRING[1]),
@@ -21,7 +21,7 @@ setup(
         "Topic :: Software Development :: Libraries",
         "License :: CC0 1.0 Universal (CC0 1.0) Public Domain Dedication",
     ],
-    install_requires=["python-dotenv", "obspy", "numpy", "pandas", "matplotlib"],
+    install_requires=["python-dotenv", "obspy", "numpy", "pandas", "matplotlib", "tomputils"],
     setup_requires=[""],
     tests_require=[""],
     entry_points={

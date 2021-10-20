@@ -1,4 +1,4 @@
 from dotenv import load_dotenv
-import RSAM
+from . import RSAM
 
 load_dotenv()

@@ -21,7 +21,7 @@ setup(
         "Topic :: Software Development :: Libraries",
         "License :: CC0 1.0 Universal (CC0 1.0) Public Domain Dedication",
     ],
-    install_requires=["dotenv", "obspy", "numpy", "pandas", "matplotlib"],
+    install_requires=["python-dotenv", "obspy", "numpy", "pandas", "matplotlib"],
     setup_requires=[""],
     tests_require=[""],
     entry_points={

@@ -40,9 +40,9 @@ def grab_data(scnl,T1,T2,fill_value=0):
 	t_test1=UTCDateTime.now()
 	for sta in scnl:
 		if sta.split('.')[2]=='MI':
-			client = Client(os.environ['CNMI_WINSTON'], int(os.environ['CNMI_PORT']))
+			client = Client(os.environ['CNMI_WINSTON'], int(os.environ['CNMI_PORT']), timeout=int(os.environ['TIMEOUT']))
 		else:
-			client = Client(os.environ['WINSTON_HOST'], int(os.environ['WINSTON_PORT']))
+			client = Client(os.environ['WINSTON_HOST'], int(os.environ['WINSTON_PORT']), timeout=int(os.environ['TIMEOUT']))
 		try:
 			tr=client.get_waveforms(sta.split('.')[2], sta.split('.')[0],sta.split('.')[3],sta.split('.')[1], T1, T2, cleanup=True)
 			if len(tr)>1:

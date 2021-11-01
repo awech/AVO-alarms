@@ -28,7 +28,7 @@ VOLCANO=[
 ]
 
 duration  = 3*60 # duration value in seconds
-latency   = 10.0 # seconds between timestamps and end of data window
+latency   = 15.0 # seconds between timestamps and end of data window
 taper_val = 5.0  # seconds to taper beginning and end of trace before filtering
 # f1		  = 0.3  # minimum frequency for bandpass filter
 f1		  = 1.0  # temporary change on 20-Nov-2017 to remove microbarom false detects 

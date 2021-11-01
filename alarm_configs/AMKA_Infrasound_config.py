@@ -19,7 +19,7 @@ VOLCANO=[
 {'volcano':	'Little Sitkin',				'v_lat': 51.95,	'v_lon': 178.543, 	'Azimuth_tolerance':  4, 'min_pa': 1.0, 'vmin':0.28, 'vmax':0.43,
 		'seismic_scnl': ['LSSA.BHZ.AV.--','LSNW.BHZ.AV.--','LSPA.BHZ.AV.--','LSSE.BHZ.AV.--']},
 
-{'volcano':	'Semisopochnoi',	'v_lat': 51.93,	'v_lon': 179.58, 	'Azimuth_tolerance':   7, 'min_pa': 0.4, 'vmin':0.28, 'vmax':0.43,
+{'volcano':	'Semisopochnoi',	'v_lat': 51.93,	'v_lon': 179.58, 	'Azimuth_tolerance':   7, 'min_pa': 2.0, 'vmin':0.28, 'vmax':0.43,
 		'seismic_scnl': ['CERB.BHZ.AV.--','CESW.BHZ.AV.--','CEPE.BHZ.AV.--','CERA.BHZ.AV.--','CETU.BHZ.AV.--']},
 
 {'volcano':	'Central Aleutians',	'v_lat': 52.076,	'v_lon': -176.13, 	'Azimuth_tolerance':   7, 'min_pa': 0.4, 'vmin':0.28, 'vmax':0.43,

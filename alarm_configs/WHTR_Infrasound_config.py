@@ -5,11 +5,19 @@ alarm_name = 'WHTR Infrasound'	# this is the alarm name sent to icinga and in me
 SCNL=[
 {'scnl':'WHTR.HDF.AV.01'	, 'sta_lat': 60.77968	, 'sta_lon': -148.72701},
 {'scnl':'WHTR.HDF.AV.02'	, 'sta_lat': 60.78018	, 'sta_lon': -148.72591},
-{'scnl':'WHTR.HDF.AV.03'	, 'sta_lat': 60.77974	, 'sta_lon': -148.72533},
 {'scnl':'WHTR.HDF.AV.04'	, 'sta_lat': 60.77910	, 'sta_lon': -148.72658},
 {'scnl':'WHTR.HDF.AV.05'	, 'sta_lat': 60.77970	, 'sta_lon': -148.72858},
 {'scnl':'WHTR.HDF.AV.06'	, 'sta_lat': 60.78020	, 'sta_lon': -148.72739},
 ]
+
+#SCNL=[
+#{'scnl':'WHTR.HDF.AV.01'  , 'sta_lat': 60.77968 , 'sta_lon': -148.72701},
+#{'scnl':'WHTR.HDF.AV.02'  , 'sta_lat': 60.78018 , 'sta_lon': -148.72591},
+#{'scnl':'WHTR.HDF.AV.03'  , 'sta_lat': 60.77974 , 'sta_lon': -148.72533},
+#{'scnl':'WHTR.HDF.AV.04'  , 'sta_lat': 60.77910 , 'sta_lon': -148.72658},
+#{'scnl':'WHTR.HDF.AV.05'  , 'sta_lat': 60.77970 , 'sta_lon': -148.72858},
+#{'scnl':'WHTR.HDF.AV.06'  , 'sta_lat': 60.78020 , 'sta_lon': -148.72739},
+#]
 
 # Volcano list to be monitored
 # Need volcano name and location for each volcano
@@ -34,5 +42,5 @@ cc_shift_length = 3*50			# maximum samples to shift in cross-correlation (usuall
 infrasound_plot_duration = 600
 seismic_plot_duration = 600
 
-icinga_service_name = 'generic alarm 2'
+# icinga_service_name = 'generic alarm 2'
 mattermost_channel_id = 's9rog3p4ojypfr5xs3fciiecfa'

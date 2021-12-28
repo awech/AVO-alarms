@@ -16,3 +16,4 @@ state='OK'
 state_message='Empty alarm service'
 
 utils.icinga_state(config,state,state_message)
+utils.icinga2_state(config,state,state_message)

@@ -16,7 +16,10 @@ SCNL=[
 # Azimuthal tolerance is in degrees
 # seismic_scnl is a list of seismic channels to be plotted with infrasound on detect
 VOLCANO=[
-{'volcano':	'Little Sitkin',				'v_lat': 51.95,	'v_lon': 178.543, 	'Azimuth_tolerance':  4, 'min_pa': 1.0, 'vmin':0.28, 'vmax':0.43,
+{'volcano':	'Davidof',				'v_lat': 51.97,	'v_lon': 178.33, 	'Azimuth_tolerance':  3, 'min_pa': 1.0, 'vmin':0.28, 'vmax':0.43,
+		'seismic_scnl': ['LSSA.BHZ.AV.--','LSNW.BHZ.AV.--','LSPA.BHZ.AV.--','LSSE.BHZ.AV.--']},
+
+{'volcano':	'Little Sitkin',				'v_lat': 51.95,	'v_lon': 178.543, 	'Azimuth_tolerance':  3, 'min_pa': 1.0, 'vmin':0.28, 'vmax':0.43,
 		'seismic_scnl': ['LSSA.BHZ.AV.--','LSNW.BHZ.AV.--','LSPA.BHZ.AV.--','LSSE.BHZ.AV.--']},
 
 {'volcano':	'Semisopochnoi',	'v_lat': 51.93,	'v_lon': 179.58, 	'Azimuth_tolerance':   7, 'min_pa': 2.0, 'vmin':0.28, 'vmax':0.43,

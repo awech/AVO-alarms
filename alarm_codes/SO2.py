@@ -11,17 +11,17 @@ from obspy.geodetics.base import gps2dist_azimuth
 def run_alarm(config,T0):
 	
 	try:
-		page = requests.get(os.environ['SACS_URL'])
+		page = requests.get(os.environ['SACS_URL'],timeout=10)
 		soup = BeautifulSoup(page.content, 'html.parser')
 		table=soup.find_all('pre')[0]
 	except:
 		try:
-			page = requests.get(os.environ['SACS_URL'])
+			page = requests.get(os.environ['SACS_URL'],timeout=10)
 			soup = BeautifulSoup(page.content, 'html.parser')
 			table=soup.find_all('pre')[0]
 		except:
 			try:
-				page = requests.get(os.environ['SACS_URL'])
+				page = requests.get(os.environ['SACS_URL'],timeout=10)
 				soup = BeautifulSoup(page.content, 'html.parser')
 				table=soup.find_all('pre')[0]
 			except:

@@ -34,14 +34,21 @@ def run_alarm(config,T0):
 		except:
 			if attempt==max_tries:
 				print('whoops')
-				break
 				state='WARNING'
-				state_message='{} (UTC) Volcview webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
+				state_message='{} (UTC) webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
 				utils.icinga_state(config,state,state_message)
 				utils.icinga2_state(config,state,state_message)
 				return
 			print('Error opening .json file. Trying again')
 			attempt+=1
+	
+	if 'A' not in locals():
+		state='WARNING'
+		state_message='{} (UTC) webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
+		utils.icinga_state(config,state,state_message)
+		utils.icinga2_state(config,state,state_message)
+		return
+
 	#################################
 	#################################
 
@@ -53,7 +60,11 @@ def run_alarm(config,T0):
 	# update DataFrame with unique NOAA/CIMSS id
 	A['NOAA_id']=''
 	for i in A.index:
-		A.at[i, 'NOAA_id'] = int(A.at[i,'alert_url'].split('/')[-1])
+		try:
+			A.at[i, 'NOAA_id'] = int(A.at[i,'alert_url'].split('/')[-1])
+		except:
+			A.at[i, 'NOAA_id'] = 0 	# alert has no url to scrap info from
+	A=A[A['NOAA_id']>0] 			# ignore alerts with no urls
 
 	# convert time to datetime in DataFrame
 	A['object_date_time']=pd.to_datetime(A['object_date_time'])
@@ -106,7 +117,7 @@ def run_alarm(config,T0):
 							state='WARNING'
 							state_message='{} (UTC) NOAA/CIMSS webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
 							continue
-						attempt+=1
+						
 
 				instrument=get_instrument(soup)
 				height_text=get_height_txt(soup)

@@ -9,7 +9,8 @@ SCNL=[
 {'scnl':'KOKL.BHZ.AV.--'	, 'value':  1300	},
 {'scnl':'KOFP.BHZ.AV.--'	, 'value':  1000	},
 {'scnl':'KOSE.BHZ.AV.--'	, 'value':  1200	},
-{'scnl':'GSIG.BHZ.AV.--'	, 'value':  150 	}, # arrestor station 
+{'scnl':'GSCK.BHZ.AV.--'	, 'value':   600 	}, # arrestor station 
+# {'scnl':'GSIG.BHZ.AV.--'	, 'value':  150 	}, # arrestor station 
 ]
 
 duration  = 5*60 # duration value in seconds

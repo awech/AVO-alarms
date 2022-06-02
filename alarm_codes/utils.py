@@ -78,7 +78,7 @@ def grab_data(scnl,T1,T2,fill_value=0):
 	
 	print('Detrending data...')
 	st.detrend('demean')
-	st.trim(T1,T2,pad=0)
+	st.trim(T1, T2, pad=True, fill_value=0)
 	return st
 
 

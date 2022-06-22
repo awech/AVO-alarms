@@ -63,6 +63,9 @@ def run_alarm(config,T0):
 			if not v:
 				print('Null volcano. Skipping...')
 				continue
+			if v in config.ignore_volcanoes:
+				print('Ignoring {} Lightning'.format(v))
+				continue
 			print('--- Processing detects at {} volcano ---'.format(v))
 
 			V_new = A_new[A_new['volcanoName']==v]

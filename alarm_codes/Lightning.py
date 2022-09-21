@@ -65,6 +65,8 @@ def run_alarm(config,T0):
 				continue
 			if v in config.ignore_volcanoes:
 				print('Ignoring {} Lightning'.format(v))
+				state='WARNING'
+				state_message='{} (UTC) New strokes at {} (ignored)'.format(T0.strftime('%Y-%m-%d %H:%M'),v)
 				continue
 			print('--- Processing detects at {} volcano ---'.format(v))
 

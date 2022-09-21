@@ -79,11 +79,11 @@ except:
 	utils.send_alert('Error',subject,message,attachment)
 
 print(UTCDateTime.utcnow().strftime('%Y.%m.%d %H:%M:%S'))
+end = time.time()
+print('[{:.2f} seconds to complete alarm]'.format(end - start))
 print('-----------------------------------------')
 print('')
 
-end = time.time()
-print('[{:.2f} seconds to complete alarm]'.format(end - start))
 
 if os.getenv('FROMCRON') == 'yep':
 	f.close()

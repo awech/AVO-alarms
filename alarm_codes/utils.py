@@ -41,6 +41,8 @@ def grab_data(scnl,T1,T2,fill_value=0):
 	for sta in scnl:
 		if sta.split('.')[2]=='MI':
 			client = Client(os.environ['CNMI_WINSTON'], int(os.environ['CNMI_PORT']), timeout=int(os.environ['TIMEOUT']))
+		elif sta.split('.')[2] in ['HV','AM']:
+			client = Client(os.environ['NEIC_HOST'], int(os.environ['NEIC_PORT']), timeout=int(os.environ['TIMEOUT']))
 		else:
 			client = Client(os.environ['WINSTON_HOST'], int(os.environ['WINSTON_PORT']), timeout=int(os.environ['TIMEOUT']))
 		try:

@@ -3,11 +3,16 @@ alarm_name = 'CLCO Infrasound'	# this is the alarm name sent to icinga and in me
 
 # Infrasound channels list
 SCNL=[
-{'scnl':'CLCO1.BDF.AV.--'	, 'sta_lat': 52.7864125000	, 'sta_lon': -169.7229250000},
-{'scnl':'CLCO2.BDF.AV.--'	, 'sta_lat': 52.7871866667	, 'sta_lon': -169.7244333330},
-{'scnl':'CLCO3.BDF.AV.--'	, 'sta_lat': 52.7874600000	, 'sta_lon': -169.7210166667},
-{'scnl':'CLCO4.BDF.AV.--'	, 'sta_lat': 52.7861266667	, 'sta_lon': -169.7203966667},
-{'scnl':'CLCO5.BDF.AV.--'	, 'sta_lat': 52.7851866667	, 'sta_lon': -169.7250066667},
+# {'scnl':'CLCO1.BDF.AV.--'	, 'sta_lat': 52.7864125000	, 'sta_lon': -169.7229250000},
+# {'scnl':'CLCO2.BDF.AV.--'	, 'sta_lat': 52.7871866667	, 'sta_lon': -169.7244333330},
+# {'scnl':'CLCO3.BDF.AV.--'	, 'sta_lat': 52.7874600000	, 'sta_lon': -169.7210166667},
+# {'scnl':'CLCO4.BDF.AV.--'	, 'sta_lat': 52.7861266667	, 'sta_lon': -169.7203966667},
+# {'scnl':'CLCO5.BDF.AV.--'	, 'sta_lat': 52.7851866667	, 'sta_lon': -169.7250066667},
+    {'scnl':'CLCO.BDF.AV.01'    , 'sta_lat': 52.7864125000  , 'sta_lon': -169.7229250000},
+    {'scnl':'CLCO.BDF.AV.02'    , 'sta_lat': 52.7871866667  , 'sta_lon': -169.7244333330},
+    {'scnl':'CLCO.BDF.AV.03'    , 'sta_lat': 52.7874600000  , 'sta_lon': -169.7210166667},
+    {'scnl':'CLCO.BDF.AV.04'    , 'sta_lat': 52.7861266667  , 'sta_lon': -169.7203966667},
+    {'scnl':'CLCO.BDF.AV.05'    , 'sta_lat': 52.7851866667  , 'sta_lon': -169.7250066667},
 ]
 
 # Volcano list to be monitored

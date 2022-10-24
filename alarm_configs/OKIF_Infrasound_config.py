@@ -2,22 +2,15 @@ alarm_type = 'Infrasound'		# this designates which alarm module will be imported
 alarm_name = 'OKIF Infrasound'	# this is the alarm name sent to icinga and in message alerts
 
 # Infrasound channels list
-#SCNL=[
-#{'scnl':'OKIF.HDF.AV.01'	, 'sta_lat': 53.41083004	, 'sta_lon': -167.91426701},
-#{'scnl':'OKIF.HDF.AV.02'	, 'sta_lat': 53.41001901	, 'sta_lon': -167.91366301},
-#{'scnl':'OKIF.HDF.AV.03'	, 'sta_lat': 53.40998297	, 'sta_lon': -167.91499598},
-#{'scnl':'OKIF.HDF.AV.04'	, 'sta_lat': 53.41029796	, 'sta_lon': -167.91431696},
-#{'scnl':'OKIF.HDF.AV.05'	, 'sta_lat': 53.41038496	, 'sta_lon': -167.91331901},
-#{'scnl':'OKIF.HDF.AV.06'	, 'sta_lat': 53.41045604	, 'sta_lon': -167.91544802},
-#]
-
 SCNL=[
 {'scnl':'OKIF.HDF.AV.01'	, 'sta_lat': 53.41083004	, 'sta_lon': -167.91426701},
 {'scnl':'OKIF.HDF.AV.02'	, 'sta_lat': 53.41001901	, 'sta_lon': -167.91366301},
 {'scnl':'OKIF.HDF.AV.03'	, 'sta_lat': 53.40998297	, 'sta_lon': -167.91499598},
-#{'scnl':'OKIF.HDF.AV.04'	, 'sta_lat': 53.41029796	, 'sta_lon': -167.91431696},
+{'scnl':'OKIF.HDF.AV.04'	, 'sta_lat': 53.41029796	, 'sta_lon': -167.91431696},
+{'scnl':'OKIF.HDF.AV.05'	, 'sta_lat': 53.41038496	, 'sta_lon': -167.91331901},
 {'scnl':'OKIF.HDF.AV.06'	, 'sta_lat': 53.41045604	, 'sta_lon': -167.91544802},
 ]
+
 # Volcano list to be monitored
 # Need volcano name and location for each volcano
 # Azimuthal tolerance is in degrees

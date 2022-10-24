@@ -13,6 +13,7 @@ SCNL=[
     {'scnl':'CLCO.BDF.AV.03'    , 'sta_lat': 52.7874600000  , 'sta_lon': -169.7210166667},
     {'scnl':'CLCO.BDF.AV.04'    , 'sta_lat': 52.7861266667  , 'sta_lon': -169.7203966667},
     {'scnl':'CLCO.BDF.AV.05'    , 'sta_lat': 52.7851866667  , 'sta_lon': -169.7250066667},
+    {'scnl':'CLCO.BDF.AV.06'    , 'sta_lat': 52.785861      , 'sta_lon': -169.723179    },
 ]
 
 # Volcano list to be monitored
@@ -39,7 +40,8 @@ taper_val = 5.0  # seconds to taper beginning and end of trace before filtering
 f1		  = 0.2  # minimum frequency for bandpass filter
 f2		  = 5.0 # maximum frequency for bandpass filter
 
-digouti   = (1/419430.0)/(1.62e-2)	# convert counts to Pressure in Pa (Q330 + new VDP-10 mics)
+# digouti   = (1/419430.0)/(1.62e-2)	# convert counts to Pressure in Pa (Q330 + new VDP-10 mics)
+digouti   = (1/419430.0)/(0.0275)
 min_cc    = 0.6					# min normalized correlation coefficient to accept
 min_chan  = 3					# minimum # of channels for code to run
 cc_shift_length = 3*50			# maximum samples to shift in cross-correlation (usually at 50 sps)

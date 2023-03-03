@@ -10,7 +10,7 @@ SCNL=[
 {'scnl':'PN7A.BHZ.AV.--'	, 'value': 450	},
 {'scnl':'PV6A.SHZ.AV.--'	, 'value': 1225	},
 # {'scnl':'FALS.BHZ.AK.--'	, 'value': 200	}, # arrestor station, out since May 23, 2019
-{'scnl':'SDPT.BHZ.AT.--'	, 'value': 200	}, # arrestor station
+{'scnl':'BLDW.BHZ.AV.--'	, 'value': 200	}, # arrestor station
 ]
 
 duration  = 5*60 # duration value in seconds

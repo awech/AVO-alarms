@@ -145,9 +145,12 @@ def run_alarm(config,T0):
 				### Craft message text ####
 				subject, message = create_message(df,i,A,UTC_time_text,height_text,pilot_remark)
 
-		        ### Send message ###
-				utils.send_alert(config.alarm_name,subject,message,filename)
+		        ### Post to Mattermost ###
 				utils.post_mattermost(config,subject,message,filename)
+
+				### Send message to duty person ###
+				if config.send_email:
+					utils.send_alert(config.alarm_name,subject,message,filename)
 
 				# delete the file you just sent
 				if filename:

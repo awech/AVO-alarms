@@ -8,7 +8,7 @@ SCNL=[
 {'scnl':'AMKA.HDF.AV.03'	, 'sta_lat': 51.378105	, 'sta_lon': 179.301225},
 {'scnl':'AMKA.HDF.AV.04'	, 'sta_lat': 51.37831	, 'sta_lon': 179.30028},
 {'scnl':'AMKA.HDF.AV.05'	, 'sta_lat': 51.379055	, 'sta_lon': 179.30026},
-{'scnl':'AMKA.HDF.AV.06'	, 'sta_lat': 51.37871	, 'sta_lon': 179.30093},
+# {'scnl':'AMKA.HDF.AV.06'	, 'sta_lat': 51.37871	, 'sta_lon': 179.30093},
 ]
 
 # Volcano list to be monitored
@@ -36,7 +36,7 @@ taper_val = 5.0  # seconds to taper beginning and end of trace before filtering
 f1		  = 0.4  # minimum frequency for bandpass filter
 f2		  = 10.0 # maximum frequency for bandpass filter
 
-digouti   = (1/400000)/0.0275	# convert counts to Pressure in Pa (Q330 + Chaparral mics)
+digouti   = (1/400000)/0.0275	# convert counts to Pressure in Pa (Centaur + Chaparral Vx2 mics)
 min_cc    = 0.6					# min normalized correlation coefficient to accept
 min_chan  = 3					# minimum # of channels for code to run
 cc_shift_length = 3*50			# maximum samples to shift in cross-correlation (usually at 50 sps)

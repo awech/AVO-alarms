@@ -142,6 +142,17 @@ def run_alarm(config,T0):
 				print('Sending message...')
 				utils.send_alert(config.alarm_name,subject,message,attachment)
 				print('Posting to mattermost...')
+
+				##################################################################
+				# hot-fix to split Tanaga/Takawangha messages to their own channel
+				#
+				# if ('Tanaga' in subject) or ('Takawangha') in subject:
+				closest = subject.split(':')[-1].split(')')[0]
+				if ('Tanaga' in subject) or ('Takawangha') in closest:
+					config.mattermost_channel_id = 'tskignhcuf88fcxsmuqzn4jtfh'
+				#
+				##################################################################
+
 				utils.post_mattermost(config,subject,message,filename=attachment)
 
 				state='CRITICAL'

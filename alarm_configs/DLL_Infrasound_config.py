@@ -18,7 +18,7 @@ SCNL=[
 # seismic_scnl is a list of seismic channels to be plotted with infrasound on detect
 VOLCANO=[
 {'volcano':	'Semisopochnoi',	'v_lat': 51.947,	'v_lon': 179.623, 	'Azimuth_tolerance': 8, 'min_pa': 0.1, 'vmin':0.28, 'vmax':0.45,
-		'seismic_scnl': ['CERB.SHZ.AV.--','CESW.SHZ.AV.--','CEAP.SHZ.AV.--']},
+		'seismic_scnl': ['CERB.BHZ.AV.--','CESW.BHZ.AV.--','CEAP.BHZ.AV.--']},
 
 # {'volcano':	'Spurr',	'v_lat': 61.29897,	'v_lon': -152.25122, 	'Azimuth_tolerance': 2, 'min_pa': 0.1, 'vmin':0.28, 'vmax':0.45,
 # 		'seismic_scnl': ['ANON.EHZ.AV.--','ANNE.EHZ.AV.--','ANPK.EHZ.AV.--']},
@@ -41,23 +41,23 @@ VOLCANO=[
 # {'volcano':	'Peulik',	'v_lat': 57.7475,	'v_lon': -156.37368, 	'Azimuth_tolerance': 4, 'min_pa': 0.1, 'vmin':0.28, 'vmax':0.45,
 # 		'seismic_scnl': ['ANON.EHZ.AV.--','ANNE.EHZ.AV.--','ANPK.EHZ.AV.--']},
 
-# {'volcano':	'Aniakchak',	'v_lat': 56.89885,	'v_lon': -158.14768, 	'Azimuth_tolerance': 2, 'min_pa': 0.1, 'vmin':0.28, 'vmax':0.45,
-# 		'seismic_scnl': ['ANON.EHZ.AV.--','ANNE.EHZ.AV.--','ANPK.EHZ.AV.--']},
+{'volcano':	'Aniakchak',	'v_lat': 56.89885,	'v_lon': -158.14768, 	'Azimuth_tolerance': 2, 'min_pa': 0.1, 'vmin':0.28, 'vmax':0.45,
+		'seismic_scnl': ['ANPK.BHZ.AV.--','ANNW.BHZ.AV.--','BPPC.BHZ.AV.--']},
 
 {'volcano':	'Veniaminof',	'v_lat': 56.195825,	'v_lon': -159.389536, 	'Azimuth_tolerance': 2, 'min_pa': 3.0, 'vmin':0.28, 'vmax':0.45,
-		'seismic_scnl': ['VNSS.EHZ.AV.--','VNFG.EHZ.AV.--','VNHG.EHZ.AV.--']},
+		'seismic_scnl': ['VNCG.BHZ.AV.--','VNWF.BHZ.AV.--','VNSO.BHZ.AV.--']},
 
 # {'volcano':	'Pavlof',		'v_lat': 55.417622,	'v_lon': -161.893669, 	'Azimuth_tolerance': 2, 'min_pa': 0.1, 'vmin':0.28, 'vmax':0.45,
 # 		'seismic_scnl': ['PV6A.BDF.AV.--','PV6A.SHZ.AV.--','PN7A.BHZ.AV.--','PS1A.BHZ.AV.--']},
 
 {'volcano':	'Shishaldin',	'v_lat': 54.755856,	'v_lon': -163.969961, 	'Azimuth_tolerance': 2, 'min_pa': 0.3, 'vmin':0.28, 'vmax':0.45,
-		'seismic_scnl': ['SSBA.BHZ.AV.--','SSLS.BHZ.AV.--','ISNN.SHZ.AV.--']},
+		'seismic_scnl': ['SSBA.BHZ.AV.--','SSLS.BHZ.AV.--','ISNN.BHZ.AV.--']},
 
 {'volcano':	'Makushin',		'v_lat': 53.8900,	'v_lon': -166.9200, 	'Azimuth_tolerance': 4, 'min_pa': 0.1, 'vmin':0.28, 'vmax':0.45,
 		'seismic_scnl': ['MCIR.BHZ.AV.--','MGOD.BHZ.AV.--','MNAT.BHN.AV.--']},
 
     {'volcano': 'Okmok', 'v_lat': 53.428865, 'v_lon': -168.131632,   'Azimuth_tolerance': 4, 'min_pa': 0.1, 'vmin':0.28, 'vmax':0.41,
-    'seismic_scnl': ['OKFG.BHZ.AV.--','OKAK.EHZ.AV.--','OKTU.EHZ.AV.--']},
+    'seismic_scnl': ['OKFG.BHZ.AV.--','OKNC.BHZ.AV.--','OKCE.BHZ.AV.--']},
 
 # {'volcano':	'Bogoslof',		'v_lat': 53.9310,	'v_lon': -168.0360, 	'Azimuth_tolerance': 2, 'min_pa': 0.1, 'vmin':0.28, 'vmax':0.45,
 # 		'seismic_scnl': ['OKER.EHZ.AV.--','OKTU.EHZ.AV.--','MAPS.BHN.AV.--']},

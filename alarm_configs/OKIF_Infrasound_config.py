@@ -17,16 +17,16 @@ SCNL=[
 # seismic_scnl is a list of seismic channels to be plotted with infrasound on detect 
 VOLCANO=[
 {'volcano':	'Bogoslof',		'v_lat': 53.9310,	'v_lon': -168.0360, 	'Azimuth_tolerance': 15, 'min_pa': 0.2, 'vmin':0.28, 'vmax':0.45,
-		'seismic_scnl': ['BOGO.BHZ.AV.--','OKER.EHZ.AV.--','OKTU.EHZ.AV.--','MAPS.BHN.AV.--']},
+		'seismic_scnl': ['BOGO.BHZ.AV.--','OKNO.BHZ.AV.--','OKTU.BHZ.AV.--','MAPS.BHN.AV.--']},
 
 {'volcano':	'Makushin',		'v_lat': 53.889210,	'v_lon': -166.925279, 	'Azimuth_tolerance': 6, 'min_pa': 0.4, 'vmin':0.28, 'vmax':0.45,
-		'seismic_scnl': ['MGOD.BHZ.AV.--','MREP.EHZ.AV.--','MAPS.BHN.AV.--']},
+		'seismic_scnl': ['MGOD.BHZ.AV.--','MNAT.BHZ.AV.--','MAPS.BHN.AV.--']},
 
 {'volcano':	'Cleveland',	'v_lat': 52.8222,	'v_lon': -169.9464, 	'Azimuth_tolerance': 3, 'min_pa': 0.4, 'vmin':0.28, 'vmax':0.45,
 		'seismic_scnl': ['CLES.BHZ.AV.--','CLCO.BHZ.AV.--']},
 
 {'volcano':	'Okmok',		'v_lat': 53.428865,	'v_lon': -168.131632, 	'Azimuth_tolerance': 20, 'min_pa': 1.0, 'vmin':0.28, 'vmax':0.41,
-		'seismic_scnl': ['OKNC.BHZ.AV.--','OKER.EHZ.AV.--']}
+		'seismic_scnl': ['OKNC.BHZ.AV.--','OKCE.BHZ.AV.--']}
 ]
 
 duration  = 3*60 # duration value in seconds

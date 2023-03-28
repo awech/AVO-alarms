@@ -29,7 +29,7 @@ VOLCANO=[
 		'seismic_scnl': ['GSTD.BHZ.AV.--','GSSP.BHZ.AV.--','GSTR.BHZ.AV.--','GSMY.BHZ.AV.--','GSCK.BHZ.AV.--']},
 
 {'volcano':	'Bogoslof',				'v_lat': 53.9310,	'v_lon': -168.0360, 	'Azimuth_tolerance': 1.5, 'min_pa': 0.4, 'vmin':0.28, 'vmax':0.43,
-		'seismic_scnl': ['OKER.EHZ.AV.--','OKTU.EHZ.AV.--','MAPS.BHN.AV.--']},
+		'seismic_scnl': ['OKNO.BHZ.AV.--','OKTU.BHZ.AV.--','MAPS.BHN.AV.--']},
 
 {'volcano':	'Makushin',		'v_lat': 53.8900,	'v_lon': -166.9200, 	'Azimuth_tolerance': 8, 'min_pa': 0.3, 'vmin':0.28, 'vmax':0.45,
 		'seismic_scnl': ['MCIR.BHZ.AV.--','MGOD.BHZ.AV.--','MNAT.BHN.AV.--']},

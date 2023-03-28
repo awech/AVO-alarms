@@ -4,6 +4,8 @@ alarm_name = 'PIREP'
 zipfilename    = 'alarm_aux_files/tmp.zip'
 tmp_zipped_dir = 'alarm_aux_files/tmp_zipped_dir'
 outfile        = 'alarm_aux_files/PIREPs.txt'
+volc_file 	   = 'alarm_aux_files/volcano_list.xlsx'
+
 
 max_distance  = 200		# maximum distance for sending an alert
 duration 	  = 60*60	# time limit in seconds for remembering strokes

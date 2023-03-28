@@ -1,6 +1,7 @@
 alarm_type = 'Lightning'
 alarm_name = 'Lightning' 
 
+volc_file = 'alarm_aux_files/volcano_list.xlsx'
 outfile    = 'alarm_aux_files/Lightning_last.txt'
 
 dist1 = 20			# distance for inner ring (in km)

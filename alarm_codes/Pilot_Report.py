@@ -15,30 +15,34 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
 from textwrap import wrap
 import traceback
+import urllib3
+urllib3.disable_warnings()
 
 socket.setdefaulttimeout(15)
 
 def run_alarm(config,T0):
 
-	state_message='{} (UTC) No new pilot reports'.format(T0.strftime('%Y-%m-%d %H:%M'))
-	state='OK'
+	state_message = '{} (UTC) No new pilot reports'.format(T0.strftime('%Y-%m-%d %H:%M'))
+	state = 'OK'
 
-	volcs=pd.read_csv('alarm_aux_files/volcanoes_kml.txt',delimiter='\t',names=['Volcano','kml','Lon','Lat'])	
+	# volcs=pd.read_csv('alarm_aux_files/volcanoes_kml.txt',delimiter='\t',names=['Volcano','kml','Lon','Lat'])
+	VOLCS = pd.read_excel(config.volc_file)
+	volcs = VOLCS[VOLCS['PIREP'] == 'Y']
 
-	T2=T0
-	T1=T2-config.duration
-	filetype='shp'
-	t1='&year1={}&month1={}&day1={}&hour1={}&minute1={}'.format(T1.strftime('%Y'),
-																T1.strftime('%m'),
-																T1.strftime('%d'),
-																T1.strftime('%H'),
-																T1.strftime('%M'))
-	t2='&year2={}&month2={}&day2={}&hour2={}&minute2={}'.format(T2.strftime('%Y'),
-																T2.strftime('%m'),
-																T2.strftime('%d'),
-																T2.strftime('%H'),
-																T2.strftime('%M'))
-	new_url='{}?fmt={}{}{}'.format(os.environ['PIREP_URL'],filetype,t1,t2)
+	T2 = T0
+	T1 = T2 - config.duration
+	filetype = 'shp'
+	t1 = '&year1={}&month1={}&day1={}&hour1={}&minute1={}'.format(T1.strftime('%Y'),
+																  T1.strftime('%m'),
+																  T1.strftime('%d'),
+																  T1.strftime('%H'),
+																  T1.strftime('%M'))
+	t2 = '&year2={}&month2={}&day2={}&hour2={}&minute2={}'.format(T2.strftime('%Y'),
+																  T2.strftime('%m'),
+																  T2.strftime('%d'),
+																  T2.strftime('%H'),
+																  T2.strftime('%M'))
+	new_url = '{}?fmt={}{}{}'.format(os.environ['PIREP_URL'], filetype, t1, t2)
 
 	try:
 		with open(config.zipfilename, 'wb') as f:
@@ -46,25 +50,25 @@ def run_alarm(config,T0):
 		    f.write(resp.content)
 	except:
 		print('Request error')
-		state='WARNING'
-		state_message='{} (UTC) PIREP webpage error. Cannot retrieve shape file'.format(T0.strftime('%Y-%m-%d %H:%M'))
-		utils.icinga_state(config,state,state_message)
-		utils.icinga2_state(config,state,state_message)
+		state = 'WARNING'
+		state_message = '{} (UTC) PIREP webpage error. Cannot retrieve shape file'.format(T0.strftime('%Y-%m-%d %H:%M'))
+		utils.icinga_state( config, state, state_message)
+		utils.icinga2_state(config, state, state_message)
 		return
 	try:
 		archive = ZipFile(config.zipfilename, 'r')
 	except:
 		print('No new pilot reports')
 		os.remove(config.zipfilename)
-		utils.icinga_state(config,state,state_message)
-		utils.icinga2_state(config,state,state_message)
+		utils.icinga_state( config, state, state_message)
+		utils.icinga2_state(config, state, state_message)
 		return
 		# utils.icinga_state(config.alarm_name,state,state_message)
 
 
 	archive.extractall(path=config.tmp_zipped_dir)
 	#shp_path=config.tmp_zipped_dir+'/stormattr_{}_{}'.format(T1.strftime('%Y%m%d%H%M'),T2.strftime('%Y%m%d%H%M'))
-	shp_path=config.tmp_zipped_dir+'/pireps_{}_{}'.format(T1.strftime('%Y%m%d%H%M'),T2.strftime('%Y%m%d%H%M'))
+	shp_path = config.tmp_zipped_dir+'/pireps_{}_{}'.format(T1.strftime('%Y%m%d%H%M'), T2.strftime('%Y%m%d%H%M'))
 
 
 	#read file, parse out the records and shapes
@@ -76,18 +80,18 @@ def run_alarm(config,T0):
 
 	#write into a dataframe
 	df = pd.DataFrame(columns=fields, data=records)
-	df['VALID']=pd.to_datetime(df['VALID'])
-	df=df[df.LAT>49]
+	df['VALID'] = pd.to_datetime(df['VALID'])
+	df = df[df.LAT>49]
 
 
 	#### delete duplicate events with different text versions in the 'REPORT' field'
-	A=df.copy()
+	A = df.copy()
 	del A['REPORT']
 	A.drop_duplicates(inplace=True)
-	df=df.loc[A.index]
-	df.reset_index(drop=True,inplace=True)
+	df = df.loc[A.index]
+	df.reset_index(drop=True, inplace=True)
 
-	OLD = get_old_pireps(config,T0)
+	OLD = get_old_pireps(config, T0)
 
 	for i, report in enumerate(df.REPORT.values):
 
@@ -95,13 +99,13 @@ def run_alarm(config,T0):
 		latstr = str(df.loc[i].LAT-np.floor(df.loc[i].LAT)).split('.')[1][:3]
 		lonstr = str(-df.loc[i].LON-np.floor(-df.loc[i].LON)).split('.')[1][:3]
 		latlon = int('{}{}'.format(latstr,lonstr))
-		tmp_t = tmp_t + pd.to_timedelta(latlon,'us')
+		tmp_t = tmp_t + pd.to_timedelta(latlon, 'us')
 		tmp = pd.DataFrame(data={'lats':df.loc[i].LAT.astype('float'),
 							 	 'lons':df.loc[i].LON.astype('float'),
 							 	 'time':tmp_t}, index=[0])
-		tmp.set_index('time',inplace=True)
+		tmp.set_index('time', inplace=True)
 
-		tmp=tmp[~tmp.isin(OLD).all(1)]
+		tmp = tmp[~tmp.isin(OLD).all(1)]
 
 		if tmp.empty:
 			continue
@@ -110,23 +114,27 @@ def run_alarm(config,T0):
 		
 		if trigger:
 
-			state_message='{} (UTC) {}'.format(T0.strftime('%Y-%m-%d %H:%M'),report)
+			state_message = '{} (UTC) {}'.format(T0.strftime('%Y-%m-%d %H:%M'), report)
 
-			DIST=np.array([])
-			for lat,lon in zip(volcs.Lat.values,volcs.Lon.values):
-				dist, azimuth, az2=gps2dist_azimuth(lat,lon,df.loc[i].LAT,df.loc[i].LON)
-				DIST=np.append(DIST,dist/1000.)
+			# DIST = np.array([])
+			# for lat, lon in zip(volcs.Lat.values, volcs.Lon.values):
+			# 	dist, azimuth, az2=gps2dist_azimuth(lat, lon, df.loc[i].LAT, df.loc[i].LON)
+			# 	DIST = np.append(DIST, dist/1000.)
 
-			if DIST.min()<config.max_distance:
-				if df.loc[i].URGENT=='F':
+			# if DIST.min() < config.max_distance:
+
+			volcs = utils.volcano_distance(df.loc[i].LON, df.loc[i].LAT, volcs)
+			volcs = volcs.sort_values('distance')
+
+			if volcs.distance.min() < config.max_distance:
+				if df.loc[i].URGENT == 'F':
 					state = 'WARNING'
 					config.send_email = config.non_urgent
-				elif df.loc[i].URGENT=='T':
+				elif df.loc[i].URGENT == 'T':
 					state = 'CRITICAL'
 					config.send_email = True
 
-				A=volcs.copy()
-				A['dist']=DIST
+				A = volcs.copy()
 
 				UTC_time_text = '{} UTC'.format(UTCDateTime(df.loc[i].VALID).strftime('%Y-%m-%d %H:%M'))
 				height_text   = get_height_text(report)
@@ -134,23 +142,23 @@ def run_alarm(config,T0):
 
 				#### Generate Figure ####
 				try:
-					filename=plot_fig(config,df,i,A,UTC_time_text,height_text,pilot_remark)
+					filename = plot_fig(config, df, i, A, UTC_time_text, height_text, pilot_remark)
 				except:
 					print('Error generating figure...')
-					b=traceback.format_exc()
+					b = traceback.format_exc()
 					err_message = ''.join('{}\n'.format(a) for a in b.splitlines())
 					print(err_message)
-					filename=[]
+					filename = []
 
 				### Craft message text ####
-				subject, message = create_message(df,i,A,UTC_time_text,height_text,pilot_remark)
+				subject, message = create_message(df, i, A, UTC_time_text, height_text, pilot_remark)
 
 		        ### Post to Mattermost ###
-				utils.post_mattermost(config,subject,message,filename)
+				utils.post_mattermost(config, subject, message, filename)
 
 				### Send message to duty person ###
 				if config.send_email:
-					utils.send_alert(config.alarm_name,subject,message,filename)
+					utils.send_alert(config.alarm_name, subject, message, filename)
 
 				# delete the file you just sent
 				if filename:
@@ -158,33 +166,33 @@ def run_alarm(config,T0):
 
 				OLD = OLD.append(tmp)
 
-	OLD.to_csv(config.outfile,float_format='%.6f',index_label='time',sep='\t',date_format='%Y%m%dT%H%M%S.%f')
+	OLD.to_csv(config.outfile, float_format='%.6f', index_label='time', sep='\t', date_format='%Y%m%dT%H%M%S.%f')
 	os.remove(config.zipfilename)
 	rmtree(config.tmp_zipped_dir)
 
-	utils.icinga_state(config,state,state_message)
-	utils.icinga2_state(config,state,state_message)
+	utils.icinga_state( config, state, state_message)
+	utils.icinga2_state(config, state, state_message)
 
 
 def check_volcano_mention(report):
 	trigger = False
-	report=report.upper()
-	tmp_report=report.replace('VAR','')
-	tmp_report=tmp_report.replace('VAL','')
-	tmp_report=tmp_report.replace('VAT','')
-	tmp_report=tmp_report.replace('NEVA','')
-	tmp_report=tmp_report.replace('AVAIL','')
-	tmp_report=tmp_report.replace('SVA','')
-	tmp_report=tmp_report.replace('PREVAIL','')
-	tmp_report=tmp_report.replace('VASI','')
-	tmp_report=tmp_report.replace('TOLOVANA','')
-	tmp_report=tmp_report.replace('GAVANSKI','')
-	tmp_report=tmp_report.replace('CORDOVA','')
-	tmp_report=tmp_report.replace('ADVANC','')
-	tmp_report=tmp_report.replace('INVAD','')
-	tmp_report=tmp_report.replace('VACINITY','')
-	tmp_report=tmp_report.replace('SULLIVAN','')
-	tmp_report=tmp_report.replace('BELIEVABLE','')
+	report = report.upper()
+	tmp_report = report.replace('VAR', '')
+	tmp_report = tmp_report.replace('VAL', '')
+	tmp_report = tmp_report.replace('VAT', '')
+	tmp_report = tmp_report.replace('NEVA', '')
+	tmp_report = tmp_report.replace('AVAIL', '')
+	tmp_report = tmp_report.replace('SVA', '')
+	tmp_report = tmp_report.replace('PREVAIL', '')
+	tmp_report = tmp_report.replace('VASI', '')
+	tmp_report = tmp_report.replace('TOLOVANA', '')
+	tmp_report = tmp_report.replace('GAVANSKI', '')
+	tmp_report = tmp_report.replace('CORDOVA', '')
+	tmp_report = tmp_report.replace('ADVANC', '')
+	tmp_report = tmp_report.replace('INVAD', '')
+	tmp_report = tmp_report.replace('VACINITY', '')
+	tmp_report = tmp_report.replace('SULLIVAN', '')
+	tmp_report = tmp_report.replace('BELIEVABLE', '')
 	if len(tmp_report.split('/SK'))>1 and 'VA' in tmp_report.split('/SK')[-1].split('/')[0]:
 		trigger = True
 	elif len(tmp_report.split('/RM'))>1 and 'VA' in tmp_report.split('/RM')[-1].split('/')[0]:
@@ -213,16 +221,16 @@ def check_volcano_mention(report):
 	return trigger
 
 
-def get_old_pireps(config,T0):
+def get_old_pireps(config, T0):
 
-	OLD=pd.read_csv(config.outfile,delimiter='\t',parse_dates=['time'])
-	OLD=OLD.drop_duplicates(keep=False)
-	OLD=OLD[OLD['time']>(T0-config.duration-10).strftime('%Y%m%d %H%M%S.%f')]
+	OLD = pd.read_csv(config.outfile, delimiter='\t', parse_dates=['time'])
+	OLD = OLD.drop_duplicates(keep=False)
+	OLD = OLD[OLD['time']>(T0-config.duration-10).strftime('%Y%m%d %H%M%S.%f')]
 
-	OLD['lats']=OLD.lats.values.astype('float')
-	OLD['lons']=OLD.lons.values.astype('float')
+	OLD['lats'] = OLD.lats.values.astype('float')
+	OLD['lons'] = OLD.lons.values.astype('float')
 
-	OLD.set_index('time',inplace=True)
+	OLD.set_index('time', inplace=True)
 
 	return OLD
 
@@ -243,37 +251,41 @@ def get_pilot_remark(report):
 	RM = re.compile('(RM)*(.*)')
 
 	fields = report.split('/')
-	pilot_remark = 'Pilot Remark: {}'.format(RM.sub(r'\2',fields[-1]).lower().lstrip())
-	t1=FL.sub(r'\1',pilot_remark)
-	t2=FL.sub(r'\2',pilot_remark)
-	t3=FL.sub(r'\3',pilot_remark)
+	pilot_remark = 'Pilot Remark: {}'.format(RM.sub(r'\2', fields[-1]).lower().lstrip())
+	t1 = FL.sub(r'\1', pilot_remark)
+	t2 = FL.sub(r'\2', pilot_remark)
+	t3 = FL.sub(r'\3', pilot_remark)
 	try:
-		pilot_remark='{}{:.0f},000 feet asl{}'.format(t1,int(t2)/10.,t3)
+		pilot_remark = '{}{:.0f},000 feet asl{}'.format(t1, int(t2)/10., t3)
 	except:
 		pass
 
 	return pilot_remark
 
 
-def create_message(df,i,A,UTC_time_text,height_text,pilot_remark):
+def create_message(df, i, A, UTC_time_text, height_text, pilot_remark):
 
-	t=pd.Timestamp(df.loc[i].VALID,tz='UTC')
-	t_local=t.tz_convert(os.environ['TIMEZONE'])
-	Local_time_text = '{} {}'.format(t_local.strftime('%Y-%m-%d %H:%M'),t_local.tzname())
+	t = pd.Timestamp(df.loc[i].VALID, tz='UTC')
+	t_local = t.tz_convert(os.environ['TIMEZONE'])
+	Local_time_text = '{} {}'.format(t_local.strftime('%Y-%m-%d %H:%M'), t_local.tzname())
 
 
-	message = '{}\n{}\n{}\n{}'.format(UTC_time_text,Local_time_text,height_text,pilot_remark)
-	message = '{}\nLatitude: {:.3f}\nLongitude: {:.3f}\n'.format(message,df.loc[i].LAT,df.loc[i].LON)
+	message = '{}\n{}\n{}\n{}'.format(UTC_time_text,
+									  Local_time_text,
+									  height_text,
+									  pilot_remark)
+	message = '{}\nLatitude: {:.3f}\nLongitude: {:.3f}\n'.format(message, df.loc[i].LAT, df.loc[i].LON)
 
-	v_text=''
-	for candidate in A.sort_values('dist').Volcano.values[:3]:
-		v_text='{}{}, '.format(v_text,candidate)
-	v_text=v_text.replace('_',' ')
-	message = '{}Nearest volcanoes: {}\n'.format(message,v_text[:-2])
-	message = '{}\n--Original Report--\n{}'.format(message,df.loc[i].REPORT)
+	v_text = ''
+	A = A.sort_values('distance')
+	for j, row in A[:3].iterrows():
+		v_text = '{}{} ({:.0f} km), '.format(v_text, row.Volcano, row.distance)
+	v_text = v_text.replace('_', ' ')
+	message = '{}Nearest volcanoes: {}\n'.format(message, v_text[:-2])
+	message = '{}\n--Original Report--\n{}'.format(message, df.loc[i].REPORT)
 	print(message)
 
-	if df.loc[i].URGENT=='T':
+	if df.loc[i].URGENT == 'T':
 		subject = 'URGENT! Activity possible at: {}'.format(v_text[:-2])
 	else:
 		subject = 'Activity possible at: {}'.format(v_text[:-2])
@@ -281,24 +293,34 @@ def create_message(df,i,A,UTC_time_text,height_text,pilot_remark):
 	return subject, message
 
 
-def plot_fig(config,df,i,A,UTC_time_text,height_text,pilot_remark):
+def plot_fig(config, df, i, A, UTC_time_text, height_text, pilot_remark):
 	m.use('Agg')
 
 	# Create figure & axis
 	fig, ax = plt.subplots(figsize=(4,4))	
 
 	# Make the map
-	lat0=df.loc[i].LAT
-	lon0=df.loc[i].LON
-	m_map,inmap=utils.make_map(ax,lat0,lon0,main_dist=150,inset_dist=400,scale=50)
+	lat0 = df.loc[i].LAT
+	lon0 = df.loc[i].LON
+	m_map,inmap=utils.make_map(ax, lat0, lon0, main_dist=150, inset_dist=400, scale=50)
 
 	# Add plane location and nearby volcanoes
-	m_map.plot(A.sort_values('dist').Lon.values[:10],A.sort_values('dist').Lat.values[:10],'^',latlon=True,markerfacecolor='forestgreen',markeredgecolor='black',markersize=4,markeredgewidth=0.5)
-	m_map.plot(lon0,lat0,'o',latlon=True,markeredgecolor='k',markersize=6,markerfacecolor='gold',markeredgewidth=0.5)
+	m_map.plot(A.sort_values('distance').Longitude.values[:10], A.sort_values('distance').Latitude.values[:10], '^',
+			   latlon=True,
+			   markerfacecolor='forestgreen',
+			   markeredgecolor='black',
+			   markersize=4,
+			   markeredgewidth=0.5)
+	m_map.plot(lon0, lat0, 'o',
+			   latlon=True,
+			   markeredgecolor='k',
+			   markersize=6,
+			   markerfacecolor='gold',
+			   markeredgewidth=0.5)
 	
 	# Write title & caption
 	m_map.ax.set_title(UTC_time_text+'\n'+height_text)
-	m_map.ax.set_xlabel('\n'.join(wrap(pilot_remark,60)),labelpad=10,fontsize=8)
+	m_map.ax.set_xlabel('\n'.join(wrap(pilot_remark,60)), labelpad=10, fontsize=8)
 
 	# draw rectangle on inset map
 	bx, by = inmap(m_map.boundarylons, m_map.boundarylats)
@@ -307,6 +329,6 @@ def plot_fig(config,df,i,A,UTC_time_text,height_text,pilot_remark):
 	inmap.ax.add_patch(mapboundary)
 
 	# save file
-	jpg_file=utils.save_file(plt,config,dpi=250)
+	jpg_file = utils.save_file(plt, config, dpi=250)
 
 	return jpg_file

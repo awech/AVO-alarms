@@ -18,6 +18,7 @@ from obspy.clients.earthworm import Client
 from pandas import read_excel
 from tomputils import mattermost as mm
 from obspy import UTCDateTime
+from obspy.geodetics import gps2dist_azimuth
 from PIL import Image
 import time
 import re
@@ -169,6 +170,18 @@ def icinga2_state(config,state,state_message):
 	return
 
 
+def volcano_distance(lon0, lat0, volcs):
+		import numpy as np
+
+		DIST = np.array([])
+		for lat, lon in zip(volcs.Latitude.values, volcs.Longitude.values):
+			dist, azimuth, az2 = gps2dist_azimuth(lat, lon, lat0, lon0)
+			DIST = np.append(DIST, dist/1000.)
+		volcs['distance'] = DIST
+
+		return volcs
+
+
 def send_alert(alarm_name,subject,body,filename=None):
 
 	print('Sending alarm email and sms...')
@@ -309,7 +322,7 @@ def save_file(plt,config,dpi=250):
 					  '/',
 					  config.alarm_name.replace(' ','_'),
 					  '_',
-					  UTCDateTime.utcnow().strftime('%Y%m%d_%H%M'),
+					  UTCDateTime.utcnow().strftime('%Y%m%d_%H%M%S'),
 					  '.png'])
 	jpg_file=png_file.split('.')[0]+'.jpg'
 

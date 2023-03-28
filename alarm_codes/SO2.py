@@ -51,10 +51,14 @@ def run_alarm(config,T0):
 		utils.icinga2_state(config,state,state_message)	
 		return	
 
-	volcs    = volcano_distance(lon,lat,config)
+	volcs = pd.read_excel(config.volc_file)
+	volcs = volcs[volcs['SO2']=='Y']
+	volcs = utils.volcano_distance(lon, lat, volcs)
+	volcs = volcs.sort_values('distance')
+
 	new_time = time_check(date,time,config)
 
-	if new_time and volcs.dist.min()<config.max_distance:
+	if new_time and volcs.distance.min()<config.max_distance:
 		print('....New detection....')
 		print('Downloading image')
 		attachment = download_image(soup,config,date,time)
@@ -75,7 +79,7 @@ def run_alarm(config,T0):
 
 		state_message='{} (UTC) SO2 detection!'.format(T0.strftime('%Y-%m-%d %H:%M'))
 		state='CRITICAL'
-	elif volcs.dist.min()<config.max_distance and not new_time:
+	elif volcs.distance.min()<config.max_distance and not new_time:
 		state_message='{} (UTC) Old SO2 detection! [{}]'.format(T0.strftime('%Y-%m-%d %H:%M'),
 																UTCDateTime(date + time).strftime('%Y-%m-%d %H:%M'))
 		state='WARNING'

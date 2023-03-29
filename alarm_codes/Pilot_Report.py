@@ -193,6 +193,7 @@ def check_volcano_mention(report):
 	tmp_report = tmp_report.replace('VACINITY', '')
 	tmp_report = tmp_report.replace('SULLIVAN', '')
 	tmp_report = tmp_report.replace('BELIEVABLE', '')
+	tmp_report = tmp_report.replace('DURD VA RWY', '')
 	if len(tmp_report.split('/SK'))>1 and 'VA' in tmp_report.split('/SK')[-1].split('/')[0]:
 		trigger = True
 	elif len(tmp_report.split('/RM'))>1 and 'VA' in tmp_report.split('/RM')[-1].split('/')[0]:

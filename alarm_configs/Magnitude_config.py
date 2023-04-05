@@ -8,6 +8,6 @@ MAGMIN = 2.5
 MAXDEP = 35
 DISTANCE   = 10
 
-DURATION = 7*24*3600
+DURATION = 2*3600
 
 mattermost_channel_id = 'p9q5xkzc1ig9fqeef7zia7pa6y'

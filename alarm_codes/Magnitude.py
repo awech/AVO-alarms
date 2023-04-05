@@ -7,6 +7,10 @@ from obspy.io.quakeml.core import Unpickler
 from obspy import Catalog, UTCDateTime, Stream, Inventory
 from obspy.geodetics.base import gps2dist_azimuth
 import cartopy
+from cartopy.io.img_tiles import GoogleTiles
+from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
+from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
+from matplotlib.ticker import FormatStrFormatter
 import pycurl
 import matplotlib.pyplot as plt
 from matplotlib.dates import date2num
@@ -18,7 +22,6 @@ import traceback
 from obspy.clients.fdsn import Client
 
 warnings.filterwarnings("ignore")
-
 client = Client('IRIS')
 
 def run_alarm(config, T0):
@@ -294,6 +297,16 @@ def make_path(extent):
 	return(aoi)
 
 
+class ShadedReliefESRI(GoogleTiles):
+    # shaded relief
+    def _image_url(self, tile):
+        x, y, z = tile
+        url = ('https://server.arcgisonline.com/ArcGIS/rest/services/' \
+               'World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}.jpg').format(
+               z=z, y=y, x=x)
+        return url
+
+
 def plot_event(eq, volcs, config):
 	m.use('Agg')
 	n_blank = 4
@@ -319,7 +332,6 @@ def plot_event(eq, volcs, config):
 		ST+=st[0]
 	ST+=st
 	fig = plt.figure(figsize=(4,9))
-	# h = ST.plot(fig=fig, equal_scale=False, automerge=False, method='full', linewidth=0.5, grid_linewidth=4, grid_linestyle='--')
 	h = ST.plot(fig=fig, equal_scale=False, automerge=False, linewidth=0.5)
 	for i, ax in enumerate(h.get_axes()):
 		if i >= n_blank:
@@ -380,16 +392,39 @@ def plot_event(eq, volcs, config):
 	grid = plt.GridSpec(len(ST), 1, wspace=0.05, hspace=0.6)
 	print('Plotting main map...')
 	extent = get_extent(volcs.iloc[0].Latitude, volcs.iloc[0].Longitude, dist=25)
-	CRS = cartopy.crs.Mercator(central_longitude=np.mean(extent[:2]), min_latitude=extent[2], max_latitude=extent[3], globe=None)
+			# CRS = cartopy.crs.Mercator(central_longitude=np.mean(extent[:2]), min_latitude=extent[2], max_latitude=extent[3], globe=None)
+			# ax1 = plt.subplot(grid[:n_blank,0], projection=CRS)
+			# ax1.set_extent(extent,cartopy.crs.PlateCarree())
+			# coast = cartopy.feature.GSHHSFeature(scale="high", rasterized=True)
+			# ax1.add_feature(coast, facecolor="lightgray", linewidth=0.5)
+			# water_col=tuple(np.array([165,213,229])/255.)
+			# ax1.set_facecolor(water_col)
+			# ax1.background_patch.set_facecolor(water_col)
+	ax1 = plt.subplot(grid[:n_blank,0], projection=ShadedReliefESRI().crs)
+	ax1.set_extent(extent)
+	ax1.add_image(ShadedReliefESRI(), 11)
+	lon_grid = [np.mean(extent[:2])-np.diff(extent[:2])[0]/4, np.mean(extent[:2])+np.diff(extent[:2])[0]/4]
+	lat_grid = [np.mean(extent[-2:])-np.diff(extent[-2:])[0]/4, np.mean(extent[-2:])+np.diff(extent[-2:])[0]/4]
+	# gl = ax1.gridlines(draw_labels={"bottom": "x", "right": "y"},
+	# 				   xlocs=lon_grid, ylocs=lat_grid,
+	# 				   xformatter=LongitudeFormatter(number_format='.2f', direction_label=False),
+	# 				   yformatter=LatitudeFormatter(number_format='.2f', direction_label=False),
+	# 				   alpha=0.2, 
+	# 				   color='gray', 
+	# 				   linewidth=0.5,
+	# 				   xlabel_style={'fontsize':6},
+	# 				   ylabel_style={'fontsize':6})
+	gl = ax1.gridlines(draw_labels=True, xlocs=lon_grid, ylocs=lat_grid,
+					   alpha=0.2, 
+					   color='gray', 
+					   linewidth=0.5)
+	gl.xlabels_top = False
+	gl.ylabels_left = False
+	gl.xformatter = LONGITUDE_FORMATTER
+	gl.yformatter = LATITUDE_FORMATTER
+	gl.xlabel_style = {'size': 6}
+	gl.ylabel_style = {'size': 6}
 
-	ax1 = plt.subplot(grid[:n_blank,0], projection=CRS)
-	ax1.set_extent(extent,cartopy.crs.PlateCarree())
-	coast = cartopy.feature.GSHHSFeature(scale="high", rasterized=True)
-	ax1.add_feature(coast, facecolor="lightgray", linewidth=0.5)
-	# water_col=tuple(np.array([82,159,191])/255.)
-	water_col=tuple(np.array([165,213,229])/255.)
-	# ax1.set_facecolor(water_col)
-	ax1.background_patch.set_facecolor(water_col)
 
 	ax1.plot(volcs[:10].Longitude, volcs[:10].Latitude, '^', markerfacecolor='g', markersize=8, markeredgecolor='k', markeredgewidth=0.5, transform=cartopy.crs.PlateCarree())
 	ax1.plot(channels.Longitude, channels.Latitude, 's', markerfacecolor='orange', markersize=5, markeredgecolor='k', markeredgewidth=0.4, transform=cartopy.crs.PlateCarree())
@@ -412,7 +447,6 @@ def plot_event(eq, volcs, config):
 	glb_ax.set_extent(extent2,cartopy.crs.Geodetic())
 	coast = cartopy.feature.GSHHSFeature(scale="intermediate", rasterized=True)
 	glb_ax.add_feature(coast, facecolor="lightgray", linewidth=0.1)
-	# glb_ax.add_feature(cartopy.feature.LAND.with_scale('10m'), facecolor='lightgrey', edgecolor='k', linewidth=0.1)
 	extent_lons=np.concatenate( (np.linspace(extent[0],extent[1],100),
 								 extent[1]*np.ones(100),
 								 np.linspace(extent[1],extent[0],100),

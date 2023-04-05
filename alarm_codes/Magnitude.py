@@ -22,7 +22,15 @@ import traceback
 from obspy.clients.fdsn import Client
 
 warnings.filterwarnings("ignore")
-client = Client('IRIS')
+
+attempt = 1
+while attempt <= 3:
+	try:
+		client = Client('IRIS')
+		break
+	except:
+		attempt+=1
+		client = None
 
 def run_alarm(config, T0):
 
@@ -75,7 +83,10 @@ def run_alarm(config, T0):
 		CAT_NEW.append(CAT.filter(filter1, filter2)[0])
 
 	# Add phase info to new events
-	CAT_NEW = addPhaseHint(CAT_NEW)
+	try:
+		CAT_NEW = addPhaseHint(CAT_NEW)
+	except:
+		print('Could not add phase type...')
 
 	for eq in CAT_NEW:
 		print('Processing {}, {}'.format(eq.short_str(), eq.resource_id.id))
@@ -134,7 +145,7 @@ def create_message(eq, volcs):
 		message = '{}\n\nUsing {:g} phases from {:g} stations'.format(message, origin.quality.used_phase_count, origin.quality.used_station_count)
 		message = '{}\nAzimuthal_Gap: {:g} degrees'.format(message, origin.quality.azimuthal_gap)
 		message = '{}\nStandard Error: {:g} s'.format(message, origin.quality.standard_error)
-		message = '{}\nUncertainty: +/- {:.1f} km (xy),'.format(message, origin.origin_uncertainty.horizontal_uncertainty/1000.)
+		message = '{}\nHorizontal uncertainty: +/- {:.1f} km'.format(message, origin.origin_uncertainty.horizontal_uncertainty/1000.)
 	except:
 		pass
 

@@ -19,6 +19,7 @@ from matplotlib.path import Path
 import shapely.geometry as sgeom
 import warnings
 import traceback
+import time
 from obspy.clients.fdsn import Client
 
 warnings.filterwarnings("ignore")
@@ -29,6 +30,7 @@ while attempt <= 3:
 		client = Client('IRIS')
 		break
 	except:
+		time.sleep(2)
 		attempt+=1
 		client = None
 

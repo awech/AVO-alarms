@@ -98,6 +98,12 @@ def run_alarm(config, T0):
 		#### Generate Figure ####
 		try:
 			attachment = plot_event(eq, volcs, config)
+			new_filename = '{}/{}_M{:.1f}_{}.png'.format(os.environ['TMP_FIGURE_DIR'],
+												 eq.preferred_origin().time.strftime('%Y%m%dT%H%M%S'),
+												 eq.preferred_magnitude().mag,
+												 ''.join(eq.resource_id.id.split('/')[-2:]).lower())
+			os.rename(attachment, new_filename)
+			attachment = new_filename
 		except:
 			attachment = []
 			print('Problem making figure. Continue anyway')
@@ -135,6 +141,7 @@ def create_message(eq, volcs):
 	message = '{}\n\nMagnitude: {:.1f}'.format(message, eq.preferred_magnitude().mag)
 	message = '{}\nLatitude: {:.3f}\nLongitude: {:.3f}'.format(message, origin.latitude, origin.longitude)
 	message = '{}\nDepth: {:.1f} km'.format(message, origin.depth/1000)
+	message = '{}\nEvent ID: {}'.format(message, ''.join(eq.resource_id.id.split('/')[-2:]).lower())
 	
 	volcs = volcs.sort_values('distance')
 	v_text = ''
@@ -441,7 +448,7 @@ def plot_event(eq, volcs, config):
 	# 				   xlabel_style={'fontsize':6},
 	# 				   ylabel_style={'fontsize':6})
 	gl = ax1.gridlines(draw_labels=True, xlocs=lon_grid, ylocs=lat_grid,
-					   alpha=0.2, 
+					   alpha=0.0, 
 					   color='gray', 
 					   linewidth=0.5)
 	gl.xlabels_top = False
@@ -451,14 +458,20 @@ def plot_event(eq, volcs, config):
 	gl.xlabel_style = {'size': 6}
 	gl.ylabel_style = {'size': 6}
 
-
 	ax1.plot(volcs[:10].Longitude, volcs[:10].Latitude, '^', markerfacecolor='g', markersize=8, markeredgecolor='k', markeredgewidth=0.5, transform=cartopy.crs.PlateCarree())
 	ax1.plot(channels.Longitude, channels.Latitude, 's', markerfacecolor='orange', markersize=5, markeredgecolor='k', markeredgewidth=0.4, transform=cartopy.crs.PlateCarree())
 	ax1.plot(eq.preferred_origin().longitude, eq.preferred_origin().latitude, 'o', markerfacecolor='firebrick', markersize=8, markeredgecolor='k', markeredgewidth=0.7, transform=cartopy.crs.PlateCarree())
 	for i, row in channels.iterrows():
 		t = ax1.text(row.Longitude+0.006, row.Latitude+0.006, row.NS.split('.')[-1], clip_on=True, fontsize=6, transform=cartopy.crs.PlateCarree())
 		t.clipbox = ax1.bbox
-	ax1.set_title('M{:.1f} at {}\nDepth: {:.1f} km'.format(eq.preferred_magnitude().mag, volcs.iloc[0].Volcano,eq.preferred_origin().depth/1000))
+	
+	ax1.set_title('{}\nM{:.1f}, {:.1f} km from {}\nDepth: {:.1f} km'.format(eq.preferred_origin().time.strftime('%Y-%m-%d %H:%M:%S'),
+															   eq.preferred_magnitude().mag, 
+															   volcs.iloc[0].distance,
+															   volcs.iloc[0].Volcano,
+															   eq.preferred_origin().depth/1000,
+															   ),
+				  fontsize=8)
 
 	fig.subplots_adjust(top=0.94)
 	fig.subplots_adjust(bottom=0.03)

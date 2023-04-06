@@ -151,7 +151,7 @@ def create_message(eq, volcs):
 	message = '{}\nNearest volcanoes: {}'.format(message, v_text[:-2])
 	
 	try:
-		message = '{}\n\n{} Location'.format(message, origin.evaluation_mode.upper())
+		message = '{}\n\n-- {} Location --'.format(message, origin.evaluation_mode.upper())
 		message = '{}\nUsing {:g} phases from {:g} stations'.format(message, origin.quality.used_phase_count, origin.quality.used_station_count)
 		message = '{}\nAzimuthal Gap: {:g} degrees'.format(message, origin.quality.azimuthal_gap)
 		message = '{}\nStandard Error: {:g} s'.format(message, origin.quality.standard_error)

@@ -174,9 +174,22 @@ def download_events(T0, config):
 	c.setopt(c.WRITEDATA, buffer) #setting options for cURL transfer  
 	c.setopt(c.SSL_VERIFYPEER, 0) #setting the file name holding the certificates
 	c.setopt(c.SSL_VERIFYHOST, 0) #setting the file name holding the certificates
-	c.perform() # perform file transfer
-	c.close() #Ending the session and freeing the resources
-	body = buffer.getvalue()
+
+	attempt = 1
+	while attempt <= 3:
+		try:
+			c.perform() # perform file transfer
+			c.close() #Ending the session and freeing the resources
+			body = buffer.getvalue()
+			break
+		except:
+			time.sleep(2)
+			attempt+=1
+			body = None
+
+	if not body:
+		return None	
+	
 	try:
 		CAT = Unpickler().loads(body)
 	except:

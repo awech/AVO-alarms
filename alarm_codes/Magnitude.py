@@ -120,6 +120,12 @@ def run_alarm(config, T0):
 		print('Posting to mattermost...')
 		utils.post_mattermost(config, subject, message, filename=attachment)
 
+		# Post to dedicated response channels for volcnoes listed in config file
+		if 'mm_response_channels' in dir(config):
+			if volcs.iloc[0].Volcano in config.mm_response_channels.keys():
+				config.mattermost_channel_id = config.mm_response_channels[volcs.iloc[0].Volcano]
+				utils.post_mattermost(config, subject, message, filename=attachment)
+
 		# delete the file you just sent
 		if attachment:
 			os.remove(attachment)

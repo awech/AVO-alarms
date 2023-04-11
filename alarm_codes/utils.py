@@ -217,7 +217,8 @@ def send_alert(alarm_name,subject,body,filename=None):
 			part.add_header('Content-Disposition', 'attachment; filename= {}'.format(name))
 			msg.attach(part)
 
-		server = smtplib.SMTP(os.environ['SMTP_IP'])
+		server = smtplib.SMTP_SSL(host=os.environ['SMTP_IP'], port=os.environ['SMTP_PORT'] )
+		# server = smtplib.SMTP(os.environ['SMTP_IP'])
 		text = msg.as_string()
 		server.sendmail(fromaddr, recipients, text)
 		server.quit()

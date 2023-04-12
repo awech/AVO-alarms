@@ -166,8 +166,8 @@ def create_message(date,time,table,config,volcs):
 	message = message.replace(' deg.','')
 
 	v_text=''
-	for i,row in volcs.sort_values('dist')[:3].iterrows():
-		v_text='{}{} ({:.0f} km), '.format(v_text,row.Volcano,row.dist)
+	for i,row in volcs.sort_values('distance')[:3].iterrows():
+		v_text='{}{} ({:.0f} km), '.format(v_text,row.Volcano,row.distance)
 	v_text=v_text.replace('_',' ')
 	message = '{}\n\nNearest volcanoes: {}\n'.format(message,v_text[:-2])
 	message+= '\n{}'.format(os.environ['SACS_URL'])

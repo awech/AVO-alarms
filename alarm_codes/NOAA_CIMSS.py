@@ -161,7 +161,7 @@ def run_alarm(config, T0):
 				##################################################################
 				# Send thermal alerts to their own channel
 				#
-				if alert.alert_type == 'hot':
+				if (alert.alert_type == 'hot') and ('THERMAL' in alert.alert_header):
 					if volcs.iloc[0].distance < config.thermal_alert_dist:
 						config.mattermost_channel_id = config.thermal_alerts_mm
 						utils.post_mattermost(config, subject, message, filename=attachment)

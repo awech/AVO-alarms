@@ -20,8 +20,10 @@ SCNL=[
 ######### alarm threshold parameters #########
 duration	  = 3600 			 # [seconds] how far into past to look for detections
 threshold     = 25   			 # [minutes] required in past hour for notification
-rsam_station  = 'AV.PS4A.--.BHZ' # S.C.N.L - channel to be used for RSAM threshold test
-rsam_threshold= 200  			 # RSAM threshold for above scnl. Alarm won't send if below this level
+# rsam_station  = 'AV.PS4A.--.BHZ' # S.C.N.L - channel to be used for RSAM threshold test
+# rsam_threshold= 200  			 # RSAM threshold for above scnl. Alarm won't send if below this level
+rsam_station  = 'AV.PS1A.--.BHZ' # S.C.N.L - channel to be used for RSAM threshold test
+rsam_threshold= 180  			 # RSAM threshold for above scnl. Alarm won't send if below this level
 ##############################################
 ##############################################
 

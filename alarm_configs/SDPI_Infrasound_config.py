@@ -5,7 +5,7 @@ alarm_name = 'SDPI Infrasound'	# this is the alarm name sent to icinga and in me
 SCNL=[
 {'scnl':'SDPI.HDF.AV.01'	, 'sta_lat': 55.34900	, 'sta_lon': -160.47640},
 {'scnl':'SDPI.HDF.AV.02'	, 'sta_lat': 55.34870	, 'sta_lon': -160.47683},
-{'scnl':'SDPI.HDF.AV.03'	, 'sta_lat': 55.34934	, 'sta_lon': -160.47732},
+# {'scnl':'SDPI.HDF.AV.03'	, 'sta_lat': 55.34934	, 'sta_lon': -160.47732},
 {'scnl':'SDPI.HDF.AV.04'	, 'sta_lat': 55.34952	, 'sta_lon': -160.47661},
 {'scnl':'SDPI.HDF.AV.05'	, 'sta_lat': 55.34922	, 'sta_lon': -160.47650},
 {'scnl':'SDPI.HDF.AV.06'	, 'sta_lat': 55.34919	, 'sta_lon': -160.47710},

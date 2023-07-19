@@ -3,7 +3,7 @@ from . import RSAM
 from obspy import UTCDateTime
 from obspy.core.util import AttribDict
 import numpy as np
-from pandas import DataFrame, Timestamp, read_csv
+from pandas import DataFrame, Timestamp, read_csv, concat
 import os
 import time
 from obspy.signal.filter import envelope
@@ -77,7 +77,8 @@ def run_alarm(config,T0):
 	#################################
 	######## check past hour ########
 	for l in loc.events:
-		CAT=CAT.append(DataFrame([[l.latitude,l.longitude,l.starttime.datetime]],columns=['lats','lons','time']))
+		# CAT=CAT.append(DataFrame([[l.latitude,l.longitude,l.starttime.datetime]],columns=['lats','lons','time']))
+		CAT = pd.concat([CAT, DataFrame([[l.latitude,l.longitude,l.starttime.datetime]],columns=['lats','lons','time'])], ignore_index=True)
 	#################################
 
 

@@ -420,7 +420,7 @@ def plot_event(eq, volcs, config):
 			ax.spines['top'].set_visible(False)
 			ax.spines['left'].set_visible(False)
 			ax.spines['right'].set_visible(False)
-			v = ax.get_children()[3]
+			v = ax.get_children()[1] # get_children()[3] for python3.7
 			label = v.get_text()
 			ax.text(0.01, 0.7, label, fontsize=6, transform=ax.transAxes, bbox=dict(boxstyle="round", fc="w", ec="w", alpha=0.8, linewidth=0))
 			v.remove()

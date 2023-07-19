@@ -374,7 +374,7 @@ def make_figure(st,volcano,T0,config,mx_pressure):
     # round to nearest minute
     t2=round(t2*24*60)/(24*60)
     t_vector=np.linspace(t1,t2,stack.stats.npts)
-    plt.plot(t_vector,stack.data,color='k',LineWidth=0.2)
+    plt.plot(t_vector,stack.data,color='k',linewidth=0.2)
     ax.set_ylabel(stack.stats.station+'\nstack',fontsize=5,
                                          rotation='horizontal',
                                          multialignment='center',

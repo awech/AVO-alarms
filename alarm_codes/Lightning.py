@@ -58,7 +58,7 @@ def run_alarm(config,T0):
 
 		# Flag strokes at volcanoes where alert is desired
 		VOLCS = VOLCS[VOLCS['Lightning'] == 'Y']
-		A.at[A.index[A['nearestVnum'].isin(VOLCS.vnum.values)].tolist(), 'send_alert'] = True
+		A.loc[A.index[A['nearestVnum'].isin(VOLCS.vnum.values)].tolist(), 'send_alert'] = True
 
 		A_recent, A_new = get_new_strokes(A, T0, config)
 		volcanoes = A_new.volcanoName.unique()

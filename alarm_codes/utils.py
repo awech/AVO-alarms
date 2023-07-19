@@ -109,13 +109,13 @@ def icinga_state(config,state,state_message):
 	cmd='echo "{}\t{}\t{}\t{}\\n" | {} -H {} -c {}'.format(os.environ['ICINGA_HOST_NAME'],icinga_service_name,state_num,
 																state_message,os.environ['SEND_NSCA_CMD'],
 																os.environ['ICINGA_IP'],os.environ['SEND_NSCA_CFG'])
-	print(cmd)
-	try:
-		output=subprocess.check_output(cmd,shell=True)
-	except:
-		time.sleep(1.5)
-		output=subprocess.check_output(cmd,shell=True)
-	print(output)
+	# print(cmd)
+	# try:
+	# 	output=subprocess.check_output(cmd,shell=True)
+	# except:
+	# 	time.sleep(1.5)
+	# 	output=subprocess.check_output(cmd,shell=True)
+	# print(output)
 
 	return
 

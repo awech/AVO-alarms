@@ -1,4 +1,4 @@
-#!/home/rtem/.conda/envs/alarms/bin/python
+#!/home/rtem/.conda/envs/alarms2/bin/python
 # -*- coding: utf-8 -*-
 
 import sys
@@ -15,5 +15,5 @@ config.alarm_name=alarm_name
 state='OK'
 state_message='Empty alarm service'
 
-utils.icinga_state(config,state,state_message)
-utils.icinga2_state(config,state,state_message)
+# utils.icinga_state(config,state,state_message)
+utils.icinga2_state(config, state, state_message)

@@ -12,8 +12,8 @@ alarm_name = 'Shishaldin RSAM'	# this is the alarm name sent to icinga and in me
 
 # Stations list. Last station is arrestor.
 SCNL=[
-# {'scnl':'SSLN.BHZ.AV.--'	, 'value': 4000		},
-# {'scnl':'SSLS.BHZ.AV.--'	, 'value': 20000	},
+{'scnl':'ISLZ.BHZ.AV.--'	, 'value': 350		},
+{'scnl':'SSLS.BHZ.AV.--'	, 'value': 800		},
 {'scnl':'SSBA.BHZ.AV.--'	, 'value': 600		},
 {'scnl':'ISNN.BHZ.AV.--'	, 'value': 290		},
 {'scnl':'BLDW.BHZ.AV.--'	, 'value': 250		}, # arrestor station

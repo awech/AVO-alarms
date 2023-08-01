@@ -22,10 +22,10 @@ VOLCANO=[
 		'seismic_scnl': ['VNSG.BHZ.AV.--','VNWF.BHZ.AV.--','VNCG.BHZ.AV.--']},
 {'volcano':	'Aniakchak',	'v_lat': 56.89885,	'v_lon': -158.14768, 	'Azimuth_tolerance': 3, 'min_pa': 0.3, 'vmin':0.28, 'vmax':0.45,
 		'seismic_scnl': ['ANPK.BHZ.AV.--','ANNW.BHZ.AV.--','BPPC.BHZ.AV.--']},
-{'volcano':	'Shishaldin',	'v_lat': 54.755856,	'v_lon': -163.969961, 	'Azimuth_tolerance': 5, 'min_pa': 2.5, 'vmin':0.28, 'vmax':0.45,
-		'seismic_scnl': ['SSBA.BHZ.AV.--','SSLS.BHZ.AV.--','ISNN.BHZ.AV.--']},
-{'volcano':	'Makushin',		'v_lat': 53.8900,	'v_lon': -166.9200, 	'Azimuth_tolerance': 2, 'min_pa': 0.2, 'vmin':0.28, 'vmax':0.45,
-		'seismic_scnl': ['MCIR.BHZ.AV.--','MGOD.BHZ.AV.--','MNAT.BHN.AV.--']},
+{'volcano':	'Shishaldin',	'v_lat': 54.755856,	'v_lon': -163.969961, 	'Azimuth_tolerance': 5, 'min_pa': 0.5, 'vmin':0.28, 'vmax':0.45,
+		'seismic_scnl': ['SSBA.BHZ.AV.--','ISNN.BHZ.AV.--','WTUG.BHZ.AV.--']},
+# {'volcano':	'Makushin',		'v_lat': 53.8900,	'v_lon': -166.9200, 	'Azimuth_tolerance': 2, 'min_pa': 0.2, 'vmin':0.28, 'vmax':0.45,
+# 		'seismic_scnl': ['MCIR.BHZ.AV.--','MGOD.BHZ.AV.--','MNAT.BHN.AV.--']},
 ]
 
 duration  = 3*60 # duration value in seconds

@@ -27,9 +27,11 @@ VOLCANO=[
 {'volcano':	'Cleveland',	'v_lat': 52.8222,	'v_lon': -169.9464, 	'Azimuth_tolerance': 15, 'min_pa': 4.0, 'vmin':0.28, 'vmax':0.41,
 		'seismic_scnl': ['CLES.BHZ.AV.--','CLCO.BHZ.AV.--']},
 
-    {'volcano': 'Okmok', 'v_lat': 53.428865, 'v_lon': -168.131632,   'Azimuth_tolerance': 5, 'min_pa': 0.5, 'vmin':0.28, 'vmax':0.41,
+{'volcano': 'Okmok', 'v_lat': 53.428865, 'v_lon': -168.131632,   'Azimuth_tolerance': 5, 'min_pa': 0.5, 'vmin':0.28, 'vmax':0.41,
     'seismic_scnl': ['OKFG.BHZ.AV.--','OKAK.BHZ.AV.--','OKTU.BHZ.AV.--']},
 
+{'volcano': 'Shishaldin',   'v_lat': 54.755856, 'v_lon': -163.969961,   'Azimuth_tolerance': 5, 'min_pa': 0.5, 'vmin':0.28, 'vmax':0.45,
+        'seismic_scnl': ['SSBA.BHZ.AV.--','ISNN.BHZ.AV.--','WTUG.BHZ.AV.--']},
     #{'volcano': 'Korovin', 'v_lat': 52.379710, 'v_lon': -174.155718,   'Azimuth_tolerance': 6, 'min_pa': 0.2, 'vmin':0.28, 'vmax':0.41,
     #'seismic_scnl': ['KOKV.BHZ.AV.--','KONE.BHZ.AV.--','KONW.BHZ.AV.--']}
 ]

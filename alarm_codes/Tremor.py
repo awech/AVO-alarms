@@ -78,7 +78,7 @@ def run_alarm(config,T0):
 	######## check past hour ########
 	for l in loc.events:
 		# CAT=CAT.append(DataFrame([[l.latitude,l.longitude,l.starttime.datetime]],columns=['lats','lons','time']))
-		CAT = pd.concat([CAT, DataFrame([[l.latitude,l.longitude,l.starttime.datetime]],columns=['lats','lons','time'])], ignore_index=True)
+		CAT = concat([CAT, DataFrame([[l.latitude,l.longitude,l.starttime.datetime]],columns=['lats','lons','time'])], ignore_index=True)
 	#################################
 
 

@@ -165,7 +165,7 @@ def run_alarm(config,T0):
 					os.remove(filename)
 
 				# OLD = OLD.append(tmp)
-				OLD = pd.concat([OLD, tmp], ignore_index=True)
+				OLD = pd.concat([OLD, tmp])
 
 
 	OLD.to_csv(config.outfile, float_format='%.6f', index_label='time', sep='\t', date_format='%Y%m%dT%H%M%S.%f')

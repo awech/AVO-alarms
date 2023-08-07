@@ -20,34 +20,27 @@ warnings.filterwarnings("ignore")
 
 def run_alarm(config,T0):
 	print(T0)
-	try:
-		page = requests.get(os.environ['SIGMET_URL'], timeout=10)
-		# page = requests.get(os.environ['SIGMET_URL'], timeout=10, verify=False) # if using NWS site
-		soup = BeautifulSoup(page.content, 'html.parser')
-		tables = soup.find_all('pre')
-	except:
+	attempts = 1
+	while attempts < 4:
 		try:
-			page = requests.get(os.environ['SIGMET_URL'], timeout=10)
-			soup = BeautifulSoup(page.content, 'html.parser')
-			tables = soup.find_all('pre')
+			tables = read_urls()
+			break
 		except:
-			try:
-				page = requests.get(os.environ['SIGMET_URL'], timeout=10)
-				soup = BeautifulSoup(page.content, 'html.parser')
-				tables = soup.find_all('pre')	
-			except:
-				print('Page error.')
-				state='WARNING'
-				state_message='{} (UTC) webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
-				# utils.icinga2_state(config,state,state_message)
-				return
+			print('Page error on attempt number {:g}'.format(attempts))
+			attempts += 1			
+			state='WARNING'
+			state_message='{} (UTC) webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
+			# utils.icinga2_state(config,state,state_message)
+			return
 
 	try:
 		SIGMETS_FOUND = []
 		for t in tables:
 			if 'VAAC: ANCHORAGE' in t.contents[0]:
-				evt = process_vaa(t.getText().split('\r\n\r\n'))
-				# evt = process_vaa(t.getText().split('\n\n')) # if using NWS site
+				if 'weather.gov' in os.environ['SIGMET_URL']:
+					evt = process_vaa(t.getText().split('\n\n')) # if using NWS site
+				else:
+					evt = process_vaa(t.getText().split('\r\n\r\n')) # if using discovery news site
 				if UTCDateTime(evt['DTG']) > T0 - config.duration:
 					SIGMETS_FOUND.append(evt)
 	except:
@@ -118,6 +111,33 @@ def run_alarm(config,T0):
 			# utils.icinga2_state(config, state, state_message)
 
 
+def read_urls():
+
+	if 'weather.gov' in os.environ['SIGMET_URL']:
+		page = requests.get(os.environ['SIGMET_URL'], timeout=10, verify=False) # if using NWS site
+		page2 = requests.get(os.environ['SIGMET_URL'].replace('ak1','ak2'), timeout=10, verify=False) # if using NWS site
+		page3 = requests.get(os.environ['SIGMET_URL'].replace('ak1','ak3'), timeout=10, verify=False) # if using NWS site
+		page4 = requests.get(os.environ['SIGMET_URL'].replace('ak1','ak4'), timeout=10, verify=False) # if using NWS site
+		page5 = requests.get(os.environ['SIGMET_URL'].replace('ak1','ak5'), timeout=10, verify=False) # if using NWS site
+
+		soup  = BeautifulSoup(page.content, 'html.parser')
+		soup2 = BeautifulSoup(page2.content, 'html.parser')
+		soup3 = BeautifulSoup(page3.content, 'html.parser')
+		soup4 = BeautifulSoup(page4.content, 'html.parser')
+		soup5 = BeautifulSoup(page5.content, 'html.parser')
+
+		soup.append(soup2)
+		soup.append(soup3)
+		soup.append(soup4)
+		soup.append(soup5)
+	else:
+		page = requests.get(os.environ['SIGMET_URL'], timeout=10) # if using discovery news site
+		soup = BeautifulSoup(page.content, 'html.parser')
+
+	tables = soup.find_all('pre')
+
+	return tables
+
 
 def get_extent(LONS, LATS):
 
@@ -138,7 +158,6 @@ def get_extent(LONS, LATS):
 	lonmax = lon0 + dlon/2
 
 	return [lonmin, lonmax, latmin, latmax]
-
 
 
 def make_path(extent):
@@ -219,8 +238,11 @@ def text_to_latlon(latlon_txt):
 
 def process_vaa(evt):
 	sigmet = dict()
-	sigmet['header'] = evt[0]
-	# sigmet['header'] = evt[0].replace('\n', ' ') # if using NWS site
+
+	if 'weather.gov' in os.environ['SIGMET_URL']:
+		sigmet['header'] = evt[0].replace('\n', ' ') # if using NWS site
+	else:
+		sigmet['header'] = evt[0] # if using discovery news site
 	rows = ['DTG',
 			'VAAC',
 			'VOLCANO',
@@ -239,11 +261,14 @@ def process_vaa(evt):
 			'RMK',
 			'NXT ADVISORY']
 	for row in rows:
-		sigmet[row] = [line for line in evt if row+':' in line][0].split(': ')[-1]
+		if 'weather.gov' in os.environ['SIGMET_URL']:
+			sigmet[row] = [line.replace('\n', ' ') for line in evt if row+':' in line][0].split(': ')[-1] # for NWS site
+		else:
+			sigmet[row] = [line for line in evt if row+':' in line][0].split(': ')[-1] # volcano discovery site
+		
 	sigmet['SIGMET_ID']='{}_{}'.format(sigmet['DTG'],sigmet['VOLCANO'].split(' ')[0])
 
 	return sigmet
-
 
 
 def make_map(evt, LONS, LATS, config):
@@ -316,8 +341,6 @@ def make_map(evt, LONS, LATS, config):
 
 def create_message(evt):
 
-	lvl_pattern = re.compile(r'/FL\S+')
-	sigmet_height = 100*float(lvl_pattern.findall(evt['OBS VA CLD'])[0].split('FL')[-1])
 	volcano_name = ''.join(evt['VOLCANO'].split(' ')[:-1]).title()
 	subject = f'{volcano_name} SIGMET'
 
@@ -326,7 +349,12 @@ def create_message(evt):
 	Local_time_text = '{} {}'.format(t_local.strftime('%Y-%m-%d %H:%M'),t_local.tzname())
 	UTC_time_text = '{} UTC'.format(t.strftime('%Y-%m-%d %H:%M'))
 
-	message = f'SIGMET to {sigmet_height:,.0f} ft\n{UTC_time_text}\n{Local_time_text}\n\n#### *Original Message*\n'
+	try:
+		lvl_pattern = re.compile(r'/FL\S+')
+		sigmet_height = 100*float(lvl_pattern.findall(evt['OBS VA CLD'])[0].split('FL')[-1])
+		message = f'SIGMET to {sigmet_height:,.0f} ft\n{UTC_time_text}\n{Local_time_text}\n\n#### *Original Message*\n'
+	except:
+		message = f'SIGMET\n{UTC_time_text}\n{Local_time_text}\n\n#### *Original Message*\n'
 	
 	for key in evt.keys():
 		if key not in ['header', 'SIGMET_ID']:

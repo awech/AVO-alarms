@@ -19,19 +19,23 @@ warnings.filterwarnings("ignore")
 
 
 def run_alarm(config,T0):
+
 	print(T0)
-	attempts = 1
-	while attempts < 4:
+	attempt = 1
+	max_tries = 3
+	while attempt <= max_tries:
 		try:
 			tables = read_urls()
 			break
-		except:
-			print('Page error on attempt number {:g}'.format(attempts))
-			attempts += 1			
-			state='WARNING'
-			state_message='{} (UTC) webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
-			# utils.icinga2_state(config,state,state_message)
-			return
+		except:		
+			if attempt == max_tries:
+				print('Whoops.')
+				state='WARNING'
+				state_message='{} (UTC) webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
+				# utils.icinga2_state(config,state,state_message)
+				return
+			print('Page error on attempt number {:g}'.format(attempt))
+			attempt += 1						
 
 	try:
 		SIGMETS_FOUND = []

@@ -43,7 +43,6 @@ def run_alarm(config, T0):
 	if len(CAT) == 0:
 		state = 'OK'
 		state_message = '{} (UTC) No new earthquakes'.format(T0.strftime('%Y-%m-%d %H:%M'))
-		utils.icinga_state( config, state, state_message)
 		utils.icinga2_state(config, state, state_message)
 		return
 
@@ -57,7 +56,6 @@ def run_alarm(config, T0):
 		print('Earthquakes detected, but not near any volcanoes')
 		state = 'OK'
 		state_message = '{} (UTC) No new earthquakes'.format(T0.strftime('%Y-%m-%d %H:%M'))
-		utils.icinga_state( config, state, state_message)
 		utils.icinga2_state(config, state, state_message)
 		return
 
@@ -72,7 +70,6 @@ def run_alarm(config, T0):
 		print('Earthquakes detected, but already processed in previous run')
 		state = 'WARNING'
 		state_message = '{} (UTC) Old event detected'.format(T0.strftime('%Y-%m-%d %H:%M'))
-		utils.icinga_state( config, state, state_message)
 		utils.icinga2_state(config, state, state_message)
 		return
 
@@ -133,7 +130,6 @@ def run_alarm(config, T0):
 		state = 'CRITICAL'
 		state_message = '{} (UTC) {}'.format(eq.preferred_origin().time.strftime('%Y-%m-%d %H:%M:%S'), subject)
 	
-	utils.icinga_state( config, state, state_message)
 	utils.icinga2_state(config, state, state_message)
 
 

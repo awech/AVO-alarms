@@ -36,7 +36,6 @@ def run_alarm(config,T0):
 				break
 				state = 'WARNING'
 				state_message = '{} (UTC) Volcview-API webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
-				utils.icinga_state(config,state,state_message)
 				utils.icinga2_state(config,state,state_message)
 				return
 			print('Error opening .json file. Trying again')
@@ -157,7 +156,6 @@ def run_alarm(config,T0):
 		
 
 	print('Ignored: {}'.format(ignored_volcanoes))
-	utils.icinga_state( config, state, state_message)
 	utils.icinga2_state(config, state, state_message)
 
 

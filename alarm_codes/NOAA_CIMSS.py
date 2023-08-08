@@ -38,7 +38,6 @@ def run_alarm(config, T0):
 				print('whoops')
 				state = 'WARNING'
 				state_message = '{} (UTC) webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
-				utils.icinga_state( config, state, state_message)
 				utils.icinga2_state(config, state, state_message)
 				return
 			print('Error opening .json file. Trying again')
@@ -47,7 +46,6 @@ def run_alarm(config, T0):
 	if 'A' not in locals():
 		state = 'WARNING'
 		state_message = '{} (UTC) webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
-		utils.icinga_state( config, state, state_message)
 		utils.icinga2_state(config, state, state_message)
 		return
 	####################################
@@ -188,7 +186,6 @@ def run_alarm(config, T0):
 				if attachment:
 					os.remove(attachment)
 
-	utils.icinga_state( config, state, state_message)
 	utils.icinga2_state(config, state, state_message)
 
 

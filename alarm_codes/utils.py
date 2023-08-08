@@ -85,41 +85,6 @@ def grab_data(scnl,T1,T2,fill_value=0):
 	return st
 
 
-def icinga_state(config,state,state_message):
-
-	print('Sending state and message to icinga:')
-
-	states={      'OK': 0,
-			 'WARNING': 1,
-			'CRITICAL': 2,
-			 'UNKNOWN': 3}
-
-	state_num=states[state]
-
-	#### which icinga service ####
-	##############################
-	if hasattr(config,'icinga_service_name'):
-		icinga_service_name=config.icinga_service_name
-	else:
-		icinga_service_name=config.alarm_name
-	##############################
-	##############################
-
-
-	cmd='echo "{}\t{}\t{}\t{}\\n" | {} -H {} -c {}'.format(os.environ['ICINGA_HOST_NAME'],icinga_service_name,state_num,
-																state_message,os.environ['SEND_NSCA_CMD'],
-																os.environ['ICINGA_IP'],os.environ['SEND_NSCA_CFG'])
-	# print(cmd)
-	# try:
-	# 	output=subprocess.check_output(cmd,shell=True)
-	# except:
-	# 	time.sleep(1.5)
-	# 	output=subprocess.check_output(cmd,shell=True)
-	# print(output)
-
-	return
-
-
 def icinga2_state(config,state,state_message):
 	import requests, json
 	import urllib3

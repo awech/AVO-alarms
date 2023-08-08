@@ -28,7 +28,6 @@ def run_alarm(config,T0):
 				print('Page error.')
 				state='WARNING'
 				state_message='{} (UTC) webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
-				utils.icinga_state(config,state,state_message)
 				utils.icinga2_state(config,state,state_message)
 				return
 
@@ -47,7 +46,6 @@ def run_alarm(config,T0):
 		print('Page error.')
 		state='WARNING'
 		state_message='{} (UTC) webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
-		utils.icinga_state(config,state,state_message)
 		utils.icinga2_state(config,state,state_message)	
 		return	
 
@@ -88,7 +86,6 @@ def run_alarm(config,T0):
 		state='OK'
 
 	# send heartbeat status message to icinga
-	utils.icinga_state(config,state,state_message)
 	utils.icinga2_state(config,state,state_message)
 
 

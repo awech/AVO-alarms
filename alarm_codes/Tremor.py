@@ -35,7 +35,6 @@ def run_alarm(config,T0):
 	if Nsta<config.min_sta:
 		state_message='{} - Data missing!'.format(state_message)
 		state='WARNING'
-		utils.icinga_state(config,state,state_message)
 		utils.icinga2_state(config,state,state_message)
 		return
 	#################################
@@ -142,7 +141,6 @@ def run_alarm(config,T0):
 				os.remove(filename)
 	#################################
 
-	utils.icinga_state(config,state,state_message)
 	utils.icinga2_state(config,state,state_message)
 
 

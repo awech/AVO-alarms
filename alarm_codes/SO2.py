@@ -10,26 +10,24 @@ from obspy.geodetics.base import gps2dist_azimuth
 
 def run_alarm(config,T0):
 	
-	try:
-		page = requests.get(os.environ['SACS_URL'],timeout=10)
-		soup = BeautifulSoup(page.content, 'html.parser')
-		table=soup.find_all('pre')[0]
-	except:
+	print('Reading SACS SO2 webpage')
+	attempt = 1
+	max_tries = 3
+	while attempt <= max_tries:
 		try:
 			page = requests.get(os.environ['SACS_URL'],timeout=10)
 			soup = BeautifulSoup(page.content, 'html.parser')
 			table=soup.find_all('pre')[0]
+			break
 		except:
-			try:
-				page = requests.get(os.environ['SACS_URL'],timeout=10)
-				soup = BeautifulSoup(page.content, 'html.parser')
-				table=soup.find_all('pre')[0]
-			except:
+			if attempt == max_tries:
 				print('Page error.')
-				state='WARNING'
+				state = 'WARNING'
 				state_message='{} (UTC) webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
-				utils.icinga2_state(config,state,state_message)
+				utils.icinga2_state(config, state, state_message)
 				return
+			print('Page error on attempt number {:g}'.format(attempt))
+			attempt+=1
 
 	try:
 		table=table.get_text().split('\n')

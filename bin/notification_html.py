@@ -77,7 +77,8 @@ B.columns.name=''
 
 B=B.style.set_properties(**{'font-family':'Hevletica'})
 B=B.applymap(highlight_vals)
-a=B.render()
-g=open(os.environ['HOME_DIR']+'/www/index.html','w')
-g.write(a)
-g.close()
+B.to_html(os.environ['HOME_DIR']+'/www/index.html')
+# a=B.render()
+# g=open(os.environ['HOME_DIR']+'/www/index.html','w')
+# g.write(a)
+# g.close()

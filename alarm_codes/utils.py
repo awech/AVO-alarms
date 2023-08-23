@@ -119,18 +119,21 @@ def icinga2_state(config,state,state_message):
 			 'plugin_output': state_message
 		   }
 
-	resp = requests.get(os.environ['ICINGA2_URL'], 
-						headers=headers, 
-						auth=(os.environ['ICINGA2_USERNAME'], os.environ['ICINGA2_PASSWORD']), 
-						data=json.dumps(data), 
-						verify=False)
-
-	if (resp.status_code == 200):
-		print(resp.json()['results'][0]['status'])
-		print('Success. Message sent to icinga2')
-	else:
-		print('Status code = {:g}'.format(resp.status_code))
-		print('Failed to send message to icinga2')
+	try:
+		resp = requests.get(os.environ['ICINGA2_URL'], 
+							headers=headers, 
+							auth=(os.environ['ICINGA2_USERNAME'], os.environ['ICINGA2_PASSWORD']), 
+							data=json.dumps(data), 
+							verify=False,
+							timeout=10)
+		if (resp.status_code == 200):
+			print(resp.json()['results'][0]['status'])
+			print('Success. Message sent to icinga2')
+		else:
+			print('Status code = {:g}'.format(resp.status_code))
+			print('Failed to send message to icinga2')
+	except:
+		print('requests error. Failed to send message to icinga2')
 
 	return
 

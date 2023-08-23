@@ -98,6 +98,8 @@ def run_alarm(config,T0):
 					b = traceback.format_exc()
 					err_message = ''.join('{}\n'.format(a) for a in b.splitlines())
 					print(err_message)
+			else:
+				attachment = []
 				
 			subject, message = create_message(evt)
 			# print('Sending message...')

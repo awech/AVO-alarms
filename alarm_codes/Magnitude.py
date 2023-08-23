@@ -35,6 +35,7 @@ while attempt <= 3:
 		client = None
 
 def run_alarm(config, T0):
+	print(T0)
 
 	# Donwload the event data
 	CAT = download_events(T0, config)

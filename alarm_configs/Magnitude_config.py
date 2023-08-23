@@ -1,15 +1,16 @@
 alarm_type = 'Magnitude'
-alarm_name = 'Magnitude' 
+alarm_name = 'Earthquake Magnitude' 
 
 outfile = 'alarm_aux_files/Recent_earthquakes.txt'
 volc_file = 'alarm_aux_files/volcano_list.xlsx'
 
 MAGMIN = 2.5
-MAXDEP = 35
+MAXDEP = 40
 DISTANCE = 10
 DURATION = 2*3600
 
 mattermost_channel_id = '1yxp3dhsjtd55jbbrawddzkk6h'
+icinga_service_name = 'generic alarm 1'
 
 mm_response_channels = {
 	'Aniakchak': 'eoeizwgp8bdnpmqpcicb7tjqbw',

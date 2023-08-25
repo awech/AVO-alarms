@@ -34,7 +34,6 @@ cc_shift_length = 3*50			# maximum samples to shift in cross-correlation (usuall
 infrasound_plot_duration = 600
 seismic_plot_duration = 600
 
-icinga_service_name = 'generic alarm 4'
 mattermost_channel_id = 's9rog3p4ojypfr5xs3fciiecfa'
 # BAEI testing
 # mattermost_channel_id = 's9rog3p4ojypfr5xs3fciiecfa'

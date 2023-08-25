@@ -32,7 +32,7 @@ def run_alarm(config,T0):
 				print('Whoops.')
 				state='WARNING'
 				state_message='{} (UTC) webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
-				# utils.icinga2_state(config,state,state_message)
+				utils.icinga2_state(config,state,state_message)
 				return
 			print('Page error on attempt number {:g}'.format(attempt))
 			attempt += 1						
@@ -51,14 +51,14 @@ def run_alarm(config,T0):
 		print('Page error.')
 		state='WARNING'
 		state_message='{} (UTC) webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
-		# utils.icinga2_state(config,state,state_message)	
+		utils.icinga2_state(config,state,state_message)	
 		return	
 
 
 	if len(SIGMETS_FOUND)==0:
 		state='OK'
 		state_message='{} (UTC) No new SIGMETs'.format(T0.strftime('%Y-%m-%d %H:%M'))
-		# utils.icinga2_state(config,state,state_message)	
+		utils.icinga2_state(config,state,state_message)	
 		return
 
 
@@ -71,7 +71,7 @@ def run_alarm(config,T0):
 			print('Old SIGMET detected')
 			state='WARNING'
 			state_message='{} (UTC) Old SIGMET detected'.format(T0.strftime('%Y-%m-%d %H:%M'))
-			# utils.icinga2_state(config,state,state_message)	
+			utils.icinga2_state(config,state,state_message)	
 			continue
 
 		else:
@@ -114,7 +114,7 @@ def run_alarm(config,T0):
 			state = 'CRITICAL'
 			state_message = f'{T0.strftime("%Y-%m-%d %H:%M")} (UTC) New {subject}'
 			
-			# utils.icinga2_state(config, state, state_message)
+			utils.icinga2_state(config, state, state_message)
 
 
 def read_urls():

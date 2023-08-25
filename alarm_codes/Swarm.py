@@ -45,11 +45,18 @@ def run_alarm(config, T0):
 	config.DURATION = np.array([swm['MAX_EVT_TIME'] for swm in config.swarm_parameters]).max()
 	CAT = download_events(T0, config)
 
+	# Error pulling events
+	if CAT is None:
+		state = 'WARNING'
+		state_message = '{} (UTC) FDSN connection error'.format(T0.strftime('%Y-%m-%d %H:%M'))
+		utils.icinga2_state(config, state, state_message)
+		return
+
 	# No events
 	if len(CAT) == 0:
 		state = 'OK'
 		state_message = '{} (UTC) No new earthquakes'.format(T0.strftime('%Y-%m-%d %H:%M'))
-		# utils.icinga2_state(config, state, state_message)
+		utils.icinga2_state(config, state, state_message)
 		return
 
 	# filter out regional VTs
@@ -65,7 +72,7 @@ def run_alarm(config, T0):
 		print('Earthquakes detected, but not near any volcanoes')
 		state = 'OK'
 		state_message = '{} (UTC) No new swarm activity'.format(T0.strftime('%Y-%m-%d %H:%M'))
-		# utils.icinga2_state(config, state, state_message)
+		utils.icinga2_state(config, state, state_message)
 		return
 
 	# Read in old events. Filter to new events
@@ -76,7 +83,7 @@ def run_alarm(config, T0):
 	if len(NEW_EVENTS) == 0:
 		state = 'OK'
 		state_message = '{} (UTC) No new earthquakes'.format(T0.strftime('%Y-%m-%d %H:%M'))
-		# utils.icinga2_state(config, state, state_message)
+		utils.icinga2_state(config, state, state_message)
 		return
 
 	# Check for swarms
@@ -110,7 +117,7 @@ def run_alarm(config, T0):
 			ALL_EVENTS = ALL_EVENTS.sort_values('Time')
 			ALL_EVENTS[['ID','Time','Latitude','Longitude','VOLCANO']].to_csv(config.outfile, index=False, sep='\t', float_format='%.3f')
 
-		# utils.icinga2_state(config, state, state_message)
+		utils.icinga2_state(config, state, state_message)
 		return
 
 

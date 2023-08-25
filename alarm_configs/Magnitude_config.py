@@ -10,7 +10,6 @@ DISTANCE = 10
 DURATION = 2*3600
 
 mattermost_channel_id = '1yxp3dhsjtd55jbbrawddzkk6h'
-icinga_service_name = 'generic alarm 1'
 
 mm_response_channels = {
 	'Aniakchak': 'eoeizwgp8bdnpmqpcicb7tjqbw',

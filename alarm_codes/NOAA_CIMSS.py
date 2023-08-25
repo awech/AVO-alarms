@@ -150,8 +150,8 @@ def run_alarm(config, T0):
 				print('Crafting message...')
 				subject, message = create_message(alert, instrument, height_text, volcs)
 
-				print('Sending message...')
-				utils.send_alert(config.alarm_name, subject, message, attachment)
+				# print('Sending message...')
+				# utils.send_alert(config.alarm_name, subject, message, attachment)
 				print('Posting to mattermost...')
 				utils.post_mattermost(config, subject, message, filename=attachment)
 

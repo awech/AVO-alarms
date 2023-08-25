@@ -2,13 +2,14 @@
 #
 # Wech 2020-04-09
 
+from . import utils
 import os
 import json
+import time
 import numpy as np
 import pandas as pd
 from obspy import UTCDateTime
 from obspy.geodetics.base import gps2dist_azimuth
-from . import utils
 import warnings
 import matplotlib as m
 import matplotlib.pyplot as plt
@@ -31,18 +32,17 @@ def run_alarm(config,T0):
 			A = pd.DataFrame(data['lightning'])
 			break
 		except:
-			if attempt == max_tries:
-				print('whoops')
-				break
-				state = 'WARNING'
-				state_message = '{} (UTC) Volcview-API webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
-				utils.icinga2_state(config,state,state_message)
-				return
-			print('Error opening .json file. Trying again')
+			print('Error getting data from Volcview-API on attempt {:g}'.format(attempt))
+			time.sleep(2)
 			attempt+=1
-	#################################
+			A = None
 	#################################
 
+	if A is None:
+		state = 'WARNING'
+		state_message = '{} (UTC) Error getting data from Volcview-API'.format(T0.strftime('%Y-%m-%d %H:%M'))
+		utils.icinga2_state(config,state,state_message)
+		return
 
 
 	ignored_volcanoes = []

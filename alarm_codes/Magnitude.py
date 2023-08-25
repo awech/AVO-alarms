@@ -37,8 +37,15 @@ while attempt <= 3:
 def run_alarm(config, T0):
 	print(T0)
 
-	# Donwload the event data
+	# Download the event data
 	CAT = download_events(T0, config)
+
+	# Error pulling events
+	if CAT is None:
+		state = 'WARNING'
+		state_message = '{} (UTC) FDSN connection error'.format(T0.strftime('%Y-%m-%d %H:%M'))
+		utils.icinga2_state(config, state, state_message)
+		return
 
 	# No events
 	if len(CAT) == 0:
@@ -181,16 +188,16 @@ def download_events(T0, config):
 																									   config.MAXDEP)
 	buffer = BytesIO()
 	c = pycurl.Curl()
-	c.setopt(c.URL, URL) #initializing the request URL
-	c.setopt(c.WRITEDATA, buffer) #setting options for cURL transfer  
-	c.setopt(c.SSL_VERIFYPEER, 0) #setting the file name holding the certificates
-	c.setopt(c.SSL_VERIFYHOST, 0) #setting the file name holding the certificates
+	c.setopt(c.URL, URL) 			# initializing the request URL
+	c.setopt(c.WRITEDATA, buffer) 	# setting options for cURL transfer  
+	c.setopt(c.SSL_VERIFYPEER, 0) 	# setting the file name holding the certificates
+	c.setopt(c.SSL_VERIFYHOST, 0) 	# setting the file name holding the certificates
 
 	attempt = 1
 	while attempt <= 3:
 		try:
-			c.perform() # perform file transfer
-			c.close() #Ending the session and freeing the resources
+			c.perform() 			# perform file transfer
+			c.close() 				# Ending the session and freeing the resources
 			body = buffer.getvalue()
 			break
 		except:

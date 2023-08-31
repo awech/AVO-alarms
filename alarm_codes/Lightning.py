@@ -27,7 +27,7 @@ def run_alarm(config,T0):
 	max_tries = 3
 	while attempt <= max_tries:
 		try:
-			data = json.load(os.popen('curl -H \"username:{}\" -H \"password:{}\" -X GET {}'.format(
+			data = json.load(os.popen('curl --connect-timeout 5 -H \"username:{}\" -H \"password:{}\" -X GET {}'.format(
 											os.environ['API_USERNAME'],os.environ['API_PASSWORD'],os.environ['LIGHTNING_URL'])))
 			A = pd.DataFrame(data['lightning'])
 			break

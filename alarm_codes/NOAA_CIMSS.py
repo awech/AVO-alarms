@@ -3,6 +3,7 @@ import os
 import pandas as pd
 import numpy as np
 import requests
+import time
 from obspy.geodetics.base import gps2dist_azimuth
 import warnings
 from urllib.parse import urlparse, urljoin
@@ -27,29 +28,24 @@ def run_alarm(config, T0):
 	max_tries = 3
 	while attempt <= max_tries:
 		try:
-			result = os.popen('curl -H \"username:{}\" -H \"password:{}\" -X GET {}'.format(
+			result = os.popen('curl --connect-timeout 5 -H \"username:{}\" -H \"password:{}\" -X GET {}'.format(
 							   os.environ['API_USERNAME'], os.environ['API_PASSWORD'],
 							   os.environ['NOAA_CIMSS_URL'])
 							 ).read()
 			A = pd.read_json(result)
 			break
 		except:
-			if attempt == max_tries:
-				print('whoops')
-				state = 'WARNING'
-				state_message = '{} (UTC) webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
-				utils.icinga2_state(config, state, state_message)
-				return
-			print('Error opening .json file. Trying again')
+			print('Error getting data from Volcview-API on attempt {:g}'.format(attempt))
+			time.sleep(2)
 			attempt+=1
-	
-	if 'A' not in locals():
+			A = None
+	#################################
+
+	if A is None:
 		state = 'WARNING'
-		state_message = '{} (UTC) webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
-		utils.icinga2_state(config, state, state_message)
+		state_message = '{} (UTC) Error getting data from Volcview-API'.format(T0.strftime('%Y-%m-%d %H:%M'))
+		utils.icinga2_state(config,state,state_message)
 		return
-	####################################
-	####################################
 
 
 	####################################

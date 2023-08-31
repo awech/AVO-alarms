@@ -1,3 +1,4 @@
+from . import utils
 import os
 import re
 import numpy as np
@@ -12,7 +13,6 @@ import matplotlib.pyplot as plt
 import matplotlib as m
 from matplotlib.path import Path
 import traceback
-from . import utils
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -186,6 +186,9 @@ def process_polygons(evt, field):
 	direction = ''
 
 	obs_text = evt[field].replace('\r\n', ' ')
+
+	if 'VA NOT IDENTIFIABLE ' in obs_text:
+		return lons, lats, level, time, direction
 
 	if 'FL' in obs_text:
 

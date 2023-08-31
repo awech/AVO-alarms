@@ -10,7 +10,7 @@ SCNL=[
 {'scnl':  'PVV.SHZ.AV.--', 'lat':	55.373, 'lon':	-161.792 },
 {'scnl': 'PS1A.BHZ.AV.--', 'lat':	55.420, 'lon':	-161.744 },
 {'scnl': 'PN7A.BHZ.AV.--', 'lat':	55.433, 'lon':	-161.997 },
-{'scnl': 'PV6A.SHZ.AV.--', 'lat':	55.507, 'lon':	-161.9714},
+{'scnl': 'PV6A.BHZ.AV.--', 'lat':	55.507, 'lon':	-161.9714},
 ]
 ##############################################
 ##############################################
@@ -20,9 +20,9 @@ SCNL=[
 ######### alarm threshold parameters #########
 duration	  = 3600 			 # [seconds] how far into past to look for detections
 threshold     = 25   			 # [minutes] required in past hour for notification
-# rsam_station  = 'AV.PS4A.--.BHZ' # S.C.N.L - channel to be used for RSAM threshold test
+# rsam_station  = 'AV.PS4A.--.BHZ' # N.S.L.C - channel to be used for RSAM threshold test
 # rsam_threshold= 200  			 # RSAM threshold for above scnl. Alarm won't send if below this level
-rsam_station  = 'AV.PS1A.--.BHZ' # S.C.N.L - channel to be used for RSAM threshold test
+rsam_station  = 'AV.PS1A.--.BHZ' # N.S.L.C - channel to be used for RSAM threshold test
 rsam_threshold= 180  			 # RSAM threshold for above scnl. Alarm won't send if below this level
 ##############################################
 ##############################################

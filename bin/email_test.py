@@ -1,4 +1,4 @@
-#!/home/rtem/.conda/envs/alarms2/bin/python
+#!/home/rtem/.conda/envs/alarms/bin/python
 import os
 import sys
 from obspy import UTCDateTime

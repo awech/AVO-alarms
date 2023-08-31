@@ -1,4 +1,4 @@
-#!/home/rtem/.conda/envs/alarms2/bin/python
+#!/home/rtem/.conda/envs/alarms/bin/python
 # -*- coding: utf-8 -*-
 from __future__ import print_function
 import sys,os, errno

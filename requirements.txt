@@ -1,3 +1,4 @@
+# pip list --format=freeze > requirements.txt
 arrow==1.2.3
 asttokens==2.0.5
 backcall==0.2.0

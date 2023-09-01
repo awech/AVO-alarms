@@ -406,20 +406,26 @@ def create_message(swarm):
 	hours = np.floor(dt.total_seconds()/3600)
 	minutes = np.round((dt.total_seconds() - hours*3600)/60)
 
-	message = '{} events in past {:.0f}h {:.0f}m, from:'.format(len(swarm), hours, minutes)
-	message+= '\n\n{} - {} UTC'.format(tmin.strftime('%Y-%m-%d %H:%M'), tmax.strftime('%Y-%m-%d %H:%M'))
+	message = f'{len(swarm)} events in past {hours:.0f}h {minutes:.0f}m'
+	message+= '\n\n####*UTC*'
+	message+= f'\n**Start:** {tmin.strftime("%Y-%m-%d %H:%M")}'
+	message+= f'\n**End:** {tmax.strftime("%Y-%m-%d %H:%M")}'
+
 	tmin_local = tmin.tz_convert(os.environ['TIMEZONE'])
 	tmax_local = tmax.tz_convert(os.environ['TIMEZONE'])
-	message+= '\n{} - {} {}'.format(tmin_local.strftime('%Y-%m-%d %H:%M'), tmax_local.strftime('%Y-%m-%d %H:%M'), tmax_local.tzname())
 
-	message+= '\n\nMagnitude range {:.1f} - {:.1f}'.format(swarm.Magnitude.min(), swarm.Magnitude.max())
+	message+= f'\n\n####*{tmax_local.tzname()}*'
+	message+= f'\n**Start:** {tmin_local.strftime("%Y-%m-%d %H:%M")}'
+	message+= f'\n**End:** {tmax_local.strftime("%Y-%m-%d %H:%M")}'
+
+	message+= f'\n\n**Magnitude range:** {swarm.Magnitude.min():.1f} - {swarm.Magnitude.max():.1f}'
 	num_nan_mags = len(np.where(np.isnan(swarm.Magnitude))[0])
 	if num_nan_mags == 1:
-		message+=' ({:.0f} event with unassigned magnitude)'.format(num_nan_mags)
+		message+=f' ({num_nan_mags:.0f} event with unassigned magnitude)'
 	elif num_nan_mags > 1:
-		message+=' ({:.0f} events with unassigned magnitude)'.format(num_nan_mags)
+		message+=f' ({num_nan_mags:.0f} events with unassigned magnitude)'
 
-	subject = 'Earthquake swarm at {}'.format(swarm.iloc[0].VOLCANO)
+	subject = f'Earthquake swarm at {swarm.iloc[0].VOLCANO}'
 
 	return subject, message
 

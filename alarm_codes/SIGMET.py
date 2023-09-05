@@ -271,7 +271,9 @@ def process_vaa(evt):
 			'NXT ADVISORY']
 	for row in rows:
 		if 'weather.gov' in os.environ['SIGMET_URL']:
-			sigmet[row] = [line.replace('\n', ' ') for line in evt if row+':' in line][0].split(': ')[-1] # for NWS site
+			for line in evt:
+				if row+':' in line and not 'VA ' + row+':' in line:
+					sigmet[row] = line.split(': ')[-1].replace('\n', ' ') # for NWS site
 		else:
 			sigmet[row] = [line for line in evt if row+':' in line][0].split(': ')[-1] # volcano discovery site
 		

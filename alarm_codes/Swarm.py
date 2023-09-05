@@ -263,7 +263,7 @@ def plot_event(swarm, T0, config, VOLCS, CAT):
 	cbar.set_ticklabels(['{:.0f}\nhour\nago'.format(swarm.iloc[0].param_duration/3600.0), 'Now'])
 	cbar.ax.tick_params(labelsize=6)
 	
-	ax['map'].set_title('{} events\nFirst:	 {} UTC\nLatest:  {} UTC'.format(len(swarm),
+	ax['map'].set_title('{} events\nFirst:     {} UTC\nLatest:  {} UTC'.format(len(swarm),
 													   swarm.Time.min().strftime('%Y-%m-%d %H:%M'), 
 													   swarm.Time.max().strftime('%Y-%m-%d %H:%M')),
 				  fontsize=8)
@@ -312,9 +312,10 @@ def plot_event(swarm, T0, config, VOLCS, CAT):
 					   vmin=date2num((T0-swarm.iloc[0].param_duration).datetime), 
 					   vmax=date2num(T0.datetime),
 					   zorder=10,
+					   clip_on=False,
 					   label='_nolegend_'
 					)
-	ax['stem'].set_ylim(mag_swarm.Magnitude.min()-0.1,mag_swarm.Magnitude.max()+0.1)
+	ax['stem'].set_ylim(mag_swarm.Magnitude.min()-0.2,mag_swarm.Magnitude.max()+0.2)
 
 
 	no_mag_swarm = swarm[swarm['Magnitude'].isnull()]
@@ -407,16 +408,16 @@ def create_message(swarm):
 	minutes = np.round((dt.total_seconds() - hours*3600)/60)
 
 	message = f'{len(swarm)} events in past {hours:.0f}h {minutes:.0f}m'
-	message+= '\n\n####*UTC*'
-	message+= f'\n**Start:** {tmin.strftime("%Y-%m-%d %H:%M")}'
-	message+= f'\n**End:** {tmax.strftime("%Y-%m-%d %H:%M")}'
+	message+= '\n\n***--- UTC ---***'
+	message+= f'\n**First:** {tmin.strftime("%Y-%m-%d %H:%M")}'
+	message+= f'\n**Last:** {tmax.strftime("%Y-%m-%d %H:%M")}'
 
 	tmin_local = tmin.tz_convert(os.environ['TIMEZONE'])
 	tmax_local = tmax.tz_convert(os.environ['TIMEZONE'])
 
-	message+= f'\n\n####*{tmax_local.tzname()}*'
-	message+= f'\n**Start:** {tmin_local.strftime("%Y-%m-%d %H:%M")}'
-	message+= f'\n**End:** {tmax_local.strftime("%Y-%m-%d %H:%M")}'
+	message+= f'\n\n***--- {tmax_local.tzname()} ---***'
+	message+= f'\n**First:** {tmin_local.strftime("%Y-%m-%d %H:%M")}'
+	message+= f'\n**Last:** {tmax_local.strftime("%Y-%m-%d %H:%M")}'
 
 	message+= f'\n\n**Magnitude range:** {swarm.Magnitude.min():.1f} - {swarm.Magnitude.max():.1f}'
 	num_nan_mags = len(np.where(np.isnan(swarm.Magnitude))[0])

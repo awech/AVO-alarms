@@ -148,24 +148,24 @@ def create_message(eq, volcs):
 	Local_time_text = '{} {}'.format(t_local.strftime('%Y-%m-%d %H:%M:%S'), t_local.tzname())
 
 	message = '{} UTC\n{}'.format(t.strftime('%Y-%m-%d %H:%M:%S'), Local_time_text)
-	message = '{}\n\nMagnitude: {:.1f}'.format(message, eq.preferred_magnitude().mag)
-	message = '{}\nLatitude: {:.3f}\nLongitude: {:.3f}'.format(message, origin.latitude, origin.longitude)
-	message = '{}\nDepth: {:.1f} km'.format(message, origin.depth/1000)
-	message = '{}\nEvent ID: {}'.format(message, ''.join(eq.resource_id.id.split('/')[-2:]).lower())
+	message = '{}\n\n**Magnitude:** {:.1f}'.format(message, eq.preferred_magnitude().mag)
+	message = '{}\n**Latitude:** {:.3f}\n**Longitude:** {:.3f}'.format(message, origin.latitude, origin.longitude)
+	message = '{}\n**Depth:** {:.1f} km'.format(message, origin.depth/1000)
+	message = '{}\n**Event ID:** {}'.format(message, ''.join(eq.resource_id.id.split('/')[-2:]).lower())
 	
 	volcs = volcs.sort_values('distance')
 	v_text = ''
 	for i, row in volcs[:3].iterrows():
 		v_text = '{}{} ({:.0f} km), '.format(v_text, row.Volcano, row.distance)
 	v_text = v_text.replace('_',' ')
-	message = '{}\nNearest volcanoes: {}'.format(message, v_text[:-2])
+	message = '{}\n**Nearest volcanoes:** {}'.format(message, v_text[:-2])
 	
 	try:
-		message = '{}\n\n-- {} Location --'.format(message, origin.evaluation_mode.replace('manual','reviewed').upper())
+		message = '{}\n\n***--- {} Location ---***'.format(message, origin.evaluation_mode.replace('manual','reviewed').upper())
 		message = '{}\nUsing {:g} phases from {:g} stations'.format(message, origin.quality.used_phase_count, origin.quality.used_station_count)
-		message = '{}\nAzimuthal Gap: {:g} degrees'.format(message, origin.quality.azimuthal_gap)
-		message = '{}\nStandard Error: {:g} s'.format(message, origin.quality.standard_error)
-		message = '{}\nVertical/Horizontal Error: {:.1f} km / {:.1f} km'.format(message, origin.depth_errors['uncertainty']/1000, origin.origin_uncertainty.horizontal_uncertainty/1000.)
+		message = '{}\n**Azimuthal Gap:** {:g} degrees'.format(message, origin.quality.azimuthal_gap)
+		message = '{}\n**Standard Error:** {:g} s'.format(message, origin.quality.standard_error)
+		message = '{}\n**Vertical/Horizontal Error:** {:.1f} km / {:.1f} km'.format(message, origin.depth_errors['uncertainty']/1000, origin.origin_uncertainty.horizontal_uncertainty/1000.)
 	except:
 		pass
 

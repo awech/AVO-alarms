@@ -1,5 +1,5 @@
 # AVO-alarms
-python codes used for geophysical alarms at AVO
+Python codes used for geophysical alarms at AVO. Currently (2023-Sep-06) running on Python 3.8.17
 
 ## Python Dependencies
 - pandas<br>

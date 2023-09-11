@@ -185,6 +185,9 @@ def process_polygons(evt, field):
 	time = ''
 	direction = ''
 
+	if field not in evt.keys():
+		return lons, lats, level, time, direction
+
 	obs_text = evt[field].replace('\r\n', ' ')
 
 	if 'VA NOT IDENTIFIABLE ' in obs_text:

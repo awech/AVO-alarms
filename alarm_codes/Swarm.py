@@ -426,6 +426,13 @@ def create_message(swarm):
 	elif num_nan_mags > 1:
 		message+=f' ({num_nan_mags:.0f} events with unassigned magnitude)'
 
+	message+= f'\n**Depth range:** {swarm.Depth.min():.1f} - {swarm.Depth.max():.1f} km'
+	num_nan_deps = len(np.where(np.isnan(swarm.Depth))[0])
+	if num_nan_deps == 1:
+		message+=f' ({num_nan_deps:.0f} event with unassigned depth)'
+	elif num_nan_deps > 1:
+		message+=f' ({num_nan_deps:.0f} events with unassigned depth)'
+
 	subject = f'Earthquake swarm at {swarm.iloc[0].VOLCANO}'
 
 	return subject, message

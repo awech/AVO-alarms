@@ -12,7 +12,7 @@ mattermost_channel_id = 'jcusdzgyhfb4jq65af3zw6pcwa'
 
 # send alerts from elevated volcanoes to dedicated MM channel
 elevated_volcano_dist = 20 # distance threshold in kms
-elevated_volcano_list = ['Trident', 'Aniakchak', 'Shishaldin', 'Semisopochnoi', 'Great Sitkin', 'Cleveland']
+elevated_volcano_list = ['Trident', 'Shishaldin', 'Great Sitkin', 'Cleveland']
 elevated_volcano_mm = 'tskignhcuf88fcxsmuqzn4jtfh'
 
 

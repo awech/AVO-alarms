@@ -5,6 +5,7 @@ import numpy as np
 import requests
 import time
 from obspy.geodetics.base import gps2dist_azimuth
+from obspy import UTCDateTime
 import warnings
 from urllib.parse import urlparse, urljoin
 from bs4 import BeautifulSoup
@@ -57,16 +58,17 @@ def run_alarm(config, T0):
 
 	# update DataFrame with unique NOAA/CIMSS id
 	A['NOAA_id'] = ''
+	A['aid'] = ''
 	for i in A.index:
 		try:
 			A.at[i, 'NOAA_id'] = int(A.at[i,'alert_url'].split('/')[-1])
 		except:
 			A.at[i, 'NOAA_id'] = 0 	# alert has no url to scrap info from
-	A = A[A['NOAA_id'] > 0] 		# ignore alerts with no urls
+	A = A.loc[A['NOAA_id'] > 0] 		# ignore alerts with no urls
 
 	
 	A['object_date_time'] = pd.to_datetime(A['object_date_time']) 						# convert time to datetime in DataFrame
-	recent_alerts = A[A['object_date_time'] > (T0-3600*12).strftime('%Y-%m-%d %H:%M')]	# limit DataFrame to alerts in the past 12 hours
+	recent_alerts = A.loc[A['object_date_time'] > (T0-3600*12).strftime('%Y-%m-%d %H:%M')]	# limit DataFrame to alerts in the past 12 hours
 	old_alerts = pd.read_csv(config.outfile)											# read in old alerts
 
 	# now update alerts file
@@ -77,7 +79,10 @@ def run_alarm(config, T0):
 		state_message = '{} (UTC) No new recent NOAA CIMSS alerts. Webpage or API problem?'.format(T0.strftime('%Y-%m-%d %H:%M'))
 
 
+	recent_alerts['aid'] = np.nan
 	print('Looping through alerts...')
+
+	default_mm_id = config.mattermost_channel_id
 	for i, alert in recent_alerts.iterrows():
 		
 		# DIST = np.array([])
@@ -89,7 +94,7 @@ def run_alarm(config, T0):
 		
 		# keep only those volcanoes based on NOAA alert type
 		ALERT_TYPE = {'ash': 'NOAA Ash', 'hot': 'NOAA Thermal', 'ice': 'NOAA Ice'}
-		volcs = VOLCS[VOLCS[ ALERT_TYPE[alert.alert_type] ] =='Y']
+		volcs = VOLCS.loc[ VOLCS[ ALERT_TYPE[alert.alert_type] ] =='Y' ]
 
 		volcs = utils.volcano_distance(alert.lon_rc, alert.lat_rc, volcs)
 		volcs = volcs.sort_values('distance')
@@ -107,7 +112,7 @@ def run_alarm(config, T0):
 				state_message = '{} (UTC) No new NOAA CIMSS alerts'.format(T0.strftime('%Y-%m-%d %H:%M'))
 				continue
 			else:
-				print('New Alert! Getting images and additional info from NOAA CIMSS webpage...')
+				print('New Alert! Getting images and additional info from NOAA CIMSS webpage...\n\n')
 				print(alert)
 							
 				attempt = 1
@@ -125,9 +130,27 @@ def run_alarm(config, T0):
 						
 
 				instrument = get_instrument(soup)
-				height_text = get_height_txt(soup)
-				get_cimss_image(soup, alert, config)
-				print('Done.')
+				sections = soup.select("div[class*=alert_box]")
+
+				for soupy in sections:
+					t = get_timestamp(soupy)
+					lat_web, lon_web = get_latitude(soupy)
+					if t:
+						if (UTCDateTime(alert.object_date_time) - UTCDateTime(t)) == 0 & (gps2dist_azimuth(lat_web, lon_web, alert.lat_rc, alert.lon_rc)[0]/1000 ==0):
+							
+							height_txt = get_height_txt(soupy)
+							status_txt = get_alert_status_txt(soupy)
+							type_txt = get_type_txt(soupy)
+							
+							get_cimss_image(soupy, alert, config)
+							
+							tmp_text = soupy.select("a[href*=individual]")
+							aid = np.unique([x['href'].split('#')[0].split('/')[-1] for x in tmp_text])
+							alert['aid'] = aid
+							
+							break		
+				
+				print('\n\nDone.')
 
 
 				print('Trying to make figure attachment')
@@ -144,7 +167,7 @@ def run_alarm(config, T0):
 
 				# craft and send the message
 				print('Crafting message...')
-				subject, message = create_message(alert, instrument, height_text, volcs)
+				subject, message = create_message(alert, instrument, height_txt, volcs, status_txt, type_txt)
 
 				# print('Sending message...')
 				# utils.send_alert(config.alarm_name, subject, message, attachment)
@@ -169,11 +192,13 @@ def run_alarm(config, T0):
 				elevated_volcs = volcs[volcs['Volcano'].isin(config.elevated_volcano_list)]
 
 				if elevated_volcs.iloc[0].distance < config.elevated_volcano_dist:
-					subject_elevate, message_ignore = create_message(alert, instrument, height_text, elevated_volcs)
 					config.mattermost_channel_id = config.elevated_volcano_mm
-					utils.post_mattermost(config, subject_elevate, message, filename=attachment)
+					utils.post_mattermost(config, subject, message, filename=attachment)
 				#
 				##################################################################
+
+				# change mm channel id back to default
+				config.mattermost_channel_id = default_mm_id
 
 				state = 'CRITICAL'
 				state_message = '{} (UTC) {}'.format(T0.strftime('%Y-%m-%d %H:%M'), subject)
@@ -185,14 +210,21 @@ def run_alarm(config, T0):
 	utils.icinga2_state(config, state, state_message)
 
 
-def create_message(alert, instrument, height_text, volcs):
+def create_message(alert, instrument, height_txt, volcs, status_txt, type_txt):
 	t = pd.Timestamp(alert.object_date_time, tz='UTC')
 	t_local = t.tz_convert(os.environ['TIMEZONE'])
 	Local_time_text = '{} {}'.format(t_local.strftime('%Y-%m-%d %H:%M'), t_local.tzname())
 
-	message = '{} UTC\n{}\n\n{}'.format(t.strftime('%Y-%m-%d %H:%M'), Local_time_text, height_text)
-	message = '{}\nPrimary Instrument: {}'.format(message, instrument)
-	message = '{}\nLatitude: {:.3f}\nLongitude: {:.3f}\n'.format(message, alert.lat_rc, alert.lon_rc)
+	message = '{} UTC\n{}\n'.format(t.strftime('%Y-%m-%d %H:%M'), Local_time_text)
+
+	message += '\n**Primary Instrument:** {}'.format(instrument)
+	if height_txt:
+		message += '\n{}'.format(height_txt.replace('Max','**Max').replace(']:',']:**'))
+	if status_txt:
+		message += '\n{}'.format(status_txt.replace('Alert','**Alert').replace(':',':**'))
+	if type_txt:
+		message += '\n{}'.format(type_txt.replace('Type of Volcanic Event:','**Event type:**'))
+	message += '\n**Latitude:** {:.3f}\n**Longitude:** {:.3f}\n'.format(alert.lat_rc, alert.lon_rc)
 
 	volcs = volcs.sort_values('distance')
 	v_text = ''
@@ -200,9 +232,9 @@ def create_message(alert, instrument, height_text, volcs):
 		v_text = '{}{} ({:.0f} km), '.format(v_text, row.Volcano, row.distance)
 	v_text = v_text.replace('_',' ')
 
-	message = '{}Method: {}\n'.format(message, alert.method)
-	message = '{}Nearest volcanoes: {}\n\n'.format(message, v_text[:-2])
-	message = '{}More info: {}\n'.format(message, alert.alert_url)
+	message += '**Method:** {}\n'.format(alert.method)
+	message += '**Nearest volcanoes:** {}\n\n'.format(v_text[:-2])
+	message += '**More info:** {}\n'.format( alert.alert_url.replace('report/'+str(alert.NOAA_id),'individual/'+str(alert.aid)))
 
 	subject_text = alert.alert_header.title().replace(' Found','')
 	subject_text = subject_text.replace(' Detected','')
@@ -245,11 +277,49 @@ def get_instrument(soup):
 
 def get_height_txt(soup):
 
-	height_txt = soup.find(text=re.compile('AMSL'))
+	height_txt = soup.find(text=re.compile('Maximum Height [AMSL]'))
 	if height_txt:
 		height_txt += ':  '+height_txt.find_all_next('td')[0].text
 
 	return height_txt
+
+def get_alert_status_txt(soup):
+
+	status_txt = soup.find(text=re.compile('Alert Status'))
+	if status_txt:
+		status_txt += ':  '+status_txt.find_all_next('td')[0].text
+
+	return status_txt
+
+def get_type_txt(soup):
+
+	type_txt = soup.find(text=re.compile('Type of Volcanic Event'))
+	if type_txt:
+		type_txt += ':  '+type_txt.find_all_next('td')[0].text
+
+	return type_txt
+
+
+def get_timestamp(soup):
+
+	time_txt = soup.find(text=re.compile('Date/Time'))
+	if time_txt:
+		time_txt = time_txt.find_all_next('td')[0].text.split('UTC')[0]
+
+	return time_txt
+
+def get_latitude(soup):
+
+	lat_txt = soup.find(text=re.compile('Radiative Center'))
+	lat = None
+	lon = None
+	if lat_txt:
+		lat_txt = lat_txt.find_all_next('td')[0]
+		lat, lon = re.findall(r'[-+]?(?:\d*\.*\d+)', lat_txt.text)
+		lat = float(lat)
+		lon = float(lon)
+
+	return lat, lon
 
 
 def get_cimss_image(soup,alert,config):

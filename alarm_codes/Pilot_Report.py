@@ -1,10 +1,10 @@
+from . import utils
 import pandas as pd
 from obspy import UTCDateTime
 import requests
 from zipfile import ZipFile
 import numpy as np
 import os
-from . import utils
 import socket
 import shapefile
 from shutil import rmtree

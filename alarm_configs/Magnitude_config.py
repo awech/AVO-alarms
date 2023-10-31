@@ -18,4 +18,5 @@ mm_response_channels = {
 	'Martin': 'd4e8jhmay7rbfe19za1zywwhpe',
 	'Mageik': 'd4e8jhmay7rbfe19za1zywwhpe',
 	'Novarupta': 'd4e8jhmay7rbfe19za1zywwhpe',
+	'Bogoslof': '6oppxzqt97bsikjgjxc5i6y3qh',
 }

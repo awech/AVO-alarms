@@ -22,10 +22,10 @@ alarm_name = 'Bogoslof RSAM'	# this is the alarm name sent to icinga and in mess
 # ]
 
 SCNL=[
-{'scnl':'OKER.EHZ.AV.--'	, 'value': 300		},
+{'scnl':'BOGO.BHZ.AV.--'	, 'value': 300		},
 {'scnl':'OKTU.EHZ.AV.--'	, 'value': 250		},
 {'scnl':'MAPS.BHZ.AV.--'	, 'value': 300		},
-{'scnl':'MREP.EHZ.AV.--'	, 'value': 100		},
+{'scnl':'MREP.BHZ.AV.--'	, 'value': 100		},
 {'scnl':'MSW.BHN.AV.--'		, 'value': 150		},
 {'scnl':'MGOD.BHN.AV.--'	, 'value': 300		},
 {'scnl':'NIKH.BHZ.AK.--'	, 'value': 150		}, # arrestor station

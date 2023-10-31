@@ -242,6 +242,7 @@ def plot_event(swarm, T0, config, VOLCS, CAT):
 	ax['map'].plot(volcs[:10].Longitude, volcs[:10].Latitude, '^', markerfacecolor='k', markersize=7, markeredgecolor='w', markeredgewidth=0.3, transform=cartopy.crs.PlateCarree())
 	ax['map'].plot(channels.Longitude, channels.Latitude, 's', markerfacecolor='dimgrey', markersize=4, markeredgecolor='k', markeredgewidth=0.6, transform=cartopy.crs.PlateCarree())
 
+	swarm = swarm.sort_values('Time')
 	time = date2num(swarm.Time)
 	map_hdl = ax['map'].scatter(swarm.Longitude.values, 
 				swarm.Latitude.values, 

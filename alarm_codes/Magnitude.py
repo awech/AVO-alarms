@@ -1,17 +1,14 @@
 from . import utils
 import os
-from io import BytesIO
 import pandas as pd
 import numpy as np
-from obspy.io.quakeml.core import Unpickler
-from obspy import Catalog, UTCDateTime, Stream, Inventory
+from obspy import Catalog, UTCDateTime, Stream
 from obspy.geodetics.base import gps2dist_azimuth
 import cartopy
 from cartopy.io.img_tiles import GoogleTiles
 from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
 from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 from matplotlib.ticker import FormatStrFormatter
-import pycurl
 import matplotlib.pyplot as plt
 from matplotlib.dates import date2num
 import matplotlib as m
@@ -41,11 +38,11 @@ def run_alarm(config, T0):
 	print('Downloading events...')
 	T2 = T0
 	T1 = T2 - config.DURATION
-	URL='{}starttime={}&endtime={}&minmagnitude={}&maxdepth={}&includearrivals=true&format=xml'.format(os.environ['GUGUAN_URL'],
-																									   T1.strftime('%Y-%m-%dT%H:%M:%S'),
-																									   T2.strftime('%Y-%m-%dT%H:%M:%S'),
-																									   config.MAGMIN,
-																									   config.MAXDEP)
+	URL = '{}starttime={}&endtime={}&minmagnitude={}&maxdepth={}&includearrivals=true&format=xml'.format(os.environ['GUGUAN_URL'],
+																									     T1.strftime('%Y-%m-%dT%H:%M:%S'),
+																									     T2.strftime('%Y-%m-%dT%H:%M:%S'),
+																									     config.MAGMIN,
+																									     config.MAXDEP)
 	CAT = utils.download_hypocenters(URL)
 
 	# Error pulling events

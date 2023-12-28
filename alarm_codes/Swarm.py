@@ -1,17 +1,13 @@
 from . import utils
 import os
-from io import BytesIO
 import pandas as pd
 import numpy as np
 import utm
-from obspy.io.quakeml.core import Unpickler
 from obspy import Catalog, UTCDateTime, Inventory
 from obspy.geodetics.base import gps2dist_azimuth
 import cartopy
 from cartopy.io.img_tiles import GoogleTiles
 from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
-from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
-import pycurl
 import matplotlib.pyplot as plt
 from matplotlib.dates import date2num, num2date
 import matplotlib as m
@@ -19,7 +15,6 @@ from matplotlib.path import Path
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import shapely.geometry as sgeom
 from itertools import combinations
-import warnings
 import traceback
 import time
 from obspy.clients.fdsn import Client
@@ -45,10 +40,10 @@ def run_alarm(config, T0):
 	config.DURATION = np.array([swm['MAX_EVT_TIME'] for swm in config.swarm_parameters]).max()
 	T2 = T0
 	T1 = T2 - config.DURATION
-	URL='{}starttime={}&endtime={}&maxdepth={}&includearrivals=true&format=xml'.format(os.environ['GUGUAN_URL'],
-																					   T1.strftime('%Y-%m-%dT%H:%M:%S'),
-																					   T2.strftime('%Y-%m-%dT%H:%M:%S'),
-																					   config.MAXDEP)
+	URL = '{}starttime={}&endtime={}&maxdepth={}&includearrivals=true&format=xml'.format(os.environ['GUGUAN_URL'],
+																					     T1.strftime('%Y-%m-%dT%H:%M:%S'),
+																					     T2.strftime('%Y-%m-%dT%H:%M:%S'),
+																					     config.MAXDEP)
 	CAT = utils.download_hypocenters(URL)
 
 	# Error pulling events

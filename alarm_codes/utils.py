@@ -11,7 +11,7 @@ from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from obspy import Trace
+from obspy import Trace, Catalog
 from numpy import zeros, round, dtype, cos, pi
 from obspy import Stream
 from obspy.clients.earthworm import Client
@@ -83,6 +83,35 @@ def grab_data(scnl,T1,T2,fill_value=0):
 	st.detrend('demean')
 	st.trim(T1, T2, pad=True, fill_value=0)
 	return st
+
+
+def download_hypocenters(URL):
+	import requests
+	from obspy.io.quakeml.core import Unpickler
+	import urllib3
+	urllib3.disable_warnings()
+
+	attempt = 1
+	while attempt <= 3:
+		try:
+			res = requests.get(URL, verify=False)
+			body = res.content
+			break
+		except:
+			time.sleep(2)
+			attempt+=1
+			body = None
+
+	if not body:
+		return None	
+	
+	try:
+		CAT = Unpickler().loads(body)
+	except:
+		CAT = Catalog()
+		print('No events!')
+
+	return CAT
 
 
 def icinga2_state(config,state,state_message):

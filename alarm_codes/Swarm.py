@@ -43,7 +43,13 @@ def run_alarm(config, T0):
 	print(T0.strftime('%Y-%m-%d %H:%M'))
 	print('Downloading events...')
 	config.DURATION = np.array([swm['MAX_EVT_TIME'] for swm in config.swarm_parameters]).max()
-	CAT = download_events(T0, config)
+	T2 = T0
+	T1 = T2 - config.DURATION
+	URL='{}starttime={}&endtime={}&maxdepth={}&includearrivals=true&format=xml'.format(os.environ['GUGUAN_URL'],
+																					   T1.strftime('%Y-%m-%dT%H:%M:%S'),
+																					   T2.strftime('%Y-%m-%dT%H:%M:%S'),
+																					   config.MAXDEP)
+	CAT = utils.download_hypocenters(URL)
 
 	# Error pulling events
 	if CAT is None:
@@ -408,7 +414,7 @@ def create_message(swarm):
 	hours = np.floor(dt.total_seconds()/3600)
 	minutes = np.round((dt.total_seconds() - hours*3600)/60)
 
-	message = f'{len(swarm)} events in past {hours:.0f}h {minutes:.0f}m'
+	message = f'{len(swarm)} events in {hours:.0f}h {minutes:.0f}m'
 	message+= '\n\n***--- UTC ---***'
 	message+= f'\n**First:** {tmin.strftime("%Y-%m-%d %H:%M")}'
 	message+= f'\n**Last:** {tmax.strftime("%Y-%m-%d %H:%M")}'
@@ -527,53 +533,6 @@ def addPhaseHint(cat):
 				if nowPickID == nowArrID:
 					pick.phase_hint=arrival.phase
 	return cat
-
-
-def download_events(T0, config):
-	
-	T2 = T0
-	T1 = T2 - config.DURATION
-
-	ENDTIME = T2.strftime('%Y-%m-%dT%H:%M:%S')
-	STARTTIME = T1.strftime('%Y-%m-%dT%H:%M:%S')
-	# URL='{}starttime={}&endtime={}&minmagnitude={}&maxdepth={}&includearrivals=true&format=xml'.format(os.environ['GUGUAN_URL'],
-	# 																								   STARTTIME,
-	# 																								   ENDTIME,
-	# 																								   config.MAGMIN,
-	# 																								   config.MAXDEP)
-	URL='{}starttime={}&endtime={}&maxdepth={}&includearrivals=true&format=xml'.format(os.environ['GUGUAN_URL'],
-																									   STARTTIME,
-																									   ENDTIME,
-																									   config.MAXDEP)
-	buffer = BytesIO()
-	c = pycurl.Curl()
-	c.setopt(c.URL, URL) #initializing the request URL
-	c.setopt(c.WRITEDATA, buffer) #setting options for cURL transfer  
-	c.setopt(c.SSL_VERIFYPEER, 0) #setting the file name holding the certificates
-	c.setopt(c.SSL_VERIFYHOST, 0) #setting the file name holding the certificates
-
-	attempt = 1
-	while attempt <= 3:
-		try:
-			c.perform() # perform file transfer
-			c.close() #Ending the session and freeing the resources
-			body = buffer.getvalue()
-			break
-		except:
-			time.sleep(2)
-			attempt+=1
-			body = None
-
-	if not body:
-		return None	
-	
-	try:
-		CAT = Unpickler().loads(body)
-	except:
-		CAT = Catalog()
-		print('No events!')
-
-	return CAT
 
 
 def catalog_to_dataframe(CAT, VOLCS):

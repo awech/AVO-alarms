@@ -6,7 +6,7 @@ SCNL=[
 {'scnl':'PS4A.BHZ.AV.--'	, 'value': 400	},
 {'scnl': 'PVV.BHZ.AV.--'	, 'value': 400	},
 {'scnl':'PS1A.BHZ.AV.--'	, 'value': 375	},
-{'scnl': 'HAG.SHZ.AV.--'	, 'value': 1225	},
+# {'scnl': 'HAG.SHZ.AV.--'	, 'value': 1225	},
 {'scnl':'PN7A.BHZ.AV.--'	, 'value': 450	},
 {'scnl':'PV6A.BHZ.AV.--'	, 'value': 325	},
 # {'scnl':'FALS.BHZ.AK.--'	, 'value': 200	}, # arrestor station, out since May 23, 2019

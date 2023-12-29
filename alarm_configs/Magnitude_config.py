@@ -19,4 +19,6 @@ mm_response_channels = {
 	'Mageik': 'd4e8jhmay7rbfe19za1zywwhpe',
 	'Novarupta': 'd4e8jhmay7rbfe19za1zywwhpe',
 	'Bogoslof': '6oppxzqt97bsikjgjxc5i6y3qh',
+	'Kanaga': '66k8rkogwbfnzpnojf3iqew6bw',
+	'Shishaldin': 'i6t4fora6bdbmctu13tj9iq77c',
 }

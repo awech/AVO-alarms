@@ -15,7 +15,7 @@ from obspy import Trace, Catalog
 from numpy import zeros, round, dtype, cos, pi
 from obspy import Stream
 from obspy.clients.earthworm import Client
-from pandas import read_excel
+from pandas import read_excel, DataFrame
 from tomputils import mattermost as mm
 from obspy import UTCDateTime
 from obspy.geodetics import gps2dist_azimuth
@@ -168,15 +168,73 @@ def icinga2_state(config,state,state_message):
 
 
 def volcano_distance(lon0, lat0, volcs):
-		import numpy as np
+	import numpy as np
 
-		DIST = np.array([])
-		for lat, lon in zip(volcs.Latitude.values, volcs.Longitude.values):
-			dist, azimuth, az2 = gps2dist_azimuth(lat, lon, lat0, lon0)
-			DIST = np.append(DIST, dist/1000.)
-		volcs['distance'] = DIST
+	DIST = np.array([])
+	for lat, lon in zip(volcs.Latitude.values, volcs.Longitude.values):
+		dist, azimuth, az2 = gps2dist_azimuth(lat, lon, lat0, lon0)
+		DIST = np.append(DIST, dist/1000.)
+	volcs['distance'] = DIST
 
-		return volcs
+	return volcs
+
+
+def Dr_to_RSAM(config, DR, volcano_name, base=25):
+	
+	import numpy as np
+	from obspy.clients.fdsn import Client
+	client = Client("IRIS")
+
+	
+	VELOCITY = 1.5 	# km/s
+	FREQ = 2 		# dominant frequency (Hz)
+	Q = 200			# quality factor
+
+	T0 = UTCDateTime.utcnow()
+	VOLCS = read_excel('alarm_aux_files/volcano_list.xlsx')
+	volcs = VOLCS[VOLCS['Volcano'] == volcano_name].copy()
+	SCNL = DataFrame.from_dict(config.SCNL)
+
+	for scnl in SCNL.scnl:
+
+		sta, chan, net, loc = scnl.split('.')
+		inventory = client.get_stations(network=net, 
+									station=sta,
+									channel=chan,
+									location=loc,
+									starttime=T0,
+									endtime=T0,
+									level='response')
+		
+		tr_id = '.'.join((net, sta, loc, chan)).replace('--', '')
+		coords = inventory.get_coordinates(tr_id)
+		gain = inventory.get_response(tr_id,T0).instrument_sensitivity.value # counts/m/s
+
+		volcs = volcano_distance(coords['longitude'], coords['latitude'], volcs)
+		R = volcs.iloc[0].distance
+
+
+		# distance, velocity and wavelength in cm
+		r = R * 1000 * 100
+		velocity = VELOCITY * 1000 * 100
+		wavelength = velocity / FREQ
+
+
+		#### account for attenuation ####
+		numerator = -np.pi * FREQ * r
+		denominator = Q * velocity
+		atten_factor = np.exp(numerator / denominator)
+
+
+		rmssta = DR / np.sqrt(r * wavelength) 			# rms in cm
+		rmssta_v = (rmssta * 2 * np.pi * FREQ) / 100 	# convert to velocity and change from cm to m (for the gain)
+		lvl = rmssta_v * gain * atten_factor			# use gain to turn m/s to counts, and apply attenuation
+
+		lvl = base * round(lvl / base)
+
+		print('{}: {:g}'.format(scnl, lvl))
+
+	return
 
 
 def send_alert(alarm_name,subject,body,filename=None):

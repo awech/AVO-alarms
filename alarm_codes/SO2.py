@@ -10,6 +10,7 @@ import matplotlib as m
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 import traceback
+import re
 
 def run_alarm(config, T0):
 	
@@ -38,8 +39,20 @@ def run_alarm(config, T0):
 
 		date   = table[1].split(':')[-1].replace(' ','')
 		time   = table[2].split(' :')[-1].split('UTC')[0].replace(' ','')
-		lon    = float(table[3].split(':')[-1].split('deg')[0].replace(' ',''))
-		lat    = float(table[4].split(':')[-1].split('deg')[0].replace(' ',''))
+
+		lat_str = table[3].split(':')[2]
+		lon_str = table[3].split(':')[-1]
+		lat, lat_dir = re.findall(r'(\d+\.\d+)\s{1}(\S{1})', lat_str)[0]
+		lon, lon_dir = re.findall(r'(\d+\.\d+)\s{1}(\S{1})', lon_str)[0]
+		lat = float(lat)
+		lon = float(lon)
+		if lat_dir == 'S':
+		    lat = -lat
+		if lon_dir == 'W':
+		    lon = -lon
+
+		# lon    = float(table[3].split(':')[-1].split('deg')[0].replace(' ',''))
+		# lat    = float(table[4].split(':')[-1].split('deg')[0].replace(' ',''))
 		# SZA    = table[4].split(':')[-1].split('deg')[0].replace(' ','')
 		# SO2max = table[5].split(':')[-1].split('DU')[0].replace(' ','')
 		# S02ht  = table[6].split(':')[-1].split('km')[0].replace(' ','')

@@ -174,7 +174,7 @@ def volcano_distance(lon0, lat0, volcs):
 	for lat, lon in zip(volcs.Latitude.values, volcs.Longitude.values):
 		dist, azimuth, az2 = gps2dist_azimuth(lat, lon, lat0, lon0)
 		DIST = np.append(DIST, dist/1000.)
-	volcs['distance'] = DIST
+	volcs.loc[:, 'distance'] = DIST
 
 	return volcs
 
@@ -278,6 +278,8 @@ def send_alert(alarm_name,subject,body,filename=None):
 		server.sendmail(fromaddr, recipients, text)
 		server.quit()
 
+	return
+
 
 def post_mattermost(config,subject,body,filename=None):
 
@@ -317,6 +319,7 @@ def post_mattermost(config,subject,body,filename=None):
 	except:
 		conn.post(message, file_paths=files)
 
+	return
 
 def make_map(ax,lat0,lon0,main_dist=50,inset_dist=500,scale=15):
 	from mpl_toolkits.basemap import Basemap

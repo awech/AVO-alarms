@@ -29,7 +29,7 @@ def run_alarm(config, T0):
 	max_tries = 3
 	while attempt <= max_tries:
 		try:
-			result = os.popen('curl --connect-timeout 5 -H \"username:{}\" -H \"password:{}\" -X GET {}'.format(
+			result = os.popen('curl --connect-timeout 5 --max-time 20 -H \"username:{}\" -H \"password:{}\" -X GET {}'.format(
 							   os.environ['API_USERNAME'], os.environ['API_PASSWORD'],
 							   os.environ['NOAA_CIMSS_URL'])
 							 ).read()
@@ -79,9 +79,10 @@ def run_alarm(config, T0):
 		state_message = '{} (UTC) No new recent NOAA CIMSS alerts. Webpage or API problem?'.format(T0.strftime('%Y-%m-%d %H:%M'))
 
 
-	recent_alerts['aid'] = np.nan
+	recent_alerts.loc[:, 'aid'] = np.nan
 	print('Looping through alerts...')
 
+	recent_alerts = recent_alerts.sort_values('object_date_time')
 	default_mm_id = config.mattermost_channel_id
 	for i, alert in recent_alerts.iterrows():
 		
@@ -127,7 +128,7 @@ def run_alarm(config, T0):
 							state = 'WARNING'
 							state_message = '{} (UTC) NOAA/CIMSS webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
 							continue
-						
+						attempt+=1
 
 				instrument = get_instrument(soup)
 				sections = soup.select("div[class*=alert_box]")
@@ -245,7 +246,7 @@ def create_message(alert, instrument, height_txt, volcs, status_txt, type_txt):
 
 def scrape_web(alert):
 
-	soup = BeautifulSoup(requests.get(alert.alert_url).content)
+	soup = BeautifulSoup(requests.get(alert.alert_url, verify=False).content)
 	redir = soup.select_one("#loginform-custom")["action"]
 
 	#This URL will be the URL that your login form points to with the "action" tag.
@@ -259,8 +260,8 @@ def scrape_web(alert):
 	}
 
 	with requests.Session() as session:
-		post = session.post(POST_LOGIN_URL, data=payload)
-		r    = session.get(REQUEST_URL)
+		post = session.post(POST_LOGIN_URL, data=payload, verify=False)
+		r    = session.get(REQUEST_URL, verify=False)
 		soup = BeautifulSoup(r.content)
 	session.close()
 
@@ -329,7 +330,7 @@ def get_cimss_image(soup,alert,config):
 	for i, img in enumerate(image_files):
 		img.get('src')
 		im_url = urljoin(base_url, img.get('src'))
-		r = requests.get(im_url)
+		r = requests.get(im_url, verify=False)
 
 		if r.status_code == 200:
 			with open(config.img_file.replace('.png',str(i+1)+'.png'), 'wb') as out:

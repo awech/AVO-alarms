@@ -246,7 +246,7 @@ def create_message(alert, instrument, height_txt, volcs, status_txt, type_txt):
 
 def scrape_web(alert):
 
-	soup = BeautifulSoup(requests.get(alert.alert_url, verify=False).content)
+	soup = BeautifulSoup(requests.get(alert.alert_url, verify=False, timeout=10).content)
 	redir = soup.select_one("#loginform-custom")["action"]
 
 	#This URL will be the URL that your login form points to with the "action" tag.
@@ -260,8 +260,8 @@ def scrape_web(alert):
 	}
 
 	with requests.Session() as session:
-		post = session.post(POST_LOGIN_URL, data=payload, verify=False)
-		r    = session.get(REQUEST_URL, verify=False)
+		post = session.post(POST_LOGIN_URL, data=payload, verify=False, timeout=10)
+		r    = session.get(REQUEST_URL, verify=False, timeout=10)
 		soup = BeautifulSoup(r.content)
 	session.close()
 
@@ -330,7 +330,7 @@ def get_cimss_image(soup,alert,config):
 	for i, img in enumerate(image_files):
 		img.get('src')
 		im_url = urljoin(base_url, img.get('src'))
-		r = requests.get(im_url, verify=False)
+		r = requests.get(im_url, verify=False, timeout=10)
 
 		if r.status_code == 200:
 			with open(config.img_file.replace('.png',str(i+1)+'.png'), 'wb') as out:

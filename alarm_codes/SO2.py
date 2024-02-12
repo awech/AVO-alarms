@@ -19,7 +19,7 @@ def run_alarm(config, T0):
 	max_tries = 3
 	while attempt <= max_tries:
 		try:
-			page = requests.get(os.environ['SACS_URL'], timeout=10)
+			page = requests.get(os.environ['SACS_URL'], verify=False, timeout=10)
 			soup = BeautifulSoup(page.content, 'html.parser')
 			table= soup.find_all('pre')[0]
 			break
@@ -145,7 +145,7 @@ def get_so2_images(soup, config):
 
 	for i, image in enumerate(img_files[:2]):
 
-		r = requests.get(image)
+		r = requests.get(image, verify=False, timeout=10)
 		if r.status_code == 200:
 			with open(config.img_file.replace('.png', str(i+1)+'.gif'), 'wb') as out:
 				for bits in r.iter_content():

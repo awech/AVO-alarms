@@ -94,7 +94,7 @@ def download_hypocenters(URL):
 	attempt = 1
 	while attempt <= 3:
 		try:
-			res = requests.get(URL, verify=False)
+			res = requests.get(URL, verify=False, timeout=10)
 			body = res.content
 			break
 		except:

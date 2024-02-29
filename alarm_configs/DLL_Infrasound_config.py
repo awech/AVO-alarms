@@ -78,4 +78,4 @@ f2		  = 8.0  # maximum frequency for bandpass filter
 digouti   = 1/33505.5968 # convert counts to Pressure in Pa 01-Jun-2021
 min_cc    = 0.5					# min normalized correlation coefficient to accept
 min_chan  = 3					# minimum # of channels for code to run
-cc_shift_length = 3*50			# maximum samples to shift in cross-correlation (usually at 50 sps)
+cc_shift_length = 6*100			# maximum samples to shift in cross-correlation (usually at 100 sps)

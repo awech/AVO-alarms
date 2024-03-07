@@ -38,6 +38,7 @@ VOLCANO=[
 		'seismic_scnl': ['SSBA.BHZ.AV.--','ISNN.BHZ.AV.--','WTUG.BHZ.AV.--']},
 ]
 
+
 duration  = 3*60 # duration value in seconds
 latency   = 10.0 # seconds between timestamps and end of data window
 taper_val = 5.0  # seconds to taper beginning and end of trace before filtering

@@ -1,14 +1,2 @@
 ID
-quakeml:AV.uaf.edu/Event/AV/91833841
-quakeml:AV.uaf.edu/Event/AV/91832946
-quakeml:AV.uaf.edu/Event/AV/91832726
-quakeml:AV.uaf.edu/Event/AV/91832001
-quakeml:AV.uaf.edu/Event/AV/91830886
-quakeml:AV.uaf.edu/Event/AV/91830791
-quakeml:AV.uaf.edu/Event/AV/91830656
-quakeml:AV.uaf.edu/Event/AV/91828931
-quakeml:AV.uaf.edu/Event/AV/91828116
-quakeml:AV.uaf.edu/Event/AV/91826711
-quakeml:AV.uaf.edu/Event/AV/91826656
-quakeml:AV.uaf.edu/Event/AV/91826281
-quakeml:AV.uaf.edu/Event/AV/91823791
+quakeml:AV.uaf.edu/Event/AV/92224101

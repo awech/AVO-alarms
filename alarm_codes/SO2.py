@@ -95,8 +95,8 @@ def run_alarm(config, T0):
 		print('Drafting alert')
 		subject, message = create_message(date,time, table, config,volcs)
 		
-		print('Sending direct alert')
-		utils.send_alert(config.alarm_name, subject, message, attachment)
+		# print('Sending direct alert')
+		# utils.send_alert(config.alarm_name, subject, message, attachment)
 		
 		print('Update timestamp to avoid resending same alert')
 		update_timestamp(date, time, config)

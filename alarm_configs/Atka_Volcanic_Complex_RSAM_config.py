@@ -22,3 +22,5 @@ f2		  = 5.0  # maximum frequency for bandpass filter
 
 icinga_service_name = 'Korovin RSAM'
 # mattermost_channel_id = 'jewennqiq7rd5kdubg8t1j9b8a'
+
+VOLCANO_NAME = 'Atka Volcanic Complex'

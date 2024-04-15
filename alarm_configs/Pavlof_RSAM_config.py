@@ -21,3 +21,5 @@ f1		  = 1.0  # minimum frequency for bandpass filter
 f2		  = 5.0  # maximum frequency for bandpass filter
 
 plot_duration = 3600
+
+VOLCANO_NAME = 'Pavlof'

@@ -279,7 +279,7 @@ def RSAM_to_DR(tr, volcano_name, VELOCITY=1.5, FREQ=2, Q=200):
 	Q = 200			# quality factor
 	"""
 
- 	import numpy as np
+	import numpy as np
 	from obspy import read_inventory
 
 	VOLCS = read_excel('alarm_aux_files/volcano_list.xlsx')

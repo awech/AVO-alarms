@@ -178,6 +178,42 @@ def volcano_distance(lon0, lat0, volcs):
 	return volcs
 
 
+def update_stationXML():
+	from glob import glob
+	import numpy as np
+	from obspy.clients.fdsn import Client
+	import importlib
+
+	client = Client("IRIS")
+
+	files = glob(os.environ['HOME_DIR']+'/alarm_configs/*RSAM*config.py')
+	SCNL = []
+
+	for file in files:
+		file = file.split('/')[-1].split('.')[0]
+		config = importlib.import_module(f'.{file}', package='alarm_configs')
+		print(config)
+		if hasattr(config,'VOLCANO_NAME'):
+			for scnl in config.SCNL:
+				SCNL.append(scnl['scnl'])
+	SCNL = np.array(SCNL)
+	SCNL = np.unique(SCNL)
+
+	print('______ Begin Updating Metadata ______')
+	for scnl in SCNL:
+		print(scnl)
+		sta,chan,net,loc=scnl.split('.')
+		if 'inventory' not in locals():
+			inventory = client.get_stations(station=sta, network=net, channel=chan, location=loc, level='response', starttime=UTCDateTime.utcnow())
+		else:
+			inventory += client.get_stations(station=sta, network=net, channel=chan, location=loc, level='response', starttime=UTCDateTime.utcnow())
+
+	inventory.write(os.environ['HOME_DIR']+'/alarm_aux_files/stations.xml',format='STATIONXML')
+
+	print('^^^^^^ Finished Updating Metadata ^^^^^^')
+	return
+
+
 def Dr_to_RSAM(config, DR, volcano_name, base=25):
 	
 	import numpy as np
@@ -234,6 +270,47 @@ def Dr_to_RSAM(config, DR, volcano_name, base=25):
 		print('{}: {:g}'.format(scnl, lvl))
 
 	return
+
+
+def RSAM_to_DR(tr, volcano_name, VELOCITY=1.5, FREQ=2, Q=200):
+	"""
+	VELOCITY = 1.5 	# km/s
+	FREQ = 2 		# dominant frequency (Hz)
+	Q = 200			# quality factor
+	"""
+
+ 	import numpy as np
+	from obspy import read_inventory
+
+	VOLCS = read_excel('alarm_aux_files/volcano_list.xlsx')
+	volcs = VOLCS[VOLCS['Volcano'] == volcano_name].copy()
+
+	tr.id = tr.id.replace('--','')
+	inventory = read_inventory(os.environ['HOME_DIR']+'/alarm_aux_files/stations.xml')
+
+	coords = inventory.get_coordinates(tr.id)
+	gain = inventory.get_response(tr.id, tr.stats.starttime).instrument_sensitivity.value # counts/m/s
+
+	volcs = volcano_distance(coords['longitude'], coords['latitude'], volcs)
+	R = volcs.iloc[0].distance
+
+	r = R * 1000 * 100
+	velocity = VELOCITY * 1000 * 100
+	wavelength = velocity / FREQ
+
+
+	#### account for attenuation ####
+	numerator = -np.pi * FREQ * r
+	denominator = Q * velocity
+	atten_factor = np.exp(numerator / denominator)
+
+
+	lvl = np.sqrt(np.mean(np.square(tr.data))) 	# rms level in counts
+	rms_v = lvl / (gain * atten_factor)			# rms in m/s corrected for gain & attenuation
+	rmssta = rms_v * 100 / (2 * np.pi * FREQ)	# converted to cm
+	DR = rmssta * np.sqrt(r * wavelength)		# converted to reduced displacement
+
+	return DR
 
 
 def send_alert(alarm_name,subject,body,filename=None):

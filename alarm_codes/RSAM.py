@@ -46,7 +46,7 @@ def run_alarm(config,T0):
 
 	############################# Icinga message #############################
 	if any(DR):
-		state_message = ''.join('{}: {:.0f}/{:.0f} (DR = {:.1f}), '.format(sta,rms[i],lvlv[i],DR[i]) for i,sta in enumerate(stas[:-1]))
+		state_message = ''.join('{}: {:.0f}/{:.0f} (RD = {:.1f}), '.format(sta,rms[i],lvlv[i],DR[i]) for i,sta in enumerate(stas[:-1]))
 	else:	
 		state_message = ''.join('{}: {:.0f}/{:.0f}, '.format(sta,rms[i],lvlv[i]) for i,sta in enumerate(stas[:-1]))
 	state_message = ''.join([state_message,'Arrestor ({}): {:.0f}/{:.0f}'.format(stas[-1],rms[-1],lvlv[-1])])
@@ -124,7 +124,7 @@ def create_message(t1,t2,stations,rms,lvlv,DR,alarm_name):
 	a[np.where(rms>lvlv)]='*'
 
 	if any(DR):
-		sta_message = ''.join('{}{}: {:.0f}/{:.0f} (DR = {:.1f})\n'.format(sta,a[i],rms[i],lvlv[i],DR[i]) for i,sta in enumerate(stations[:-1]))
+		sta_message = ''.join('{}{}: {:.0f}/{:.0f} (RD = {:.1f})\n'.format(sta,a[i],rms[i],lvlv[i],DR[i]) for i,sta in enumerate(stations[:-1]))
 	else:
 		sta_message = ''.join('{}{}: {:.0f}/{:.0f}\n'.format(sta,a[i],rms[i],lvlv[i]) for i,sta in enumerate(stations[:-1]))
 	sta_message = ''.join([sta_message,'\nArrestor: {} {:.0f}/{:.0f}'.format(stations[-1],rms[-1],lvlv[-1])])

@@ -40,7 +40,7 @@ def run_alarm(config, T0):
 		date   = table[1].split(':')[-1].replace(' ','')
 		time   = table[2].split(' :')[-1].split('UTC')[0].replace(' ','')
 
-		lat_str = table[3].split(':')[2]
+		lat_str = table[4].split(':')[-1]
 		lon_str = table[3].split(':')[-1]
 		lat, lat_dir = re.findall(r'(\d+\.\d+)\s{1}(\S{1})', lat_str)[0]
 		lon, lon_dir = re.findall(r'(\d+\.\d+)\s{1}(\S{1})', lon_str)[0]

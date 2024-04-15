@@ -122,10 +122,7 @@ def create_message(t1,t2,stations,rms,lvlv,DR,alarm_name):
 
 	a=np.array([''] * len(rms[:-1]))
 	a[np.where(rms>lvlv)]='*'
-	# if 'Semisopochnoi' in alarm_name:
-	# 	sta_message = ''.join('{}{}: {:,.0f}k/{:.0f}k\n'.format(sta,a[i],rms[i]/1000.0,lvlv[i]/1000.0) for i,sta in enumerate(stations[:-1]))
-	# else:
-	# 	sta_message = ''.join('{}{}: {:.0f}/{:.0f}\n'.format(sta,a[i],rms[i],lvlv[i]) for i,sta in enumerate(stations[:-1]))
+
 	if any(DR):
 		sta_message = ''.join('{}{}: {:.0f}/{:.0f} (DR = {:.1f})\n'.format(sta,a[i],rms[i],lvlv[i],DR[i]) for i,sta in enumerate(stations[:-1]))
 	else:

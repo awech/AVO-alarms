@@ -8,7 +8,7 @@ SCNL=[
 {'scnl':'BAEI.HDF.AV.03'	, 'sta_lat': 61.13173	, 'sta_lon': -148.121985},
 {'scnl':'BAEI.HDF.AV.04'	, 'sta_lat': 61.131875	, 'sta_lon': -148.122915},
 {'scnl':'BAEI.HDF.AV.05'	, 'sta_lat': 61.132405	, 'sta_lon': -148.12281},
-{'scnl':'BAEI.HDF.AV.06'	, 'sta_lat': 61.13218	, 'sta_lon': -148.12206}
+#{'scnl':'BAEI.HDF.AV.06'	, 'sta_lat': 61.13218	, 'sta_lon': -148.12206}
 ]
 
 # Volcano list to be monitored

@@ -51,6 +51,12 @@ def run_alarm(config, T0):
 		if lon_dir == 'W':
 		    lon = -lon
 
+		volcs = pd.read_excel(config.volc_file)
+		volcs = volcs[volcs['SO2']=='Y']
+		volcs = utils.volcano_distance(lon, lat, volcs)
+		volcs = volcs.sort_values('distance')
+
+
 		# lon    = float(table[3].split(':')[-1].split('deg')[0].replace(' ',''))
 		# lat    = float(table[4].split(':')[-1].split('deg')[0].replace(' ',''))
 		# SZA    = table[4].split(':')[-1].split('deg')[0].replace(' ','')
@@ -63,10 +69,6 @@ def run_alarm(config, T0):
 		utils.icinga2_state(config, state, state_message)	
 		return	
 
-	volcs = pd.read_excel(config.volc_file)
-	volcs = volcs[volcs['SO2']=='Y']
-	volcs = utils.volcano_distance(lon, lat, volcs)
-	volcs = volcs.sort_values('distance')
 
 	new_time = time_check(date, time, config)
 

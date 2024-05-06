@@ -145,6 +145,8 @@ def run_alarm(config, T0):
 	
 	utils.icinga2_state(config, state, state_message)
 
+	return
+
 
 def create_message(eq, volcs):
 	origin=eq.preferred_origin()

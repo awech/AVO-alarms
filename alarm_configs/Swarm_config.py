@@ -26,13 +26,19 @@ swarm_parameters = [
 ]
 
 mattermost_channel_id = '1yxp3dhsjtd55jbbrawddzkk6h'
-# icinga_service_name = 'generic alarm 1'
 
-# mm_response_channels = {
-# 	'Aniakchak': 'eoeizwgp8bdnpmqpcicb7tjqbw',
-# 	'Trident': 'd4e8jhmay7rbfe19za1zywwhpe',
-# 	'Katmai': 'd4e8jhmay7rbfe19za1zywwhpe',
-# 	'Martin': 'd4e8jhmay7rbfe19za1zywwhpe',
-# 	'Mageik': 'd4e8jhmay7rbfe19za1zywwhpe',
-# 	'Novarupta': 'd4e8jhmay7rbfe19za1zywwhpe',
-# }
+mm_response_channels = {
+	'Aniakchak': 'eoeizwgp8bdnpmqpcicb7tjqbw',
+	'Edgecumbe': 'w35y7ybwb3bx3qufu9kj5rn7wc',
+	'Trident': 'd4e8jhmay7rbfe19za1zywwhpe',
+	'Katmai': 'd4e8jhmay7rbfe19za1zywwhpe',
+	'Martin': 'd4e8jhmay7rbfe19za1zywwhpe',
+	'Mageik': 'd4e8jhmay7rbfe19za1zywwhpe',
+	'Novarupta': 'd4e8jhmay7rbfe19za1zywwhpe',
+	'Bogoslof': '6oppxzqt97bsikjgjxc5i6y3qh',
+	'Kanaga': '66k8rkogwbfnzpnojf3iqew6bw',
+	'Shishaldin': 'i6t4fora6bdbmctu13tj9iq77c',
+	'Spurr': 'moyfiy1jrpnzfgrak5c6cspqqy',
+	'Takawangha': 'dcimdcioh7g8tpywkaccf1uruc',
+	'Tanaga': 'dcimdcioh7g8tpywkaccf1uruc',
+}

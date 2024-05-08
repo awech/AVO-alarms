@@ -7,7 +7,7 @@ alarm_name = 'Pavlof Tremor'		# this is the alarm name sent to icinga and in mes
 SCNL=[
 {'scnl':  'HAG.SHZ.AV.--', 'lat':	55.317, 'lon':	-161.905 },
 {'scnl': 'PS4A.BHZ.AV.--', 'lat':	55.346, 'lon':	-161.857 },
-{'scnl':  'PVV.SHZ.AV.--', 'lat':	55.373, 'lon':	-161.792 },
+{'scnl':  'PVV.BHZ.AV.--', 'lat':	55.373, 'lon':	-161.792 },
 {'scnl': 'PS1A.BHZ.AV.--', 'lat':	55.420, 'lon':	-161.744 },
 {'scnl': 'PN7A.BHZ.AV.--', 'lat':	55.433, 'lon':	-161.997 },
 {'scnl': 'PV6A.BHZ.AV.--', 'lat':	55.507, 'lon':	-161.9714},

@@ -319,7 +319,7 @@ def plot_fig(A_recent, config, T0):
 
 	try:
 		volcs = pd.read_excel(config.volc_file)
-		volcs = utils.volcano_distance(alert.lon_rc, alert.lat_rc, volcs)
+		volcs = utils.volcano_distance(lon0, lat0, volcs)
 		volcs = volcs.sort_values('distance')
 		m_map.plot(lon0, lat0, '^', 
 				   latlon=True, 

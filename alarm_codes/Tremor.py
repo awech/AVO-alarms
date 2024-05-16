@@ -10,7 +10,6 @@ from obspy.signal.filter import envelope
 from enveloc.core import XCOR
 
 
-
 # main function called by alarm.py
 def run_alarm(config,T0):
 

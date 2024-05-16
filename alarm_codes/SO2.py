@@ -47,9 +47,9 @@ def run_alarm(config, T0):
 		lat = float(lat)
 		lon = float(lon)
 		if lat_dir == 'S':
-		    lat = -lat
+			lat = -lat
 		if lon_dir == 'W':
-		    lon = -lon
+			lon = -lon
 
 		volcs = pd.read_excel(config.volc_file)
 		volcs = volcs[volcs['SO2']=='Y']

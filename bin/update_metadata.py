@@ -7,6 +7,7 @@ sys.path.append('/alarms')
 from obspy import UTCDateTime
 from alarm_codes import utils
 
+# log info if run from cron
 if os.getenv('FROMCRON') == 'yep':
     file=os.environ['LOGS_DIR']+'/Metadata-'+UTCDateTime.now().strftime('%Y%m%d-%H')+'.out'
     os.system('touch {}'.format(file))

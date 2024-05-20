@@ -161,14 +161,15 @@ def run_alarm(config, T0):
 		# utils.send_alert(config.alarm_name, subject, message, filename=attachment)
 		print('Posting message to Mattermost...')
 		utils.post_mattermost(config, subject, message, filename=attachment)
-		if attachment:
-			os.remove(attachment)
 
 		# Post to dedicated response channels for volcnoes listed in config file
 		if 'mm_response_channels' in dir(config):
 			if swarm.iloc[0].VOLCANO in config.mm_response_channels.keys():
 				config.mattermost_channel_id = config.mm_response_channels[swarm.iloc[0].VOLCANO]
 				utils.post_mattermost(config, subject, message, filename=attachment)
+
+		if attachment:
+			os.remove(attachment)
 	
 	utils.icinga2_state(config, state, state_message)
 	

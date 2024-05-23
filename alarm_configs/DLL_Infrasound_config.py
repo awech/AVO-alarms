@@ -20,8 +20,8 @@ VOLCANO=[
 {'volcano':	'Semisopochnoi',	'v_lat': 51.947,	'v_lon': 179.623, 	'Azimuth_tolerance': 8, 'min_pa': 0.1, 'vmin':0.28, 'vmax':0.45,
 		'seismic_scnl': ['CERB.BHZ.AV.--','CESW.BHZ.AV.--','CEAP.BHZ.AV.--']},
 
-# {'volcano':	'Spurr',	'v_lat': 61.29897,	'v_lon': -152.25122, 	'Azimuth_tolerance': 2, 'min_pa': 0.1, 'vmin':0.28, 'vmax':0.45,
-# 		'seismic_scnl': ['ANON.EHZ.AV.--','ANNE.EHZ.AV.--','ANPK.EHZ.AV.--']},
+{'volcano':	'Spurr',	'v_lat': 61.29897,	'v_lon': -152.25122, 	'Azimuth_tolerance': 2, 'min_pa': 0.1, 'vmin':0.28, 'vmax':0.45,
+		'seismic_scnl': ['SPNN.BHZ.AV.--','SPCL.BHZ.AV.--','SPCN.BHZ.AV.--','STLK.BHZ.AV.--']},
 
 # {'volcano':	'Redoubt',	'v_lat': 60.48576,	'v_lon': -152.74282, 	'Azimuth_tolerance': 2, 'min_pa': 0.1, 'vmin':0.28, 'vmax':0.45,
 # 		'seismic_scnl': ['ANON.EHZ.AV.--','ANNE.EHZ.AV.--','ANPK.EHZ.AV.--']},

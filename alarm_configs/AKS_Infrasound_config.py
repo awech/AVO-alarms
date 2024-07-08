@@ -14,7 +14,7 @@ SCNL=[
 {'scnl':'AKS.HDF.AV.02'	, 'sta_lat': 54.11105	, 'sta_lon': -165.69705},
 {'scnl':'AKS.HDF.AV.03'	, 'sta_lat': 54.11028	, 'sta_lon': -165.69616},
 {'scnl':'AKS.HDF.AV.04'	, 'sta_lat': 54.11051	, 'sta_lon': -165.69681},
-# {'scnl':'AKS.HDF.AV.04'	, 'sta_lat': 54.11051	, 'sta_lon': -165.69683},
+{'scnl':'AKS.HDF.AV.05'	, 'sta_lat': 54.11098	, 'sta_lon': -165.69609},
 {'scnl':'AKS.HDF.AV.06'	, 'sta_lat': 54.11005	, 'sta_lon': -165.69720},
 ]
 

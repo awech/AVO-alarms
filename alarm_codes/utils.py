@@ -204,9 +204,9 @@ def update_stationXML():
 		print(scnl)
 		sta,chan,net,loc=scnl.split('.')
 		if 'inventory' not in locals():
-			inventory = client.get_stations(station=sta, network=net, channel=chan, location=loc, level='response', starttime=UTCDateTime("2020-01-01"))
+			inventory = client.get_stations(station=sta, network=net, channel=chan, location=loc, level='response', starttime=UTCDateTime.utcnow())
 		else:
-			inventory += client.get_stations(station=sta, network=net, channel=chan, location=loc, level='response', starttime=UTCDateTime("2020-01-01"))
+			inventory += client.get_stations(station=sta, network=net, channel=chan, location=loc, level='response', starttime=UTCDateTime.utcnow())
 
 	inventory.write(os.environ['HOME_DIR']+'/alarm_aux_files/stations.xml',format='STATIONXML')
 

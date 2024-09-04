@@ -3,14 +3,14 @@ alarm_name = 'Great Sitkin RSAM'	# this is the alarm name sent to icinga and in 
 
 # Stations list. Last station is arrestor.
 SCNL=[
-{'scnl':'GSTD.BHZ.AV.--'	, 'value':  1125	},
-{'scnl':'GSTR.BHZ.AV.--'	, 'value':  1000	},
-{'scnl':'GSMY.BHZ.AV.--'	, 'value':  850		},
-{'scnl':'GSSP.BHZ.AV.--'	, 'value':  875		},
-{'scnl':'GSCK.BHZ.AV.--'	, 'value':  675		},
-# {'scnl':'ADAG.BHZ.AV.--'	, 'value':  175		}, # arrestor station
-# {'scnl':'KIRH.BHZ.AV.--'	, 'value':  50		}, # arrestor station
-{'scnl':'KIMD.BHZ.AV.--'	, 'value':  50		}, # arrestor station
+{'scnl':'GSTD.BHZ.AV.--'	, 'value':  1125    },
+{'scnl':'GSTR.BHZ.AV.--'	, 'value':  1000    },
+{'scnl':'GSMY.BHZ.AV.--'	, 'value':  850     },
+{'scnl':'GSSP.BHZ.AV.--'	, 'value':  875     },
+{'scnl':'GSCK.BHZ.AV.--'	, 'value':  675     },
+# {'scnl':'ADAG.BHZ.AV.--'	, 'value':  3 * 175 }, # arrestor station
+{'scnl':'KIRH.BHZ.AV.--'	, 'value':  3 * 60  }, # arrestor station
+# {'scnl':'KIMD.BHZ.AV.--'	, 'value':  50      }, # arrestor station
 ]
 
 duration  = 5*60 # duration value in seconds

@@ -5,7 +5,7 @@ alarm_name = 'Pavlof Tremor'		# this is the alarm name sent to icinga and in mes
 ##############################################
 ######### alarm threshold parameters #########
 SCNL=[
-{'scnl':  'HAG.SHZ.AV.--', 'lat':	55.317, 'lon':	-161.905 },
+{'scnl':  'HAG.BHZ.AV.--', 'lat':	55.317, 'lon':	-161.905 },
 {'scnl': 'PS4A.BHZ.AV.--', 'lat':	55.346, 'lon':	-161.857 },
 {'scnl':  'PVV.BHZ.AV.--', 'lat':	55.373, 'lon':	-161.792 },
 {'scnl': 'PS1A.BHZ.AV.--', 'lat':	55.420, 'lon':	-161.744 },

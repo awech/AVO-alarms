@@ -45,7 +45,7 @@ taper_val = 5.0  # seconds to taper beginning and end of trace before filtering
 f1		  = 0.4  # minimum frequency for bandpass filter
 f2		  = 10.0 # maximum frequency for bandpass filter
 
-digouti   = (1/419430.0)/(0.05)	# convert counts to Pressure in Pa (Q330 + Chaparral mics)
+digouti   = 1/11541				# convert counts to Pressure in Pa (Q330 + Vx2)
 min_cc    = 0.6					# min normalized correlation coefficient to accept
 min_chan  = 3					# minimum # of channels for code to run
 cc_shift_length = 6*100			# maximum samples to shift in cross-correlation (usually at 100 sps)

@@ -22,6 +22,6 @@ f2		  = 5.0  # maximum frequency for bandpass filter
 plot_duration = 1800
 
 icinga_service_name = 'generic alarm 1'
-mattermost_channel_id = 'jewennqiq7rd5kdubg8t1j9b8a' 
+# mattermost_channel_id = 'jewennqiq7rd5kdubg8t1j9b8a'
 
 VOLCANO_NAME = 'Kanaga'

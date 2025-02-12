@@ -1,2 +1,2 @@
 ID
-quakeml:AV.uaf.edu/Event/AV/92224101
+quakeml:av.anss.org/Event/AV/93479741

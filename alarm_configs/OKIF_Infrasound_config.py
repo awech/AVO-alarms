@@ -5,7 +5,7 @@ alarm_name = 'OKIF Infrasound'	# this is the alarm name sent to icinga and in me
 SCNL=[
 {'scnl':'OKIF.HDF.AV.01'	, 'sta_lat': 53.41083004	, 'sta_lon': -167.91426701},
 {'scnl':'OKIF.HDF.AV.02'	, 'sta_lat': 53.41001901	, 'sta_lon': -167.91366301},
-{'scnl':'OKIF.HDF.AV.03'	, 'sta_lat': 53.40998297	, 'sta_lon': -167.91499598},
+# {'scnl':'OKIF.HDF.AV.03'	, 'sta_lat': 53.40998297	, 'sta_lon': -167.91499598},
 {'scnl':'OKIF.HDF.AV.04'	, 'sta_lat': 53.41029796	, 'sta_lon': -167.91431696},
 {'scnl':'OKIF.HDF.AV.05'	, 'sta_lat': 53.41038496	, 'sta_lon': -167.91331901},
 {'scnl':'OKIF.HDF.AV.06'	, 'sta_lat': 53.41045604	, 'sta_lon': -167.91544802},
@@ -40,4 +40,4 @@ f2		  = 8.0  # maximum frequency for bandpass filter
 digouti   = 1/(419430*.03)		# convert counts to Pressure in Pa (Q330 + Chaparral 64V)
 min_cc    = 0.5					# min normalized correlation coefficient to accept
 min_chan  = 3					# minimum # of channels for code to run
-cc_shift_length = 3*50			# maximum samples to shift in cross-correlation (usually at 50 sps)
+cc_shift_length = 6*100			# maximum samples to shift in cross-correlation (usually at 100 sps)

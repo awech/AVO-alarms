@@ -37,4 +37,4 @@ f2		  = 10.0 # maximum frequency for bandpass filter
 digouti   = (1/419430.0)/(0.0275)	# convert counts to Pressure in Pa (Q330 + (VDP-10 pre Oct 15 2019) Chap Vx2 (post Oct 15 2019) mics)
 min_cc    = 0.6					# min normalized correlation coefficient to accept
 min_chan  = 3					# minimum # of channels for code to run
-cc_shift_length = 3*50			# maximum samples to shift in cross-correlation (usually at 50 sps)
+cc_shift_length = 6*100			# maximum samples to shift in cross-correlation (usually at 100 sps)

@@ -46,8 +46,8 @@ def run_alarm(config,T0):
 
 	try:
 		with open(config.zipfilename, 'wb') as f:
-		    resp = requests.get(new_url, verify=False)
-		    f.write(resp.content)
+			resp = requests.get(new_url, verify=False, timeout=10)
+			f.write(resp.content)
 	except:
 		print('Request error')
 		state = 'WARNING'

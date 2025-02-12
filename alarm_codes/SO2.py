@@ -10,6 +10,7 @@ import matplotlib as m
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 import traceback
+import re
 
 def run_alarm(config, T0):
 	
@@ -18,7 +19,7 @@ def run_alarm(config, T0):
 	max_tries = 3
 	while attempt <= max_tries:
 		try:
-			page = requests.get(os.environ['SACS_URL'], timeout=10)
+			page = requests.get(os.environ['SACS_URL'], verify=False, timeout=10)
 			soup = BeautifulSoup(page.content, 'html.parser')
 			table= soup.find_all('pre')[0]
 			break
@@ -38,8 +39,26 @@ def run_alarm(config, T0):
 
 		date   = table[1].split(':')[-1].replace(' ','')
 		time   = table[2].split(' :')[-1].split('UTC')[0].replace(' ','')
-		lon    = float(table[3].split(':')[-1].split('deg')[0].replace(' ',''))
-		lat    = float(table[4].split(':')[-1].split('deg')[0].replace(' ',''))
+
+		lat_str = table[4].split(':')[-1]
+		lon_str = table[3].split(':')[-1]
+		lat, lat_dir = re.findall(r'(\d+\.\d+)\s{1}(\S{1})', lat_str)[0]
+		lon, lon_dir = re.findall(r'(\d+\.\d+)\s{1}(\S{1})', lon_str)[0]
+		lat = float(lat)
+		lon = float(lon)
+		if lat_dir == 'S':
+			lat = -lat
+		if lon_dir == 'W':
+			lon = -lon
+
+		volcs = pd.read_excel(config.volc_file)
+		volcs = volcs[volcs['SO2']=='Y']
+		volcs = utils.volcano_distance(lon, lat, volcs)
+		volcs = volcs.sort_values('distance')
+
+
+		# lon    = float(table[3].split(':')[-1].split('deg')[0].replace(' ',''))
+		# lat    = float(table[4].split(':')[-1].split('deg')[0].replace(' ',''))
 		# SZA    = table[4].split(':')[-1].split('deg')[0].replace(' ','')
 		# SO2max = table[5].split(':')[-1].split('DU')[0].replace(' ','')
 		# S02ht  = table[6].split(':')[-1].split('km')[0].replace(' ','')
@@ -50,10 +69,6 @@ def run_alarm(config, T0):
 		utils.icinga2_state(config, state, state_message)	
 		return	
 
-	volcs = pd.read_excel(config.volc_file)
-	volcs = volcs[volcs['SO2']=='Y']
-	volcs = utils.volcano_distance(lon, lat, volcs)
-	volcs = volcs.sort_values('distance')
 
 	new_time = time_check(date, time, config)
 
@@ -82,8 +97,8 @@ def run_alarm(config, T0):
 		print('Drafting alert')
 		subject, message = create_message(date,time, table, config,volcs)
 		
-		print('Sending direct alert')
-		utils.send_alert(config.alarm_name, subject, message, attachment)
+		# print('Sending direct alert')
+		# utils.send_alert(config.alarm_name, subject, message, attachment)
 		
 		print('Update timestamp to avoid resending same alert')
 		update_timestamp(date, time, config)
@@ -132,7 +147,7 @@ def get_so2_images(soup, config):
 
 	for i, image in enumerate(img_files[:2]):
 
-		r = requests.get(image)
+		r = requests.get(image, verify=False, timeout=10)
 		if r.status_code == 200:
 			with open(config.img_file.replace('.png', str(i+1)+'.gif'), 'wb') as out:
 				for bits in r.iter_content():

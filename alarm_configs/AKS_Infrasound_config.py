@@ -14,7 +14,7 @@ SCNL=[
 {'scnl':'AKS.HDF.AV.02'	, 'sta_lat': 54.11105	, 'sta_lon': -165.69705},
 {'scnl':'AKS.HDF.AV.03'	, 'sta_lat': 54.11028	, 'sta_lon': -165.69616},
 {'scnl':'AKS.HDF.AV.04'	, 'sta_lat': 54.11051	, 'sta_lon': -165.69681},
-# {'scnl':'AKS.HDF.AV.04'	, 'sta_lat': 54.11051	, 'sta_lon': -165.69683},
+{'scnl':'AKS.HDF.AV.05'	, 'sta_lat': 54.11098	, 'sta_lon': -165.69609},
 {'scnl':'AKS.HDF.AV.06'	, 'sta_lat': 54.11005	, 'sta_lon': -165.69720},
 ]
 
@@ -47,4 +47,4 @@ f2		  = 8.0  # maximum frequency for bandpass filter
 digouti   = (1/400000)/0.0275	# convert counts to Pressure in Pa (Centaur + Chaparral Vx2 mics)
 min_cc    = 0.5					# min normalized correlation coefficient to accept
 min_chan  = 3					# minimum # of channels for code to run
-cc_shift_length = 3*50			# maximum samples to shift in cross-correlation (usually at 50 sps)
+cc_shift_length = 6*100			# maximum samples to shift in cross-correlation (usually at 100 sps)

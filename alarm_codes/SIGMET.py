@@ -245,6 +245,9 @@ def text_to_latlon(latlon_txt):
 	tmp_lat = float(tmp_lat[:-2]) + lat_sign*float(tmp_lat[-2:])/60
 	tmp_lon = float(tmp_lon[:-2]) + lon_sign*float(tmp_lon[-2:])/60
 
+	if tmp_lon > 0:
+		tmp_lon -= 360
+
 	return tmp_lat, tmp_lon
 
 

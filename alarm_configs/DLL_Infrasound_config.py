@@ -20,8 +20,8 @@ VOLCANO=[
 {'volcano':	'Semisopochnoi',	'v_lat': 51.947,	'v_lon': 179.623, 	'Azimuth_tolerance': 8, 'min_pa': 0.1, 'vmin':0.28, 'vmax':0.45,
 		'seismic_scnl': ['CERB.BHZ.AV.--','CESW.BHZ.AV.--','CEAP.BHZ.AV.--']},
 
-# {'volcano':	'Spurr',	'v_lat': 61.29897,	'v_lon': -152.25122, 	'Azimuth_tolerance': 2, 'min_pa': 0.1, 'vmin':0.28, 'vmax':0.45,
-# 		'seismic_scnl': ['ANON.EHZ.AV.--','ANNE.EHZ.AV.--','ANPK.EHZ.AV.--']},
+{'volcano':	'Spurr',	'v_lat': 61.29897,	'v_lon': -152.25122, 	'Azimuth_tolerance': 4, 'min_pa': 0.1, 'vmin':0.28, 'vmax':0.45,
+		'seismic_scnl': ['SPBG.BHZ.AV.--','SPCP.BHZ.AV.--','SPCP.BDF.AV.--', 'SPCN.BHZ.AV.--','SPCG.BHZ.AV.--']},
 
 # {'volcano':	'Redoubt',	'v_lat': 60.48576,	'v_lon': -152.74282, 	'Azimuth_tolerance': 2, 'min_pa': 0.1, 'vmin':0.28, 'vmax':0.45,
 # 		'seismic_scnl': ['ANON.EHZ.AV.--','ANNE.EHZ.AV.--','ANPK.EHZ.AV.--']},
@@ -78,4 +78,4 @@ f2		  = 8.0  # maximum frequency for bandpass filter
 digouti   = 1/33505.5968 # convert counts to Pressure in Pa 01-Jun-2021
 min_cc    = 0.5					# min normalized correlation coefficient to accept
 min_chan  = 3					# minimum # of channels for code to run
-cc_shift_length = 3*50			# maximum samples to shift in cross-correlation (usually at 50 sps)
+cc_shift_length = 6*100			# maximum samples to shift in cross-correlation (usually at 100 sps)

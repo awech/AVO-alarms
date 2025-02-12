@@ -3,7 +3,7 @@ alarm_name = 'BAEI Infrasound'	# this is the alarm name sent to icinga and in me
 
 # Infrasound channels list
 SCNL=[
-{'scnl':'BAEI.HDF.AV.01'	, 'sta_lat': 61.132675	, 'sta_lon': -148.1219},
+#{'scnl':'BAEI.HDF.AV.01'	, 'sta_lat': 61.132675	, 'sta_lon': -148.1219},
 {'scnl':'BAEI.HDF.AV.02'	, 'sta_lat': 61.132085	, 'sta_lon': -148.12107},
 {'scnl':'BAEI.HDF.AV.03'	, 'sta_lat': 61.13173	, 'sta_lon': -148.121985},
 {'scnl':'BAEI.HDF.AV.04'	, 'sta_lat': 61.131875	, 'sta_lon': -148.122915},
@@ -29,7 +29,7 @@ f2		  = 10 # maximum frequency for bandpass filter
 digouti   = (1/400000)/0.0275	# convert counts to Pressure in Pa (Q330 + (VDP-10 pre Oct 15 2019) Chap Vx2 (post Oct 15 2019) mics)
 min_cc    = 0.6					# min normalized correlation coefficient to accept
 min_chan  = 3					# minimum # of channels for code to run
-cc_shift_length = 3*50			# maximum samples to shift in cross-correlation (usually at 50 sps)
+cc_shift_length = 6*100			# maximum samples to shift in cross-correlation (usually at 100 sps)
 
 infrasound_plot_duration = 600
 seismic_plot_duration = 600

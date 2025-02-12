@@ -23,5 +23,5 @@ plot_duration = 3600
 
 VOLCANO_NAME = "Spurr"
 
-icinga_service_name = "generic alarm 4"
-mattermost_channel_id = "jewennqiq7rd5kdubg8t1j9b8a"
+icinga_service_name = "generic alarm 3"
+# mattermost_channel_id = "jewennqiq7rd5kdubg8t1j9b8a"

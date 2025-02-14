@@ -23,4 +23,4 @@ Current and past maintainers of AVO-alarms:
 
 ## v1.0.0
 
-coming soon...
+coming soon...ish

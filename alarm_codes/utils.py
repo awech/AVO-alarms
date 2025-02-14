@@ -6,24 +6,23 @@
 #
 # Wech, updated 2020-04-22
 
+import os
+import re
 import smtplib
+import time
 from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from obspy import Trace, Catalog
-from numpy import zeros, round, dtype, cos, pi
-from obspy import Stream
+from pathlib import Path
+
+from numpy import cos, dtype, pi, round, zeros
+from obspy import Catalog, Stream, Trace, UTCDateTime
 from obspy.clients.earthworm import Client
-from pandas import read_excel, DataFrame
-from tomputils import mattermost as mm
-from obspy import UTCDateTime
 from obspy.geodetics import gps2dist_azimuth
+from pandas import DataFrame, read_excel
 from PIL import Image
-import time
-import re
-import os
-import subprocess
+from tomputils import mattermost as mm
 
 
 def grab_data(scnl,T1,T2,fill_value=0):
@@ -86,8 +85,8 @@ def grab_data(scnl,T1,T2,fill_value=0):
 
 def download_hypocenters(URL):
 	import requests
-	from obspy.io.quakeml.core import Unpickler
 	import urllib3
+	from obspy.io.quakeml.core import Unpickler
 	urllib3.disable_warnings()
 
 	attempt = 1
@@ -114,7 +113,9 @@ def download_hypocenters(URL):
 
 
 def icinga2_state(config,state,state_message):
-	import requests, json
+	import json
+
+	import requests
 	import urllib3
 	urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -179,14 +180,20 @@ def volcano_distance(lon0, lat0, volcs):
 
 
 def update_stationXML():
+	import importlib
 	from glob import glob
+
 	import numpy as np
 	from obspy.clients.fdsn import Client
-	import importlib
 
 	client = Client("IRIS")
 
-	files = glob(os.environ['HOME_DIR']+'/alarm_configs/*RSAM*config.py')
+	home_dir = Path(os.environ['HOME_DIR'])
+
+	file_dir = home_dir / "alarm_configs" / "*RSAM*config.py"
+
+	# files = glob(os.environ['HOME_DIR']+'/alarm_configs/*RSAM*config.py')
+	files = glob(str(file_dir))
 	SCNL = []
 
 	for file in files:
@@ -208,7 +215,9 @@ def update_stationXML():
 		else:
 			inventory += client.get_stations(station=sta, network=net, channel=chan, location=loc, level='response', starttime=UTCDateTime.utcnow())
 
-	inventory.write(os.environ['HOME_DIR']+'/alarm_aux_files/stations.xml',format='STATIONXML')
+	write_path = home_dir / "alarm_aux_files" / "stations.xml"
+	inventory.write(write_path, format = "STATIONXML")
+	# inventory.write(os.environ['HOME_DIR']+'/alarm_aux_files/stations.xml',format='STATIONXML')
 
 	print('^^^^^^ Finished Updating Metadata ^^^^^^')
 	return
@@ -219,6 +228,7 @@ def Dr_to_RSAM(config, DR, volcano_name, base=25):
 	import numpy as np
 	from obspy.clients.fdsn import Client
 	client = Client("IRIS")
+	home_dir = Path(os.environ['HOME_DIR'])
 
 	
 	VELOCITY = 1.5 	# km/s
@@ -226,7 +236,8 @@ def Dr_to_RSAM(config, DR, volcano_name, base=25):
 	Q = 200			# quality factor
 
 	T0 = UTCDateTime.utcnow()
-	VOLCS = read_excel('alarm_aux_files/volcano_list.xlsx')
+	VOLCS = read_excel(home_dir / "alarm_aux_files" / "volcano_list.xlsx")
+	# VOLCS = read_excel('alarm_aux_files/volcano_list.xlsx')
 	volcs = VOLCS[VOLCS['Volcano'] == volcano_name].copy()
 	SCNL = DataFrame.from_dict(config.SCNL)
 
@@ -282,11 +293,15 @@ def RSAM_to_DR(tr, volcano_name, VELOCITY=1.5, FREQ=2, Q=200):
 	import numpy as np
 	from obspy import read_inventory
 
-	VOLCS = read_excel('alarm_aux_files/volcano_list.xlsx')
+	home_dir = Path(os.environ['HOME_DIR'])
+	VOLCS = read_excel(home_dir / "alarm_aux_files" / "volcano_list.xlsx")
+
+	# VOLCS = read_excel('alarm_aux_files/volcano_list.xlsx')
 	volcs = VOLCS[VOLCS['Volcano'] == volcano_name].copy()
 
 	tr.id = tr.id.replace('--','')
-	inventory = read_inventory(os.environ['HOME_DIR']+'/alarm_aux_files/stations.xml')
+	# inventory = read_inventory(os.environ['HOME_DIR']+'/alarm_aux_files/stations.xml')
+	inventory = read_inventory(home_dir / "alarm_aux_files" / "stations.xml")
 
 	coords = inventory.get_coordinates(tr.id)
 	gain = inventory.get_response(tr.id, tr.stats.starttime).instrument_sensitivity.value # counts/m/s
@@ -314,11 +329,13 @@ def RSAM_to_DR(tr, volcano_name, VELOCITY=1.5, FREQ=2, Q=200):
 
 
 def send_alert(alarm_name,subject,body,filename=None):
-
+	home_dir = Path(os.environ['HOME_DIR'])
 	print('Sending alarm email and sms...')
 
 	# read & parse notification list
-	distribution_file=''.join([os.environ['HOME_DIR'],'/','distribution.xlsx'])
+	# distribution_file=''.join([os.environ['HOME_DIR'],'/','distribution.xlsx'])
+	distribution_file = home_dir / "distribution.xlsx"
+
 	A=read_excel(distribution_file)
 
 	for recipient_group in ['x','o']:
@@ -398,8 +415,8 @@ def post_mattermost(config,subject,body,filename=None):
 	return
 
 def make_map(ax,lat0,lon0,main_dist=50,inset_dist=500,scale=15):
-	from mpl_toolkits.basemap import Basemap
 	from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+	from mpl_toolkits.basemap import Basemap
 
 	dlat=1*(main_dist/111.1)
 	dlon=dlat/cos(lat0*pi/180)
@@ -453,13 +470,17 @@ def make_map(ax,lat0,lon0,main_dist=50,inset_dist=500,scale=15):
 
 
 def save_file(plt,config,dpi=250):
-	png_file=''.join([os.environ['TMP_FIGURE_DIR'],
-					  '/',
-					  config.alarm_name.replace(' ','_'),
-					  '_',
-					  UTCDateTime.utcnow().strftime('%Y%m%d_%H%M%S'),
-					  '.png'])
-	jpg_file=png_file.split('.')[0]+'.jpg'
+	home_dir = Path(os.environ['HOME_DIR'])
+
+	png_file = home_dir / f"{config.alarm_name.replace(' ','_')}_{UTCDateTime.utcnow().strftime('%Y%m%d_%H%M%S')}.png"
+	jpg_file = home_dir / f"{config.alarm_name.replace(' ','_')}_{UTCDateTime.utcnow().strftime('%Y%m%d_%H%M%S')}.jpg"
+	# png_file=''.join([os.environ['TMP_FIGURE_DIR'],
+	# 				  '/',
+	# 				  config.alarm_name.replace(' ','_'),
+	# 				  '_',
+	# 				  UTCDateTime.utcnow().strftime('%Y%m%d_%H%M%S'),
+	# 				  '.png'])
+	# jpg_file=png_file.split('.')[0]+'.jpg'
 
 	plt.savefig(png_file,dpi=dpi,format='png')
 	im=Image.open(png_file)

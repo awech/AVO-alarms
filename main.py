@@ -14,7 +14,8 @@ import traceback
 
 parser = argparse.ArgumentParser(epilog="e.g.: python main.py Pavlof_RSAM 201701020205")
 parser.add_argument("config", type=str, help="Name of the config file")
-parser.add_argument("-t", "--time", type=str, help=f"utc time stamp fmt:YYYYMMDDHHMM\n(optional, otherwise grabs current utc time)")
+parser.add_argument("-t", "--time", type=str, 
+                    help="utc time stamp:YYYYMMDDHHMM (optional, otherwise grabs current utc time)")
 parser.add_argument("--test", help="Run in test mode", action="store_true")
 args = parser.parse_args()
 
@@ -25,14 +26,10 @@ if os.getenv("FROMCRON") == "yep":
     # if run from a cron, write output to 4-hourly file in the logs directory
     T0 = utc.now()
     d_hour = int(T0.strftime("%H")) % 4
-    f_time = (
-        utc(T0.strftime("%Y%m%d")) + (int(T0.strftime("%H")) - d_hour) * 3600
-    )
+    f_time = utc(T0.strftime("%Y%m%d")) + (int(T0.strftime("%H")) - d_hour) * 3600
     file = (
         os.environ["LOGS_DIR"]
-        + "/"
-        + sys.argv[1]
-        + "-"
+        + f"/{args.config}-"
         + f_time.strftime("%Y%m%d-%H")
         + ".out"
     )
@@ -48,8 +45,8 @@ print("\n-----------------------------------------")
 
 
 if args.time is None:
-    T0 = utc.utcnow() # no time given, use current timestamp
-    T0 = utc(T0.strftime("%Y-%m-%d %H:%M")) # round down to the nearest minute
+    T0 = utc.utcnow()  # no time given, use current timestamp
+    T0 = utc(T0.strftime("%Y-%m-%d %H:%M"))  # round down to the nearest minute
 else:
     T0 = utc(args.time)
 
@@ -62,8 +59,8 @@ except:
     # if error, send message to designated recipients
     print("Error...")
     b = traceback.format_exc()
-    message = "".join("{}\n".format(a) for a in b.splitlines())
-    message = "{}\n\n{}".format(T0.strftime("%Y-%m-%d %H:%M"), message)
+    message = "".join(f"{a}\n" for a in b.splitlines())
+    message = f"{str(T0)}\n\n{message}"
     subject = config.alarm_name + " error"
     attachment = "alarm_aux_files/oops.jpg"
     utils.send_alert("Error", subject, message, attachment)

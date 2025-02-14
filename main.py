@@ -1,8 +1,6 @@
 #!/home/rtem/.conda/envs/alarms/bin/python
 # -*- coding: utf-8 -*-
 
-# alarm_codes is a directory
-# utils is file. Importing it allows for error email delivery & importing environment variables
 import time
 start = time.time()
 
@@ -20,9 +18,11 @@ parser.add_argument("-t", "--time", type=str, help=f"utc time stamp fmt:YYYYMMDD
 parser.add_argument("--test", help="Run in test mode", action="store_true")
 args = parser.parse_args()
 
+if args.test:
+    print("Running alarm in test mode")
 
-# if run from a cron, write output to 4-hourly file in the logs directory
 if os.getenv("FROMCRON") == "yep":
+    # if run from a cron, write output to 4-hourly file in the logs directory
     T0 = utc.now()
     d_hour = int(T0.strftime("%H")) % 4
     f_time = (
@@ -47,9 +47,8 @@ if os.getenv("FROMCRON") == "yep":
 print("\n-----------------------------------------")
 
 
-# no time given, use current time
 if args.time is None:
-    T0 = utc.utcnow() # get current timestamp
+    T0 = utc.utcnow() # no time given, use current timestamp
     T0 = utc(T0.strftime("%Y-%m-%d %H:%M")) # round down to the nearest minute
 else:
     T0 = utc(args.time)
@@ -58,11 +57,9 @@ try:
     # import the config file for the alarm you're running
     config = import_module(f"alarm_configs.{args.config}_config")
     ALARM = import_module(f"alarm_codes.{config.alarm_type}")
-    if args.test:
-        print("Running alarm in test mode")
     ALARM.run_alarm(config, T0, test=args.test)
-# if error, send message to designated recipients
 except:
+    # if error, send message to designated recipients
     print("Error...")
     b = traceback.format_exc()
     message = "".join("{}\n".format(a) for a in b.splitlines())

@@ -20,7 +20,6 @@ parser.add_argument("-t", "--time", type=str, help=f"utc time stamp fmt:YYYYMMDD
 parser.add_argument("--test", help="Run in test mode", action="store_true")
 args = parser.parse_args()
 
-print(args.test)
 
 # if run from a cron, write output to 4-hourly file in the logs directory
 if os.getenv("FROMCRON") == "yep":
@@ -59,7 +58,9 @@ try:
     # import the config file for the alarm you're running
     config = import_module(f"alarm_configs.{args.config}_config")
     ALARM = import_module(f"alarm_codes.{config.alarm_type}")
-    ALARM.run_alarm(config, T0)
+    if args.test:
+        print("Running alarm in test mode")
+    ALARM.run_alarm(config, T0, test=args.test)
 # if error, send message to designated recipients
 except:
     print("Error...")

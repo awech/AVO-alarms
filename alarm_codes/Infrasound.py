@@ -21,7 +21,7 @@ import matplotlib.dates as mdates
 
 
 # main function called by alarm.py
-def run_alarm(config,T0):
+def run_alarm(config, T0, test=False):
 
     time.sleep(config.latency)
     state_message='{} (UTC) {}'.format(T0.strftime('%Y-%m-%d %H:%M'),config.alarm_name)

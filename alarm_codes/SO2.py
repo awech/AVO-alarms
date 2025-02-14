@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import traceback
 import re
 
-def run_alarm(config, T0):
+def run_alarm(config, T0, test=False):
 	
 	print('Reading SACS SO2 webpage')
 	attempt = 1

@@ -20,7 +20,7 @@ import traceback
 warnings.filterwarnings("ignore")
 
 
-def run_alarm(config, T0):
+def run_alarm(config, T0, test=False):
 
     ### get alerts from volcview api ###
     ####################################

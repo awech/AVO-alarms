@@ -20,7 +20,7 @@ urllib3.disable_warnings()
 
 socket.setdefaulttimeout(15)
 
-def run_alarm(config,T0):
+def run_alarm(config, T0, test=False):
 
 	state_message = '{} (UTC) No new pilot reports'.format(T0.strftime('%Y-%m-%d %H:%M'))
 	state = 'OK'

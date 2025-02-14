@@ -12,6 +12,7 @@
 - [ ] make effort to use `subplot_mosaic` for panel plots 
 - [ ] add test data in own directory
 - [ ] implement CI/CD with test data to run tests once a month 
+- [ ] add defaults to infrasound parameters that then can be overwritten if need be (`vmin`, `vmax`, `min_pa`)
 
 ## :books: Documentation
 - [ ] Add version
@@ -25,3 +26,4 @@
 
 - [ ] Spin up VM for back up and testing
 - [ ] start fresh with miniforge for venv
+- [ ] change all instances of string filepaths to pathlib objects for OS agnostic alarm running. 

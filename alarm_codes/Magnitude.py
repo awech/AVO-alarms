@@ -31,7 +31,7 @@ while attempt <= 3:
 		attempt+=1
 		client = None
 
-def run_alarm(config, T0):
+def run_alarm(config, T0, test=False):
 
 	# Download the event data
 	print(T0.strftime('%Y-%m-%d %H:%M'))

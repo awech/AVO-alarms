@@ -15,7 +15,7 @@ import matplotlib.cm as cm
 from matplotlib.colors import LinearSegmentedColormap
 
 # main function called by main.py
-def run_alarm(config,T0):
+def run_alarm(config, T0, test=False):
 
 	time.sleep(config.latency)
 	SCNL=DataFrame.from_dict(config.SCNL)

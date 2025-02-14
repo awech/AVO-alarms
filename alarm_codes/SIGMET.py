@@ -18,7 +18,7 @@ warnings.filterwarnings("ignore")
 
 
 
-def run_alarm(config,T0):
+def run_alarm(config, T0, test=False):
 
 	print(T0)
 	attempt = 1

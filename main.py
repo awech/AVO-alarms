@@ -27,18 +27,16 @@ if os.getenv("FROMCRON") == "yep":
     T0 = utc.now()
     d_hour = int(T0.strftime("%H")) % 4
     f_time = utc(T0.strftime("%Y%m%d")) + (int(T0.strftime("%H")) - d_hour) * 3600
-    file = (
-        os.environ["LOGS_DIR"]
-        + f"/{args.config}-"
-        + f_time.strftime("%Y%m%d-%H")
-        + ".out"
+    file = os.path.join(
+        os.environ["LOGS_DIR"],
+        f"{args.config}-{f_time.strftime('%Y%m%d-%H')}.out"
     )
     os.system(f"touch {file}")
     f = open(file, "a")
     sys.stdout = sys.stderr = f
 
     # keep .keep file from getting pruned by other cron deleting old log-files
-    keep_file = os.environ["LOGS_DIR"] + "/.keep"
+    keep_file = os.path.join(os.environ["LOGS_DIR"], ".keep")
     os.system(f"touch {keep_file}")
 
 print("\n-----------------------------------------")
@@ -62,7 +60,7 @@ except:
     message = "".join(f"{a}\n" for a in b.splitlines())
     message = f"{str(T0)}\n\n{message}"
     subject = config.alarm_name + " error"
-    attachment = "alarm_aux_files/oops.jpg"
+    attachment = os.path.join("alarm_aux_files", "oops.jpg")
     utils.send_alert("Error", subject, message, attachment)
 
 print(utc.utcnow().strftime("%Y.%m.%d %H:%M:%S"))

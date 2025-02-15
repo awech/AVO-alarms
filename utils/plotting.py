@@ -4,8 +4,21 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 import shapely.geometry as sgeom
+
+# from matplotlib_scalebar.scalebar import ScaleBar
+from cartopy.io.img_tiles import GoogleTiles
 from matplotlib.path import Path as mPath
-from matplotlib_scalebar.scalebar import ScaleBar
+
+
+class ShadedReliefESRI(GoogleTiles):
+    # shaded relief
+    def _image_url(self, tile):
+        x, y, z = tile
+        url = (
+            "https://server.arcgisonline.com/ArcGIS/rest/services/"
+            "World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}.jpg"
+        ).format(z=z, y=y, x=x)
+        return url
 
 
 def great_circle_distance(origin, destination):
@@ -43,15 +56,7 @@ def create_bounding_box(lat, lon, ydist, xdist):
     create a bounding box around a point on the earth
     with user specified horizontal and vertical distance
 
-    $$a = 6378.1370 km$$
-    $$b = 6356.7523 km$$
-    $$e = \frac{a^2 - b^2}{a^2}$$
 
-    To draw a bounding box a certain distance from any point on earth we must know how much one degree of latitude and longitude is for that point
-
-    $${\Delta_{lon}}^1 = \frac{\pi a \cos{\phi}}{180\sqrt{1-e^2\sin ^2 \phi}}$$
-
-    $${\Delta_{lat}}^1 = \frac{\pi a (1-e^2)}{180(1-e^2\sin ^2 \phi)^{\frac{3}{2}}}$$
 
     Parameters
     ----------
@@ -143,7 +148,7 @@ def make_map(latitude, longitude, main_dist=50, center_longitude=180, test=False
     fig.set_facecolor("w")
 
     ax = fig.add_subplot(
-        1, 1, 1, projection=ccrs.PlateCarree(central_longitude=center_longitude)
+        1, 1, 1, projection=ccrs.Mercator(central_longitude=center_longitude)
     )
     # make the figure
 
@@ -246,15 +251,15 @@ def make_map(latitude, longitude, main_dist=50, center_longitude=180, test=False
     # scale bar
     # https://github.com/ppinard/matplotlib-scalebar
     # need to check to see if this is the right dx
-    ax.add_artist(
-        ScaleBar(
-            dx=1,
-            location="lower left",
-            box_color="none",
-            scale_loc="right",
-            font_properties={"size": 6},
-        )
-    )
+    # ax.add_artist(
+    #     ScaleBar(
+    #         dx=1,
+    #         location="lower left",
+    #         box_color="none",
+    #         scale_loc="right",
+    #         font_properties={"size": 6},
+    #     )
+    # )
 
     return ax, inset_ax
 

@@ -357,7 +357,8 @@ def send_alert(alarm_name,subject,body,filename=None):
 		msg.attach(MIMEText(body, 'plain'))
 		
 		if filename:
-			name = filename.split('/')[-1]
+			# name = filename.split('/')[-1]
+			name = filename.name
 			attachment = open(filename, "rb")
 			part = MIMEBase('application', 'octet-stream')
 			part.set_payload((attachment).read())

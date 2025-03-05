@@ -1,17 +1,28 @@
-#!/home/rtem/.conda/envs/alarms/bin/python
-# -*- coding: utf-8 -*-
-
 import os
 import sys
-sys.path.append('/alarms')
 from obspy import UTCDateTime
+from pathlib import Path
+
+current_path = Path(__file__).parent
+sys.path.append(str(current_path.parents[0]))
 from alarm_codes import utils
 
-# log info if run from cron
-if os.getenv('FROMCRON') == 'yep':
-    file=os.environ['LOGS_DIR']+'/Metadata-'+UTCDateTime.now().strftime('%Y%m%d-%H')+'.out'
-    os.system('touch {}'.format(file))
-    f=open(file,'a')
-    sys.stdout=sys.stderr=f
 
-utils.update_stationXML()
+def update_metadata():
+    # log info if run from cron
+    if os.getenv("FROMCRON") == "yep":
+        file = (
+            os.environ["LOGS_DIR"]
+            + "/Metadata-"
+            + UTCDateTime.now().strftime("%Y%m%d-%H")
+            + ".out"
+        )
+        os.system("touch {}".format(file))
+        f = open(file, "a")
+        sys.stdout = sys.stderr = f
+
+    utils.update_stationXML()
+
+
+if __name__ == "__main__":
+    update_metadata()

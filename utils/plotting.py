@@ -4,6 +4,8 @@ import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
+from matplotlib.dates import date2num, num2date
+import pandas as pd
 import numpy as np
 import shapely.geometry as sgeom
 from PIL import Image
@@ -334,3 +336,78 @@ def save_file(plt, config, dpi=250):
     os.remove(png_file)
 
     return jpg_file
+
+
+def time_ticks(
+    axes,
+    starttime,
+    endtime,
+    dt_freq,
+    fmt="%Y-%m-%d",
+    relative=False,
+    axis="x",
+    rotation=45,
+    ha="right",
+    **kwargs,
+):
+    """Set the xlims and xticks with a specific start and end dates.
+    To be called after finished all plotting so the axes and ticks aren't subsequently modified.
+
+    Parameters
+    ----------
+    axes : _matplotlib axis object_
+        the axes object you wanna make more better
+    starttime : str | pandas timestamp
+        start time for tick generation and left x-axis limit. Can be string or pandas timestamp object
+    endtime : str | pandas timestamp
+        end time for tick generation and right x-axis limit. Can be string or pandas timestamp object
+    dt_freq : str
+        pandas frequency alias, typically a number and string combo, e.g.: 5 days = "5D"
+        can also be negative, so values will start from the endtime, e.g.: "-5D"
+        for string alias info, see:
+        https://pandas.pydata.org/docs/user_guide/timeseries.html#timeseries-offset-aliases
+    fmt : str, optional
+        datestr format, by default "%Y-%m-%d"
+    relative : bool, optional
+        set to True if x-axis is in seconds instead of datetime (e.g., spectrogram), by default False
+    axis : str, optional
+        Which axis you want to pin: "x", "y", by default "x"
+    rotation : float, optional
+        tick label rotation, by default 45
+    ha : str, optional
+        tick label horizontal alignment, by default "right"
+    **kwargs :
+        other customizations passed on to set_xticklabels()
+    """
+
+    if isinstance(starttime, str):
+        starttime = pd.to_datetime(starttime)
+    if isinstance(endtime, str):
+        endtime = pd.to_datetime(endtime)
+    if dt_freq[0] == "-":
+        ticks = pd.date_range(endtime, starttime, freq=dt_freq)
+    else:
+        ticks = pd.date_range(starttime, endtime, freq=dt_freq)
+
+    tick_labels = [ti.strftime(fmt) for ti in ticks]
+
+    T0 = date2num(starttime)
+    T1 = date2num(endtime)
+
+    if relative:
+        ticks = 86400 * (date2num(ticks) - T0)
+
+    if axis == "x":
+        if relative:
+            axes.set_xlim(0, 86400 * (T1 - T0))
+        else:
+            axes.set_xlim(num2date(T0), num2date(T1))
+        axes.set_xticks(ticks)
+        axes.set_xticklabels(tick_labels, rotation=rotation, ha=ha, **kwargs)
+    elif axis == "y":
+        if relative:
+            axes.set_ylim(0, 86400 * (T1 - T0))
+        else:
+            axes.set_ylim(num2date(T0), num2date(T1))
+        axes.set_yticks(ticks)
+        axes.set_yticklabels(tick_labels, rotation=rotation, ha=ha, **kwargs)

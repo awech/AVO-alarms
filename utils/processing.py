@@ -7,27 +7,22 @@ from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
-
-from numpy import cos, dtype, pi, round, zeros
-from obspy import Catalog, Stream, Trace, UTCDateTime
-from obspy.clients.earthworm import Client
+from obspy import Catalog, Stream, Trace, UTCDateTime, read_inventory
 from obspy.geodetics import gps2dist_azimuth
-from pandas import DataFrame, read_excel
+from obspy.clients.fdsn import Client as FDSN_Client
+from obspy.clients.earthworm import Client as EW_Client
+from obspy import read_inventory
+from obspy.io.quakeml.core import Unpickler
+import numpy as np
+import pandas as pd
 from PIL import Image
 from tomputils import mattermost as mm
 
 import requests
 import urllib3
-from obspy.io.quakeml.core import Unpickler
-import numpy as np
 
 import importlib
 from glob import glob
-
-import numpy as np
-from obspy.clients.fdsn import Client as FDSN_Client
-from obspy.clients.earthworm import Client as EW_Client
-from obspy import read_inventory
 
 
 
@@ -79,11 +74,11 @@ def grab_data(scnl,T1,T2,fill_value=0):
                     # deal with error when sub-traces have different dtypes
                     if sub_trace.data.dtype.name != 'int32':
                         sub_trace.data=sub_trace.data.astype('int32')
-                    if sub_trace.data.dtype!=dtype('int32'):
+                    if sub_trace.data.dtype!=np.dtype('int32'):
                         sub_trace.data=sub_trace.data.astype('int32')
                     # deal with rare error when sub-traces have different sample rates
-                    if sub_trace.stats.sampling_rate!=round(sub_trace.stats.sampling_rate):
-                        sub_trace.stats.sampling_rate=round(sub_trace.stats.sampling_rate)
+                    if sub_trace.stats.sampling_rate != np.round(sub_trace.stats.sampling_rate):
+                        sub_trace.stats.sampling_rate = np.round(sub_trace.stats.sampling_rate)
                 print('Merging gappy data...')
                 tr.merge(fill_value=fill_value)
         except:
@@ -97,7 +92,7 @@ def grab_data(scnl,T1,T2,fill_value=0):
             tr.stats['location']=sta.split('.')[3]
             tr.stats['sampling_rate']=100
             tr.stats['starttime']=T1
-            tr.data=zeros(int((T2-T1)*tr.stats['sampling_rate']),dtype='int32')
+            tr.data=np.zeros(int((T2-T1)*tr.stats['sampling_rate']),dtype='int32')
         st+=tr
     print('{} seconds'.format(UTCDateTime.now()-t_test1))
     
@@ -169,6 +164,74 @@ def volcano_distance(lon0, lat0, volcs):
     return volcs
 
 
+def catalog_to_dataframe(CAT, VOLCS):
+
+    LATS = []
+    LONS = []
+    DEPS = []
+    MAGS = []
+    TIME = []
+    ID   = []
+    RMS  = []
+    AZ_GAP = []
+    V_DIST = []
+
+    for eq in CAT:
+        LATS.append(eq.preferred_origin().latitude)
+        LONS.append(eq.preferred_origin().longitude)
+        DEPS.append(eq.preferred_origin().depth / 1000)
+        TIME.append(eq.preferred_origin().time.datetime)
+        try:
+            RMS.append(eq.preferred_origin().quality.standard_error)
+        except:
+            RMS.append(1e2)
+        try:
+            AZ_GAP.append(eq.preferred_origin().quality.azimuthal_gap)
+        except:
+            AZ_GAP.append(360)
+        if eq.preferred_magnitude():
+            MAGS.append(eq.preferred_magnitude().mag)
+        else:
+            MAGS.append(np.nan)
+        evid = eq.resource_id.id
+        ID.append(evid)
+
+        volcs = volcano_distance(
+            eq.preferred_origin().longitude, eq.preferred_origin().latitude, VOLCS
+        )
+        volcs = volcs.sort_values("distance")
+        V_DIST.append(volcs.iloc[0].distance)
+
+    cat_df = pd.DataFrame(
+        {
+            "Time": TIME,
+            "Latitude": LATS,
+            "Longitude": LONS,
+            "Depth": DEPS,
+            "Magnitude": MAGS,
+            "ID": ID,
+            "V_DIST": V_DIST,
+        }
+    )
+    cat_df["Time"] = pd.to_datetime(cat_df["Time"])
+
+    return cat_df
+
+
+def addPhaseHint(cat):
+    for eq in cat:
+        # Loop over catalog
+        for pick in eq.picks:
+            # Loop over picks
+            # Go get phase hint
+            nowPickID = pick.resource_id
+            for arrival in eq.preferred_origin().arrivals:
+                nowArrID = arrival.pick_id
+                if nowPickID == nowArrID:
+                    pick.phase_hint = arrival.phase
+    return cat
+
+
 def update_stationXML():
     """_summary_
     """
@@ -235,10 +298,9 @@ def Dr_to_RSAM(config, DR, volcano_name, base=25):
     Q = 200			# quality factor
 
     T0 = UTCDateTime.utcnow()
-    VOLCS = read_excel(home_dir / "alarm_aux_files" / "volcano_list.xlsx")
-    # VOLCS = read_excel('alarm_aux_files/volcano_list.xlsx')
+    VOLCS = pd.read_excel(home_dir / "alarm_aux_files" / "volcano_list.xlsx")
     volcs = VOLCS[VOLCS['Volcano'] == volcano_name].copy()
-    SCNL = DataFrame.from_dict(config.SCNL)
+    SCNL = pd.DataFrame.from_dict(config.SCNL)
 
     for scnl in SCNL.scnl:
 
@@ -275,7 +337,7 @@ def Dr_to_RSAM(config, DR, volcano_name, base=25):
         rmssta_v = (rmssta * 2 * np.pi * FREQ) / 100 	# convert to velocity and change from cm to m (for the gain)
         lvl = rmssta_v * gain * atten_factor			# use gain to turn m/s to counts, and apply attenuation
 
-        lvl = base * round(lvl / base)
+        lvl = base * np.round(lvl / base)
 
         print('{}: {:g}'.format(scnl, lvl))
 
@@ -313,9 +375,8 @@ def RSAM_to_DR(tr, volcano_name, VELOCITY=1.5, FREQ=2, Q=200):
     """
 
     home_dir = Path(os.environ['HOME_DIR'])
-    VOLCS = read_excel(home_dir / "alarm_aux_files" / "volcano_list.xlsx")
+    VOLCS = pd.read_excel(home_dir / "alarm_aux_files" / "volcano_list.xlsx")
 
-    # VOLCS = read_excel('alarm_aux_files/volcano_list.xlsx')
     volcs = VOLCS[VOLCS['Volcano'] == volcano_name].copy()
 
     tr.id = tr.id.replace('--','')

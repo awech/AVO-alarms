@@ -24,6 +24,31 @@ class ShadedReliefESRI(GoogleTiles):
         return url
 
 
+def get_extent(lat0, lon0, dist=20):
+
+    dlat = 1*(dist/111.1)
+    dlon = dlat/np.cos(lat0*np.pi/180)
+
+    latmin= lat0 - dlat
+    latmax= lat0 + dlat
+    lonmin= lon0 - dlon
+    lonmax= lon0 + dlon
+
+    return [lonmin, lonmax, latmin, latmax]
+
+
+def make_path(extent):
+    n = 20
+    aoi = mPath(
+        list(zip(np.linspace(extent[0],extent[1], n), np.full(n, extent[3]))) + \
+        list(zip(np.full(n, extent[1]), np.linspace(extent[3], extent[2], n))) + \
+        list(zip(np.linspace(extent[1], extent[0], n), np.full(n, extent[2]))) + \
+        list(zip(np.full(n, extent[0]), np.linspace(extent[2], extent[3], n)))
+    )
+
+    return(aoi)
+
+
 def great_circle_distance(origin, destination):
     """_summary_
 

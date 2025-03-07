@@ -12,7 +12,6 @@ from matplotlib.ticker import FormatStrFormatter
 import matplotlib.pyplot as plt
 from matplotlib.dates import date2num
 import matplotlib as m
-from matplotlib.path import Path
 import shapely.geometry as sgeom
 import warnings
 import traceback
@@ -44,11 +43,13 @@ def run_alarm(config, T0, test=False):
     print('Downloading events...')
     T2 = T0
     T1 = T2 - config.DURATION
-    URL = '{}starttime={}&endtime={}&minmagnitude={}&maxdepth={}&includearrivals=true&format=xml'.format(os.environ['GUGUAN_URL'],
-                                                                                                         T1.strftime('%Y-%m-%dT%H:%M:%S'),
-                                                                                                         T2.strftime('%Y-%m-%dT%H:%M:%S'),
-                                                                                                         config.MAGMIN,
-                                                                                                         config.MAXDEP)
+    URL = "{}starttime={}&endtime={}&minmagnitude={}&maxdepth={}&includearrivals=true&format=xml".format(
+        os.environ["GUGUAN_URL"],
+        T1.strftime("%Y-%m-%dT%H:%M:%S"),
+        T2.strftime("%Y-%m-%dT%H:%M:%S"),
+        config.MAGMIN,
+        config.MAXDEP,
+    )
     CAT = processing.download_hypocenters(URL)
 
     # Error pulling events
@@ -83,7 +84,7 @@ def run_alarm(config, T0, test=False):
     CAT_DF[['ID']].to_csv(config.outfile, index=False)
     NEW_EVENTS=CAT_DF[~CAT_DF['ID'].isin(OLD_EVENTS.ID)]
     NEW_EVENTS = NEW_EVENTS.sort_values('Time')
-    
+
     # No new events to process
     if len(NEW_EVENTS) == 0:
         print('Earthquakes detected, but already processed in previous run')
@@ -110,7 +111,7 @@ def run_alarm(config, T0, test=False):
         print('Processing {}, {}'.format(eq.short_str(), eq.resource_id.id))
         volcs = processing.volcano_distance(eq.preferred_origin().longitude, eq.preferred_origin().latitude, VOLCS)
         volcs = volcs.sort_values('distance')
-    
+
         #### Generate Figure ####
         try:
             attachment = plot_event(eq, volcs, config)
@@ -126,7 +127,6 @@ def run_alarm(config, T0, test=False):
             b = traceback.format_exc()
             err_message = ''.join('{}\n'.format(a) for a in b.splitlines())
             print(err_message)
-
 
         # craft and send the message
         subject, message = create_message(eq, volcs)
@@ -148,7 +148,7 @@ def run_alarm(config, T0, test=False):
 
         state = 'CRITICAL'
         state_message = '{} (UTC) {}'.format(eq.preferred_origin().time.strftime('%Y-%m-%d %H:%M:%S'), subject)
-    
+
     messaging.icinga(config, state, state_message)
 
     return
@@ -284,41 +284,6 @@ def get_channels(eq):
     STAS = STAS.sort_values('Distance')
 
     return STAS
-
-
-def get_extent(lat0, lon0, dist=20):
-
-    dlat = 1*(dist/111.1)
-    dlon = dlat/np.cos(lat0*np.pi/180)
-
-    latmin= lat0 - dlat
-    latmax= lat0 + dlat
-    lonmin= lon0 - dlon
-    lonmax= lon0 + dlon
-
-    return [lonmin, lonmax, latmin, latmax]
-
-
-def make_path(extent):
-    n = 20
-    aoi = Path(
-        list(zip(np.linspace(extent[0],extent[1], n), np.full(n, extent[3]))) + \
-        list(zip(np.full(n, extent[1]), np.linspace(extent[3], extent[2], n))) + \
-        list(zip(np.linspace(extent[1], extent[0], n), np.full(n, extent[2]))) + \
-        list(zip(np.full(n, extent[0]), np.linspace(extent[2], extent[3], n)))
-    )
-
-    return(aoi)
-
-
-class ShadedReliefESRI(GoogleTiles):
-    # shaded relief
-    def _image_url(self, tile):
-        x, y, z = tile
-        url = ('https://server.arcgisonline.com/ArcGIS/rest/services/' \
-               'World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}.jpg').format(
-               z=z, y=y, x=x)
-        return url
 
 
 def plot_event(eq, volcs, config):

@@ -29,20 +29,21 @@ warnings.filterwarnings("ignore")
 attempt = 1
 while attempt <= 3:
     try:
-        client = Client('IRIS')
+        client = Client("IRIS")
         break
     except:
         time.sleep(2)
-        attempt+=1
+        attempt += 1
         client = None
 
 def run_alarm(config, T0, test=False):
 
     # Download the event data
-    print(T0.strftime('%Y-%m-%d %H:%M'))
-    print('Downloading events...')
+    print(T0.strftime("%Y-%m-%d %H:%M"))
+    print("Downloading events...")
     T2 = T0
     T1 = T2 - config.DURATION
+    T0_str = T0.strftime('%Y-%m-%d %H:%M')
     URL = "{}starttime={}&endtime={}&minmagnitude={}&maxdepth={}&includearrivals=true&format=xml".format(
         os.environ["GUGUAN_URL"],
         T1.strftime("%Y-%m-%dT%H:%M:%S"),
@@ -54,90 +55,93 @@ def run_alarm(config, T0, test=False):
 
     # Error pulling events
     if CAT is None:
-        state = 'WARNING'
-        state_message = '{} (UTC) FDSN connection error'.format(T0.strftime('%Y-%m-%d %H:%M'))
+        state = "WARNING"
+        state_message = f"{T0_str} (UTC) FDSN connection error"
         messaging.icinga(config, state, state_message)
         return
 
     # No events
     if len(CAT) == 0:
-        state = 'OK'
-        state_message = '{} (UTC) No new earthquakes'.format(T0.strftime('%Y-%m-%d %H:%M'))
+        state = "OK"
+        state_message = f"{T0_str} (UTC) No new earthquakes"
         messaging.icinga(config, state, state_message)
         return
 
     # Compare new event distance with volcanoes
     VOLCS = pd.read_excel(config.volc_file)
     CAT_DF = catalog_to_dataframe(CAT, VOLCS)
-    CAT_DF = CAT_DF[CAT_DF['V_DIST']<config.DISTANCE]
+    CAT_DF = CAT_DF[CAT_DF["V_DIST"]<config.DISTANCE]
 
     # New events, but not close enough to volcanoes
     if len(CAT_DF) == 0:
-        print('Earthquakes detected, but not near any volcanoes')
-        state = 'OK'
-        state_message = '{} (UTC) No new earthquakes'.format(T0.strftime('%Y-%m-%d %H:%M'))
+        print("Earthquakes detected, but not near any volcanoes")
+        state = "OK"
+        state_message = f"{T0_str} (UTC) No new earthquakes"
         messaging.icinga(config, state, state_message)
         return
 
     # Read in old events. Write all recent events. Filter to new events
     OLD_EVENTS = pd.read_csv(config.outfile) 
-    CAT_DF[['ID']].to_csv(config.outfile, index=False)
-    NEW_EVENTS=CAT_DF[~CAT_DF['ID'].isin(OLD_EVENTS.ID)]
-    NEW_EVENTS = NEW_EVENTS.sort_values('Time')
+    CAT_DF[["ID"]].to_csv(config.outfile, index=False)
+    NEW_EVENTS=CAT_DF[~CAT_DF["ID"].isin(OLD_EVENTS.ID)]
+    NEW_EVENTS = NEW_EVENTS.sort_values("Time")
 
     # No new events to process
     if len(NEW_EVENTS) == 0:
-        print('Earthquakes detected, but already processed in previous run')
-        state = 'WARNING'
-        state_message = '{} (UTC) Old event detected'.format(T0.strftime('%Y-%m-%d %H:%M'))
+        print("Earthquakes detected, but already processed in previous run")
+        state = "WARNING"
+        state_message = f"{T0_str} (UTC) Old event detected"
         messaging.icinga(config, state, state_message)
         return
 
-    print('{} new events found. Looping through events...'.format(len(NEW_EVENTS)))
+    print(f"{len(NEW_EVENTS)} new events found. Looping through events...")
     # Filter Obspy catalog to new events near volcanoes
     CAT_NEW = Catalog()
     for i, row in NEW_EVENTS.iterrows():
-        filter1 = "time >= {}".format(row.Time.strftime('%Y-%m-%dT%H:%M:%S.%f'))
-        filter2 = "time <= {}".format(row.Time.strftime('%Y-%m-%dT%H:%M:%S.%f'))
+        filter1 = "time >= {}".format(row.Time.strftime("%Y-%m-%dT%H:%M:%S.%f"))
+        filter2 = "time <= {}".format(row.Time.strftime("%Y-%m-%dT%H:%M:%S.%f"))
         CAT_NEW.append(CAT.filter(filter1, filter2)[0])
 
     # Add phase info to new events
     try:
         CAT_NEW = addPhaseHint(CAT_NEW)
     except:
-        print('Could not add phase type...')
+        print("Could not add phase type...")
 
     for eq in CAT_NEW:
-        print('Processing {}, {}'.format(eq.short_str(), eq.resource_id.id))
-        volcs = processing.volcano_distance(eq.preferred_origin().longitude, eq.preferred_origin().latitude, VOLCS)
-        volcs = volcs.sort_values('distance')
+        print("Processing {}, {}".format(eq.short_str(), eq.resource_id.id))
+        volcs = processing.volcano_distance(
+            eq.preferred_origin().longitude, eq.preferred_origin().latitude, VOLCS
+        )
+        volcs = volcs.sort_values("distance")
 
         #### Generate Figure ####
         try:
             attachment = plot_event(eq, volcs, config)
-            new_filename = '{}/{}_M{:.1f}_{}.png'.format(os.environ['TMP_FIGURE_DIR'],
-                                                 eq.preferred_origin().time.strftime('%Y%m%dT%H%M%S'),
-                                                 eq.preferred_magnitude().mag,
-                                                 ''.join(eq.resource_id.id.split('/')[-2:]).lower())
+            fig_dir = Path(os.environ["TMP_FIGURE_DIR"])
+            eq_time = eq.preferred_origin().time.strftime("%Y%m%dT%H%M%S")
+            eq_mag = eq.preferred_magnitude().mag
+            eq_id = "".join(eq.resource_id.id.split("/")[-2:]).lower()
+            new_filename = fig_dir / f"{eq_time}_M{eq_mag:.1f}_{eq_id}.png"
             os.rename(attachment, new_filename)
             attachment = new_filename
         except:
             attachment = []
-            print('Problem making figure. Continue anyway')
+            print("Problem making figure. Continue anyway")
             b = traceback.format_exc()
-            err_message = ''.join('{}\n'.format(a) for a in b.splitlines())
+            err_message = "".join(f"{a}\n" for a in b.splitlines())
             print(err_message)
 
         # craft and send the message
         subject, message = create_message(eq, volcs)
 
-        print('Sending message...')
+        print("Sending message...")
         # messaging.send_alert(config.alarm_name, subject, message, attachment)
-        print('Posting to mattermost...')
+        print("Posting to mattermost...")
         messaging.post_mattermost(config, subject, message, filename=attachment)
 
         # Post to dedicated response channels for volcnoes listed in config file
-        if 'mm_response_channels' in dir(config):
+        if "mm_response_channels" in dir(config):
             if volcs.iloc[0].Volcano in config.mm_response_channels.keys():
                 config.mattermost_channel_id = config.mm_response_channels[volcs.iloc[0].Volcano]
                 messaging.post_mattermost(config, subject, message, filename=attachment)
@@ -146,8 +150,9 @@ def run_alarm(config, T0, test=False):
         if attachment:
             os.remove(attachment)
 
-        state = 'CRITICAL'
-        state_message = '{} (UTC) {}'.format(eq.preferred_origin().time.strftime('%Y-%m-%d %H:%M:%S'), subject)
+        state = "CRITICAL"
+        eq_str = eq.preferred_origin().time.strftime("%Y-%m-%d %H:%M:%S")
+        state_message = f"{eq_str} (UTC) {subject}"
 
     messaging.icinga(config, state, state_message)
 
@@ -155,34 +160,34 @@ def run_alarm(config, T0, test=False):
 
 
 def create_message(eq, volcs):
-    origin=eq.preferred_origin()
-    t = pd.Timestamp(origin.time.datetime, tz='UTC')
-    t_local = t.tz_convert(os.environ['TIMEZONE'])
-    Local_time_text = '{} {}'.format(t_local.strftime('%Y-%m-%d %H:%M:%S'), t_local.tzname())
+    origin = eq.preferred_origin()
+    t = pd.Timestamp(origin.time.datetime, tz="UTC")
+    t_local = t.tz_convert(os.environ["TIMEZONE"])
+    Local_time_text = f"{t_local.strftime("%Y-%m-%d %H:%M:%S")} {t_local.tzname()}"
 
-    message = '{} UTC\n{}'.format(t.strftime('%Y-%m-%d %H:%M:%S'), Local_time_text)
-    message = '{}\n\n**Magnitude:** {:.1f}'.format(message, eq.preferred_magnitude().mag)
-    message = '{}\n**Latitude:** {:.3f}\n**Longitude:** {:.3f}'.format(message, origin.latitude, origin.longitude)
-    message = '{}\n**Depth:** {:.1f} km'.format(message, origin.depth/1000)
-    message = '{}\n**Event ID:** {}'.format(message, ''.join(eq.resource_id.id.split('/')[-2:]).lower())
-    
-    volcs = volcs.sort_values('distance')
-    v_text = ''
-    for i, row in volcs[:3].iterrows():
-        v_text = '{}{} ({:.0f} km), '.format(v_text, row.Volcano, row.distance)
-    v_text = v_text.replace('_',' ')
-    message = '{}\n**Nearest volcanoes:** {}'.format(message, v_text[:-2])
-    
+    message = f"{t.strftime('%Y-%m-%d %H:%M:%S')} UTC\n{Local_time_text}"
+    message = f"{message}\n\n**Magnitude:** {eq.preferred_magnitude().mag:.1f}"
+    message = f"{message}\n**Latitude:** {origin.latitude:.3f}\n**Longitude:** {origin.longitude:.3f}"
+    message = f"{message}\n**Depth:** {origin.depth / 1000:.1f} km"
+    message = f"{message}\n**Event ID:** {''.join(eq.resource_id.id.split('/')[-2:]).lower()}"
+
+    volcs = volcs.sort_values("distance")
+    v_text = ""
+    for _, row in volcs[:3].iterrows():
+        v_text = f"{v_text}{row.Volcano} ({row.distance:.0f} km), "
+    v_text = v_text.replace("_", " ")
+    message = f"{message}\n**Nearest volcanoes:** {v_text[:-2]}"
+
     try:
-        message = '{}\n\n***--- {} Location ---***'.format(message, origin.evaluation_mode.replace('manual','reviewed').upper())
-        message = '{}\nUsing {:g} phases from {:g} stations'.format(message, origin.quality.used_phase_count, origin.quality.used_station_count)
-        message = '{}\n**Azimuthal Gap:** {:g} degrees'.format(message, origin.quality.azimuthal_gap)
-        message = '{}\n**Standard Error:** {:g} s'.format(message, origin.quality.standard_error)
-        message = '{}\n**Vertical/Horizontal Error:** {:.1f} km / {:.1f} km'.format(message, origin.depth_errors['uncertainty']/1000, origin.origin_uncertainty.horizontal_uncertainty/1000.)
+        message = f"{message}\n\n***--- {origin.evaluation_mode.replace('manual', 'reviewed').upper()} Location ---***"
+        message = f"{message}\nUsing {origin.quality.used_phase_count:g} phases from {origin.quality.used_station_count:g} stations"
+        message = f"{message}\n**Azimuthal Gap:** {origin.quality.azimuthal_gap:g} degrees"
+        message = f"{message}\n**Standard Error:** {origin.quality.standard_error:g} s"
+        message = f"{message}\n**Vertical/Horizontal Error:** {origin.depth_errors['uncertainty'] / 1000:.1f} km / {origin.origin_uncertainty.horizontal_uncertainty / 1000:.1f} km"
     except:
         pass
 
-    subject = 'M{:.1f} earthquake at {}'.format(eq.preferred_magnitude().mag, volcs.iloc[0].Volcano)
+    subject = f"M{eq.preferred_magnitude().mag:.1f} earthquake at {volcs.iloc[0].Volcano}"
 
     return subject, message
 
@@ -202,7 +207,7 @@ def catalog_to_dataframe(CAT, VOLCS):
     for eq in CAT:
         LATS.append(eq.preferred_origin().latitude)
         LONS.append(eq.preferred_origin().longitude)
-        DEPS.append(eq.preferred_origin().depth/1000)
+        DEPS.append(eq.preferred_origin().depth / 1000)
         TIME.append(eq.preferred_origin().time.datetime)
         try:
             RMS.append(eq.preferred_origin().quality.standard_error)
@@ -219,12 +224,24 @@ def catalog_to_dataframe(CAT, VOLCS):
         evid = eq.resource_id.id
         ID.append(evid)
 
-        volcs = processing.volcano_distance(eq.preferred_origin().longitude, eq.preferred_origin().latitude, VOLCS)
-        volcs = volcs.sort_values('distance')
+        volcs = processing.volcano_distance(
+            eq.preferred_origin().longitude, eq.preferred_origin().latitude, VOLCS
+        )
+        volcs = volcs.sort_values("distance")
         V_DIST.append(volcs.iloc[0].distance)
 
-    cat_df = pd.DataFrame({'Time': TIME, 'Latitude':LATS, 'Longitude':LONS, 'Depth':DEPS, 'Magnitude':MAGS, 'ID':ID, 'V_DIST':V_DIST})
-    cat_df['Time'] = pd.to_datetime(cat_df['Time'])
+    cat_df = pd.DataFrame(
+        {
+            "Time": TIME,
+            "Latitude": LATS,
+            "Longitude": LONS,
+            "Depth": DEPS,
+            "Magnitude": MAGS,
+            "ID": ID,
+            "V_DIST": V_DIST,
+        }
+    )
+    cat_df["Time"] = pd.to_datetime(cat_df["Time"])
 
     return cat_df
 
@@ -239,49 +256,65 @@ def addPhaseHint(cat):
             for arrival in eq.preferred_origin().arrivals:
                 nowArrID = arrival.pick_id
                 if nowPickID == nowArrID:
-                    pick.phase_hint=arrival.phase
+                    pick.phase_hint = arrival.phase
     return cat
 
 
 def get_channels(eq):
 
-    NS   = []
+    NS = []
     NSLC = []
     SCNL = []
     LATS = []
     LONS = []
     DIST = []
-    P    = []
-    S    = []
+    P = []
+    S = []
     for p in eq.picks:
-        wid=p.waveform_id
-        net, sta, loc, chan = wid.id.split('.')
-        ns = '.'.join([net,sta])
-        if (ns not in NS):
-            print('Getting lat/lon info for {}'.format(wid.id))
-            inventory = client.get_stations(network=net,
-                                            station=sta,
-                                            location=loc,
-                                            channel=chan)
+        wid = p.waveform_id
+        net, sta, loc, chan = wid.id.split(".")
+        ns = ".".join([net, sta])
+        if ns not in NS:
+            print(f"Getting lat/lon info for {wid.id}")
+            inventory = client.get_stations(
+                network=net, station=sta, location=loc, channel=chan
+            )
             # NSLC.append(wid.id.replace('..','.--.'))
             NS.append(ns)
             NSLC.append(wid.id)
-            SCNL.append('.'.join([sta, chan, net, loc]))
+            SCNL.append(".".join([sta, chan, net, loc]))
             LATS.append(inventory[0][0].latitude)
             LONS.append(inventory[0][0].longitude)
     for i, nslc in enumerate(NSLC):
-        dist = gps2dist_azimuth(eq.preferred_origin().latitude, eq.preferred_origin().longitude, LATS[i], LONS[i])[0]/1000.
+        dist = (
+            gps2dist_azimuth(
+                eq.preferred_origin().latitude,
+                eq.preferred_origin().longitude,
+                LATS[i],
+                LONS[i],
+            )[0]
+            / 1000.0
+        )
         DIST.append(dist)
 
-    STAS = pd.DataFrame({'NS':NS, 'NSLC':NSLC, 'SCNL':SCNL, 'Latitude':LATS, 'Longitude':LONS, 'Distance':DIST})
+    STAS = pd.DataFrame(
+        {
+            "NS": NS,
+            "NSLC": NSLC,
+            "SCNL": SCNL,
+            "Latitude": LATS,
+            "Longitude": LONS,
+            "Distance": DIST,
+        }
+    )
 
-    STAS['P'] = np.nan
-    STAS['S'] = np.nan
+    STAS["P"] = np.nan
+    STAS["S"] = np.nan
     for p in eq.picks:
-        ns = '.'.join(p.waveform_id.id.split('.')[:2])
-        STAS.loc[STAS.NS==ns, p.phase_hint] = p.time
+        ns = ".".join(p.waveform_id.id.split(".")[:2])
+        STAS.loc[STAS.NS == ns, p.phase_hint] = p.time
 
-    STAS = STAS.sort_values('Distance')
+    STAS = STAS.sort_values("Distance")
 
     return STAS
 
@@ -299,11 +332,11 @@ def plot_event(eq, volcs, config):
     try:
         client._attach_responses(st)
         st.remove_response()
-        velocity=True
+        velocity = True
     except:
-        velocity=False
+        velocity = False
 
-    print('Plotting traces...')
+    print("Plotting traces...")
     st.trim(st[0].stats.starttime+5, st[0].stats.endtime-5)
     st.detrend()
     ST = Stream()
@@ -365,20 +398,18 @@ def plot_event(eq, volcs, config):
             v.remove()
     ax.tick_params('x',length=0)
 
-
-
     #################### Add main map ####################
     grid = plt.GridSpec(len(ST), 1, wspace=0.05, hspace=0.6)
     print('Plotting main map...')
     extent = get_extent(volcs.iloc[0].Latitude, volcs.iloc[0].Longitude, dist=25)
-            # CRS = cartopy.crs.Mercator(central_longitude=np.mean(extent[:2]), min_latitude=extent[2], max_latitude=extent[3], globe=None)
-            # ax1 = plt.subplot(grid[:n_blank,0], projection=CRS)
-            # ax1.set_extent(extent,cartopy.crs.PlateCarree())
-            # coast = cartopy.feature.GSHHSFeature(scale="high", rasterized=True)
-            # ax1.add_feature(coast, facecolor="lightgray", linewidth=0.5)
-            # water_col=tuple(np.array([165,213,229])/255.)
-            # ax1.set_facecolor(water_col)
-            # ax1.background_patch.set_facecolor(water_col)
+    # CRS = cartopy.crs.Mercator(central_longitude=np.mean(extent[:2]), min_latitude=extent[2], max_latitude=extent[3], globe=None)
+    # ax1 = plt.subplot(grid[:n_blank,0], projection=CRS)
+    # ax1.set_extent(extent,cartopy.crs.PlateCarree())
+    # coast = cartopy.feature.GSHHSFeature(scale="high", rasterized=True)
+    # ax1.add_feature(coast, facecolor="lightgray", linewidth=0.5)
+    # water_col=tuple(np.array([165,213,229])/255.)
+    # ax1.set_facecolor(water_col)
+    # ax1.background_patch.set_facecolor(water_col)
     ax1 = plt.subplot(grid[:n_blank,0], projection=ShadedReliefESRI().crs)
     ax1.set_extent(extent)
     ax1.add_image(ShadedReliefESRI(), 11)
@@ -388,8 +419,8 @@ def plot_event(eq, volcs, config):
     # 				   xlocs=lon_grid, ylocs=lat_grid,
     # 				   xformatter=LongitudeFormatter(number_format='.2f', direction_label=False),
     # 				   yformatter=LatitudeFormatter(number_format='.2f', direction_label=False),
-    # 				   alpha=0.2, 
-    # 				   color='gray', 
+    # 				   alpha=0.2,
+    # 				   color='gray',
     # 				   linewidth=0.5,
     # 				   xlabel_style={'fontsize':6},
     # 				   ylabel_style={'fontsize':6})
@@ -410,7 +441,7 @@ def plot_event(eq, volcs, config):
     for i, row in channels.iterrows():
         t = ax1.text(row.Longitude+0.006, row.Latitude+0.006, row.NS.split('.')[-1], clip_on=True, fontsize=6, transform=cartopy.crs.PlateCarree())
         t.clipbox = ax1.bbox
-    
+
     ax1.set_title('{}\nM{:.1f}, {:.1f} km from {}\nDepth: {:.1f} km'.format(eq.preferred_origin().time.strftime('%Y-%m-%d %H:%M:%S'),
                                                                eq.preferred_magnitude().mag, 
                                                                volcs.iloc[0].distance,
@@ -421,7 +452,6 @@ def plot_event(eq, volcs, config):
 
     fig.subplots_adjust(top=0.94)
     fig.subplots_adjust(bottom=0.03)
-
 
     ################### Add inset map ###################
     print('Plotting inset map...')

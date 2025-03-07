@@ -3,7 +3,7 @@ from pathlib import Path
 
 current_path = Path(__file__).parent
 sys.path.append(str(current_path.parents[0]))
-from alarm_codes import utils
+from utils.messaging import icinga
 
 
 def config():
@@ -19,7 +19,7 @@ def send_empty_icinga():
     state = "OK"
     state_message = "Empty alarm service"
 
-    utils.icinga2_state(config, state, state_message)
+    icinga(config, state, state_message)
 
 
 if __name__ == "__main__":

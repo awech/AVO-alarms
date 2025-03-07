@@ -1,5 +1,5 @@
-from . import utils
 import os
+import sys
 import pandas as pd
 import numpy as np
 from obspy import Catalog, UTCDateTime, Stream
@@ -18,6 +18,12 @@ import warnings
 import traceback
 import time
 from obspy.clients.fdsn import Client
+from pathlib import Path
+
+current_path = Path(__file__).parent
+sys.path.append(str(current_path.parents[0]))
+from utils import messaging, plotting, processing
+
 
 warnings.filterwarnings("ignore")
 
@@ -43,20 +49,20 @@ def run_alarm(config, T0, test=False):
 																									     T2.strftime('%Y-%m-%dT%H:%M:%S'),
 																									     config.MAGMIN,
 																									     config.MAXDEP)
-	CAT = utils.download_hypocenters(URL)
+	CAT = processing.download_hypocenters(URL)
 
 	# Error pulling events
 	if CAT is None:
 		state = 'WARNING'
 		state_message = '{} (UTC) FDSN connection error'.format(T0.strftime('%Y-%m-%d %H:%M'))
-		utils.icinga2_state(config, state, state_message)
+		messaging.icinga(config, state, state_message)
 		return
 
 	# No events
 	if len(CAT) == 0:
 		state = 'OK'
 		state_message = '{} (UTC) No new earthquakes'.format(T0.strftime('%Y-%m-%d %H:%M'))
-		utils.icinga2_state(config, state, state_message)
+		messaging.icinga(config, state, state_message)
 		return
 
 	# Compare new event distance with volcanoes
@@ -69,7 +75,7 @@ def run_alarm(config, T0, test=False):
 		print('Earthquakes detected, but not near any volcanoes')
 		state = 'OK'
 		state_message = '{} (UTC) No new earthquakes'.format(T0.strftime('%Y-%m-%d %H:%M'))
-		utils.icinga2_state(config, state, state_message)
+		messaging.icinga(config, state, state_message)
 		return
 
 	# Read in old events. Write all recent events. Filter to new events
@@ -83,7 +89,7 @@ def run_alarm(config, T0, test=False):
 		print('Earthquakes detected, but already processed in previous run')
 		state = 'WARNING'
 		state_message = '{} (UTC) Old event detected'.format(T0.strftime('%Y-%m-%d %H:%M'))
-		utils.icinga2_state(config, state, state_message)
+		messaging.icinga(config, state, state_message)
 		return
 
 	print('{} new events found. Looping through events...'.format(len(NEW_EVENTS)))
@@ -102,7 +108,7 @@ def run_alarm(config, T0, test=False):
 
 	for eq in CAT_NEW:
 		print('Processing {}, {}'.format(eq.short_str(), eq.resource_id.id))
-		volcs = utils.volcano_distance(eq.preferred_origin().longitude, eq.preferred_origin().latitude, VOLCS)
+		volcs = processing.volcano_distance(eq.preferred_origin().longitude, eq.preferred_origin().latitude, VOLCS)
 		volcs = volcs.sort_values('distance')
 	
 		#### Generate Figure ####
@@ -126,15 +132,15 @@ def run_alarm(config, T0, test=False):
 		subject, message = create_message(eq, volcs)
 
 		print('Sending message...')
-		# utils.send_alert(config.alarm_name, subject, message, attachment)
+		# messaging.send_alert(config.alarm_name, subject, message, attachment)
 		print('Posting to mattermost...')
-		utils.post_mattermost(config, subject, message, filename=attachment)
+		messaging.post_mattermost(config, subject, message, filename=attachment)
 
 		# Post to dedicated response channels for volcnoes listed in config file
 		if 'mm_response_channels' in dir(config):
 			if volcs.iloc[0].Volcano in config.mm_response_channels.keys():
 				config.mattermost_channel_id = config.mm_response_channels[volcs.iloc[0].Volcano]
-				utils.post_mattermost(config, subject, message, filename=attachment)
+				messaging.post_mattermost(config, subject, message, filename=attachment)
 
 		# delete the file you just sent
 		if attachment:
@@ -143,7 +149,7 @@ def run_alarm(config, T0, test=False):
 		state = 'CRITICAL'
 		state_message = '{} (UTC) {}'.format(eq.preferred_origin().time.strftime('%Y-%m-%d %H:%M:%S'), subject)
 	
-	utils.icinga2_state(config, state, state_message)
+	messaging.icinga(config, state, state_message)
 
 	return
 
@@ -213,7 +219,7 @@ def catalog_to_dataframe(CAT, VOLCS):
 		evid = eq.resource_id.id
 		ID.append(evid)
 
-		volcs = utils.volcano_distance(eq.preferred_origin().longitude, eq.preferred_origin().latitude, VOLCS)
+		volcs = processing.volcano_distance(eq.preferred_origin().longitude, eq.preferred_origin().latitude, VOLCS)
 		volcs = volcs.sort_values('distance')
 		V_DIST.append(volcs.iloc[0].distance)
 
@@ -322,7 +328,7 @@ def plot_event(eq, volcs, config):
 	################### Download data ###################
 	channels = get_channels(eq)
 	plot_chans = channels[:8]
-	st = utils.grab_data(list(plot_chans.SCNL.values), 
+	st = processing.grab_data(list(plot_chans.SCNL.values), 
 						eq.preferred_origin().time-20, 
 						eq.preferred_origin().time+50)
 	try:
@@ -479,7 +485,7 @@ def plot_event(eq, volcs, config):
 	#####################################################
 
 	print('Saving figure...')
-	jpg_file = utils.save_file(fig, config, dpi=250)
+	jpg_file = plotting.save_file(fig, config, dpi=250)
 	plt.close(fig)
 
 	return jpg_file

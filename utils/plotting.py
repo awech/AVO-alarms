@@ -1,10 +1,13 @@
+import os
+from pathlib import Path
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 import shapely.geometry as sgeom
-
+from PIL import Image
+from obspy import UTCDateTime as utc
 # from matplotlib_scalebar.scalebar import ScaleBar
 from cartopy.io.img_tiles import GoogleTiles
 from matplotlib.path import Path as mPath
@@ -286,3 +289,23 @@ def add_watermark(text, ax=None):
         va="center",
         ha="center",
     )
+
+
+def save_file(plt, config, dpi=250):
+    home_dir = Path(os.environ["HOME_DIR"])
+
+    png_file = (
+        home_dir
+        / f"{config.alarm_name.replace(' ','_')}_{utc.utcnow().strftime('%Y%m%d_%H%M%S')}.png"
+    )
+    jpg_file = (
+        home_dir
+        / f"{config.alarm_name.replace(' ','_')}_{utc.utcnow().strftime('%Y%m%d_%H%M%S')}.jpg"
+    )
+
+    plt.savefig(png_file, dpi=dpi, format="png")
+    im = Image.open(png_file)
+    im.convert("RGB").save(jpg_file, "JPEG")
+    os.remove(png_file)
+
+    return jpg_file

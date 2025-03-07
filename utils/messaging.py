@@ -14,7 +14,7 @@ from pandas import read_excel
 from tomputils import mattermost as mm
 
 
-def icinga2_state(config, state, state_message, test=False):
+def icinga(config, state, state_message, test=False):
     """_summary_
 
     Parameters

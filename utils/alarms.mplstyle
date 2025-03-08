@@ -1,0 +1,65 @@
+# List of rcparams here:
+# https://matplotlib.org/stable/api/matplotlib_configuration_api.html#matplotlib.rcParams
+# plotting style for lasertram
+
+
+
+# FIGURE LEVEL
+pdf.fonttype: 42
+figure.figsize: 4,4
+figure.edgecolor: black
+figure.facecolor: white
+savefig.dpi: 300
+figure.titlesize: 24
+savefig.bbox: tight
+
+# AXIS LEVEL
+axes.linewidth: 1.5
+axes.facecolor: white
+axes.labelsize: 12
+# axes.prop_cycle: cycler(marker = ['o','s','^','D'], linestyle = ['-','--',':','-.']) * cycler(color = ["#009ADE","#FF1F5B","#00CD6C","#AF58BA","#FFC61E","#089099","#F28522","#A0B1BA","#045275",], markeredgecolor = ["#009ADE","#FF1F5B","#00CD6C","#AF58BA","#FFC61E","#089099","#F28522","#A0B1BA","#045275",])
+axes.titlesize: 14
+axes.titlelocation: left
+errorbar.capsize: 0
+
+
+grid.color: gray
+grid.linewidth: 0.5
+
+# FONT STUFF
+font.family: sans-serif
+mathtext.fontset: stixsans
+
+# X-TICK
+xtick.bottom: True
+xtick.top: False
+xtick.direction: out
+xtick.major.size: 5
+xtick.major.width: 1
+xtick.minor.size: 3
+xtick.minor.width: 0.5
+xtick.minor.visible: False
+xtick.labelsize: 6
+
+# Y-TICK
+ytick.left: True
+ytick.right: True
+ytick.direction: out
+ytick.major.size: 5
+ytick.major.width: 1
+ytick.minor.size: 3
+ytick.minor.width: 0.5
+ytick.minor.visible: False
+ytick.labelsize: 6
+
+# MARKER
+lines.linewidth: 1.5
+lines.marker: None
+lines.markeredgewidth: 0.5
+lines.markeredgecolor: auto
+lines.markerfacecolor: auto
+lines.markersize: 6
+
+
+
+

@@ -5,7 +5,7 @@ from pathlib import Path
 
 current_path = Path(__file__).parent
 sys.path.append(str(current_path.parents[0]))
-from alarm_codes.utils import send_alert
+from utils.messaging import send_alert
 
 
 def send_test_email():

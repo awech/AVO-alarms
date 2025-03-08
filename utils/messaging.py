@@ -12,9 +12,10 @@ import requests
 import urllib3
 from pandas import read_excel
 from tomputils import mattermost as mm
+import warnings
+warnings.filterwarnings("ignore")
 
-
-def icinga2_state(config, state, state_message, test=False):
+def icinga(config, state, state_message, test=False):
     """_summary_
 
     Parameters
@@ -64,9 +65,9 @@ def icinga2_state(config, state, state_message, test=False):
 
         try:
             resp = requests.get(
-                os.environ["ICINGA2_URL"],
+                os.environ["ICINGA_URL"],
                 headers=headers,
-                auth=(os.environ["ICINGA2_USERNAME"], os.environ["ICINGA2_PASSWORD"]),
+                auth=(os.environ["ICINGA_USERNAME"], os.environ["ICINGA_PASSWORD"]),
                 data=json.dumps(data),
                 verify=False,
                 timeout=10,
@@ -136,7 +137,7 @@ def send_alert(alarm_name, subject, body, filename=None, test=False):
             msg.attach(MIMEText(body, "plain"))
 
             if filename:
-                name = filename.split("/")[-1]
+                name = filename.name
                 attachment = open(filename, "rb")
                 part = MIMEBase("application", "octet-stream")
                 part.set_payload((attachment).read())

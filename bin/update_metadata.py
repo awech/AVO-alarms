@@ -5,7 +5,7 @@ from pathlib import Path
 
 current_path = Path(__file__).parent
 sys.path.append(str(current_path.parents[0]))
-from alarm_codes import utils
+from utils.processing import update_stationXML
 
 
 def update_metadata():
@@ -21,7 +21,7 @@ def update_metadata():
         f = open(file, "a")
         sys.stdout = sys.stderr = f
 
-    utils.update_stationXML()
+    update_stationXML()
 
 
 if __name__ == "__main__":

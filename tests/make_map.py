@@ -26,7 +26,18 @@ plt.style.use(Path("utils") / "alarms.mplstyle")
 
 
 class ShadedReliefESRI(GoogleTiles):
-    # shaded relief
+    """
+    create a hillshade from esri
+
+    Example:
+    ```python
+    fig,ax = plt.subplots(subplot_kw={'projection': ccrs.PlateCarree()})
+
+    ax.add_image(ShadedReliefEsri(), zoom_level, alpha)
+    ax.set_extent(extent)
+    ```
+    """
+
     def _image_url(self, tile):
         x, y, z = tile
         url = (
@@ -36,23 +47,31 @@ class ShadedReliefESRI(GoogleTiles):
         return url
 
 
-def add_circle_boundary(ax):
-    # Compute a circle in axes coordinates, which we can use as a boundary
-    # for the map. We can pan/zoom as much as we like - the boundary will be
-    # permanently circular.
-    theta = np.linspace(0, 2 * np.pi, 100)
-    center, radius = [0.5, 0.5], 0.5
-    verts = np.vstack([np.sin(theta), np.cos(theta)]).T
-    circle = mpath.Path(verts * radius + center)
-    ax.set_boundary(circle, transform=ax.transAxes)
-
-
-def create_bounding_box(lat, lon, ydist, xdist):
+def get_bounding_box_limits(lat, lon, ydist, xdist):
     """
-    create a bounding box around a point on the earth
-    with user specified horizontal and vertical distance
+    get the lat and lon limits a user specified distance from a central point.
+    Effectively converts distance from a central point to degrees.
 
+    For more maths:
+    longitude - https://en.wikipedia.org/wiki/Longitude#Length_of_a_degree_of_longitude
+    latitude - https://en.wikipedia.org/wiki/Latitude#Length_of_a_degree_of_latitude
 
+    Used for when you want to effectively create bounding boxes around a central point
+
+    Example:
+    ```python
+    # for creating cartopy extents
+
+    d_deg_lat, d_deg_lon = get_bounding_box_limits(
+        lat=volc_lat, lon=volc_lon, xdist=x_dist, ydist=y_dist
+    )
+    # get bounding box lat and lon bounds
+    latitude_min, latitude_max = volc_lat - d_deg_lat, volc_lat + d_deg_lat
+    longitude_min, longitude_max = volc_lon - d_deg_lon, volc_lon + d_deg_lon
+
+    # bounding box extent in cartopy argument format
+    extent = [longitude_min, longitude_max, latitude_min, latitude_max]
+    ```
 
     Parameters
     ----------
@@ -98,12 +117,28 @@ def create_bounding_box(lat, lon, ydist, xdist):
 
 
 def make_path(extent):
-    """_summary_
+    """
+    make a matplotlib Path based on a list formatted for
+    a matplotlib geoAxes.set_extent(). Useful for clipping axes to
+    lat, lon boundaries when they are not rectangular in 2D space.
+    DOES NOT WORK WITH MERCATOR PROJECTION - use with projections that make non
+    rectangular lat,lon boxes in 2D space e.g., Orthographic, AlbersEqualArea
+
+    Example:
+    ```python
+    fig,ax = plt.subplots(subplot_kw = {'projection': ccrs.Orthographic})
+    extent = [longitude_min, longitude_max, latitude_min, latitude_max]
+    ax.set_boundary(make_path(extent), transform=ccrs.Geodetic())
 
     Parameters
     ----------
-    extent : _type_
-        _description_
+    extent : list
+        list of lat lon values formatted for matplotlib.geoAxes.set_extent() -
+        [longitude_min, longitude_max, latitude_min, latitude_max]
+
+    Return
+    matplotlib Path object representing the desired extent
+    ```
     """
     n = 20
     aoi = mpath.Path(
@@ -120,12 +155,80 @@ def make_map(
     volc_lat,
     volc_lon,
     ax,
-    x_dist=25,
+    x_dist=25.0,
     y_dist=None,
     basemap="hillshade",
     projection="mercator",
     land_color="#80808050",
 ):
+    """
+    make the basemap for all AVO alarms that require maps.
+    This function is incredibly flexible to allow for use in both main
+    and inset maps.
+
+    Example:
+    ```python
+    # A basic alarms template with a main map and inset axis:
+    fig, ax = plt.subplots(figsize=(6, 6))
+
+
+    # NORMAL MAP uses the default x_dist of 25
+    ax = make_map(
+        volc_lat,
+        volc_lon,
+        ax=ax,
+        basemap="hillshade",
+    )
+    ax.set_title("Alarms general template")
+    # INSET MAP
+    ax_inset = fig.add_axes([0.75, 0.75, 0.2, 0.2])
+    ax_inset = make_map(
+        volc_lat,
+        volc_lon,
+        x_dist=500,
+        y_dist=300,
+        ax=ax_inset,
+        basemap="land",
+        projection="orthographic",
+    )
+    ```
+
+    Parameters
+    ----------
+    volc_lat : float
+        volcano or central point latitude
+    volc_lon : float
+        volcano or central point longitude
+    ax : matplotlib.Axes
+        the matplotlib axis to create the map on
+    x_dist : float, optional
+        E-W distance from the central point in km, by default 25.
+    y_dist : float, optional
+        N-S distance from the central point in km, by default None.
+        If None, then y_dist = x_dist / 1.5. This creates relatively
+        square plots at AK latitudes
+    basemap : str, optional
+        what type of basemap to use. Options are:
+        'hillshade' - uses ShadedReliefEsri()
+        'land' - uses cartopy.cfeature.LAND
+        'boring' - uses cartopy.cfeature.STATES
+        by default 'hillshade'
+    projection : str, optional
+        which map projection to use. Options are:
+        'mercator' - uses ccrs.Mercator(central_longitude=volc_lon)
+        'orthographic' - uses ccrs.Orthographic(central_longitude=volc_lon,central_latitude=volc_lat)
+        'albers' - uses ccrs.AlbersEqualArea(central_longitude=volc_lon,central_latitude=volc_lat)
+        'nearside' - uses ccrs.NearsidePerspective(central_longitude=volc_lon,central_latitude=volc_lat)
+        by default "mercator". Note if basemap = 'hillshade', projection is forced to "mercator"
+        as this is the projection for the ShadedReliefEsri() image
+    land_color : str, optional
+        what color land you want? by default "#80808050"
+
+    Returns
+    -------
+    ax
+        matplotlib.geoAxes
+    """
 
     # type checking the ax argument
     assert isinstance(ax, plt.Axes), "ax is not a matplotlib axis, make sure it is"
@@ -150,7 +253,7 @@ def make_map(
     # uneven distances so that figure is square with mercator projection
     if y_dist is None:
         y_dist = x_dist / 1.5
-    d_deg_lat, d_deg_lon = create_bounding_box(
+    d_deg_lat, d_deg_lon = get_bounding_box_limits(
         lat=volc_lat, lon=volc_lon, xdist=x_dist, ydist=y_dist
     )
     # get bounding box lat and lon bounds
@@ -231,23 +334,47 @@ def make_map(
 
 
 def add_map_grid(volc_lat, volc_lon, ax, x_dist=25, y_dist=None, fontsize=6):
-    """_summary_
+    """
+    Add gridlines the way jubb and awech like them on their maps.
+
+    Example:
+    ```python
+    # A basic alarms template main map with gridlines
+    fig, ax = plt.subplots(figsize=(6, 6))
+
+
+    # NORMAL MAP uses the default x_dist of 25
+    ax = make_map(
+        volc_lat,
+        volc_lon,
+        ax=ax,
+        basemap="hillshade",
+    )
+    gl = add_map_grid(volc_lat, volc_lon, ax)
+    ax.set_title("Alarms general template")
+    ```
 
     Parameters
     ----------
-    volc_lat : _type_
-        _description_
-    volc_lon : _type_
-        _description_
-    ax : _type_
-        _description_
+    volc_lat : float
+        volcano or central point latitude
+    volc_lon : float
+        volcano or central point longitude
+    ax : ax : matplotlib.Axes
+        the matplotlib axis to create the map on
+    x_dist : float, optional
+        E-W distance from the central point in km, by default 25.
+    y_dist : float, optional
+        N-S distance from the central point in km, by default None.
+        If None, then y_dist = x_dist / 1.5. This creates relatively
+        square plots at AK latitudes
     fontsize : int, optional
-        _description_, by default 6
+       fontsize for the lat-lon labels, by default 6
 
     Returns
     -------
-    _type_
-        _description_
+    cartopy.mpl.gridliner.Gridliner
+        yer gridlines object. Can be further customized outside this
     """
     # GRIDLINES FOR MAIN MAP
     # format the grid lines
@@ -262,11 +389,11 @@ def add_map_grid(volc_lat, volc_lon, ax, x_dist=25, y_dist=None, fontsize=6):
             "number_format": ".2f",
         },
     )
-
+    # so the axis is relatvely square at AK lats
     if y_dist is None:
         y_dist = x_dist / 1.5
 
-    d_lat, d_lon = create_bounding_box(
+    d_lat, d_lon = get_bounding_box_limits(
         lat=volc_lat, lon=volc_lon, xdist=x_dist, ydist=y_dist
     )
 
@@ -338,8 +465,9 @@ fig, ax = plt.subplot_mosaic(
         ["mercator"],
         ["orthographic"],
         ["albers"],
+        ["nearside"],
     ],
-    figsize=(3, 10),
+    figsize=(3, 12),
 )
 
 for a in ax:
@@ -394,7 +522,7 @@ ax_inset = make_map(
 
 # INSET BOUNDING BOX
 # bounding box delta degrees
-d_deg_lat, d_deg_lon = create_bounding_box(
+d_deg_lat, d_deg_lon = get_bounding_box_limits(
     lat=df.loc[volcano, "Latitude"],
     lon=df.loc[volcano, "Longitude"],
     ydist=ydist,

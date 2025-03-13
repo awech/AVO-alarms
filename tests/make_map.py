@@ -1,3 +1,5 @@
+import os
+import sys
 import time
 from pathlib import Path
 
@@ -9,13 +11,18 @@ import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
 import shapely.geometry as sgeom
-
-# from matplotlib_scalebar.scalebar import ScaleBar
 from cartopy.io.img_tiles import GoogleTiles
 
-plt.style.use(
-    r"C:\Users\jlubbers\OneDrive - DOI\Research\Coding\USGS_GITLAB\AVO-alarms\utils\alarms.mplstyle"
-)
+# get the script directory
+script_dir = Path(os.path.dirname(__file__))
+
+# set the current working directory to the script parent
+# directory
+os.chdir(script_dir.parent)
+# add to path
+sys.path.append(os.getcwd())
+
+plt.style.use(Path("utils") / "alarms.mplstyle")
 
 
 class ShadedReliefESRI(GoogleTiles):
@@ -223,7 +230,25 @@ def make_map(
     return ax
 
 
-def add_map_grid(volc_lat, volc_lon, ax, fontsize=6, **linekwargs):
+def add_map_grid(volc_lat, volc_lon, ax, x_dist=25, y_dist=None, fontsize=6):
+    """_summary_
+
+    Parameters
+    ----------
+    volc_lat : _type_
+        _description_
+    volc_lon : _type_
+        _description_
+    ax : _type_
+        _description_
+    fontsize : int, optional
+        _description_, by default 6
+
+    Returns
+    -------
+    _type_
+        _description_
+    """
     # GRIDLINES FOR MAIN MAP
     # format the grid lines
     gl = ax.gridlines(
@@ -238,7 +263,15 @@ def add_map_grid(volc_lat, volc_lon, ax, fontsize=6, **linekwargs):
         },
     )
 
-    # grid lines
+    if y_dist is None:
+        y_dist = x_dist / 1.5
+
+    d_lat, d_lon = create_bounding_box(
+        lat=volc_lat, lon=volc_lon, xdist=x_dist, ydist=y_dist
+    )
+
+    # grid lines - taking care of being on either side of the
+    # anti-meridian
     lon_line_locs = [volc_lon - (d_lon / 2), volc_lon + (d_lon / 2)]
     new_lon_locs = []
     for loc in lon_line_locs:
@@ -246,6 +279,9 @@ def add_map_grid(volc_lat, volc_lon, ax, fontsize=6, **linekwargs):
             new_lon_locs.append(loc + 360)
         else:
             new_lon_locs.append(loc)
+
+    new_lon_locs = np.array(new_lon_locs)
+    new_lon_locs[new_lon_locs > 180] = new_lon_locs[new_lon_locs > 180] - 360
 
     gl.ylocator = mticker.FixedLocator([volc_lat - (d_lat / 2), volc_lat + (d_lat / 2)])
     # these aren't working with stuff that straddles the anti-meridian
@@ -263,17 +299,13 @@ def add_map_grid(volc_lat, volc_lon, ax, fontsize=6, **linekwargs):
 #########################################################
 ########## TESTING #######################################
 start = time.time()
-df = pd.read_excel(
-    r"C:\Users\jlubbers\OneDrive - DOI\Research\Coding\USGS_GITLAB\AVO-alarms\alarm_aux_files\volcano_list.xlsx"
-).set_index("Volcano")
-output_folder = Path("tests")
-# fig, ax = plt.subplots()
 
+output_folder = Path("tests") / "outputs"
+
+df = pd.read_excel(Path("alarm_aux_files") / "volcano_list.xlsx").set_index("Volcano")
 volcano = "Spurr"
-##### ZOOMED IN ###########
 
 print("making basemap example")
-
 fig, ax = plt.subplot_mosaic(
     [
         ["boring"],
@@ -294,10 +326,11 @@ for a in ax:
         # ticklabels=True,
     )
     ax[a].set_title(f"basemap = '{a}'", fontsize=10)
+
+
 print("saving basemap example")
-
 plt.savefig(output_folder / "avo-alarms_map-basemap_example.png")
-
+######################################################################
 print("making projection example")
 
 fig, ax = plt.subplot_mosaic(
@@ -322,14 +355,13 @@ for a in ax:
     ax[a].set_title(f"projection = '{a}'", fontsize=10)
 
 print("saving projection example")
-
-
 plt.savefig(output_folder / "avo-alarms_map-projection_example.png")
 #######################################################################
-print(output_folder / "making template example")
+print("making template example")
 
 fig, ax = plt.subplots(figsize=(6, 6))
 
+# SET MAP EXTENT AND VOLCANO LAT LON
 xdist = 25
 ydist = xdist / 1.5
 
@@ -337,7 +369,7 @@ volc_lat = df.loc[volcano, "Latitude"]
 volc_lon = df.loc[volcano, "Longitude"]
 
 
-# BASEMAPS
+# NORMAL MAP
 ax = make_map(
     volc_lat,
     volc_lon,
@@ -345,7 +377,10 @@ ax = make_map(
     ax=ax,
     basemap="hillshade",
 )
+gl = add_map_grid(volc_lat, volc_lon, ax, xdist)
+ax.set_title("Alarms general template")
 
+# MAKE THE INSET
 ax_inset = fig.add_axes([0.75, 0.75, 0.2, 0.2])
 ax_inset = make_map(
     volc_lat,
@@ -358,16 +393,16 @@ ax_inset = make_map(
 )
 
 # INSET BOUNDING BOX
-d_lat, d_lon = create_bounding_box(
+# bounding box delta degrees
+d_deg_lat, d_deg_lon = create_bounding_box(
     lat=df.loc[volcano, "Latitude"],
     lon=df.loc[volcano, "Longitude"],
     ydist=ydist,
     xdist=xdist,
 )
-
 # get bounding box lat and lon bounds
-latitude_min, latitude_max = volc_lat - d_lat, volc_lat + d_lat
-longitude_min, longitude_max = volc_lon - d_lon, volc_lon + d_lon
+latitude_min, latitude_max = volc_lat - d_deg_lat, volc_lat + d_deg_lat
+longitude_min, longitude_max = volc_lon - d_deg_lon, volc_lon + d_deg_lon
 
 # bounding box extent in cartopy argument format
 extent = sgeom.box(longitude_min, latitude_min, longitude_max, latitude_max)
@@ -378,12 +413,10 @@ ax_inset.add_geometries(
     edgecolor="red",
     linewidth=0.35,
 )
+# rivers for reference in case it's just a gray blob
+ax_inset.add_feature(cfeature.RIVERS, linewidth=0.5, linestyle=":")
 
-gl = add_map_grid(volc_lat, volc_lon, ax)
-
-ax.set_title("Alarms general template")
 print("saving template example")
-
 plt.savefig(output_folder / "avo-alarms_map-general_example.png")
 end = time.time()
 print(f"DONE in {end - start:.2f} seconds")

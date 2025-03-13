@@ -1,22 +1,34 @@
 import os
 from pathlib import Path
+
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
-from matplotlib.dates import date2num, num2date
-import pandas as pd
 import numpy as np
-import shapely.geometry as sgeom
-from PIL import Image
-from obspy import UTCDateTime as utc
+import pandas as pd
+
 # from matplotlib_scalebar.scalebar import ScaleBar
 from cartopy.io.img_tiles import GoogleTiles
-from matplotlib.path import Path as mPath
+from matplotlib.dates import date2num, num2date
+from matplotlib.path import Path as mpath
+from obspy import UTCDateTime as utc
+from PIL import Image
 
 
 class ShadedReliefESRI(GoogleTiles):
-    # shaded relief
+    """
+    create a hillshade from esri
+
+    Example:
+    ```python
+    fig,ax = plt.subplots(subplot_kw={'projection': ccrs.PlateCarree()})
+
+    ax.add_image(ShadedReliefEsri(), zoom_level, alpha)
+    ax.set_extent(extent)
+    ```
+    """
+
     def _image_url(self, tile):
         x, y, z = tile
         url = (
@@ -28,27 +40,50 @@ class ShadedReliefESRI(GoogleTiles):
 
 def get_extent(lat0, lon0, dist=20):
 
-    dlat = 1*(dist/111.1)
-    dlon = dlat/np.cos(lat0*np.pi/180)
+    dlat = 1 * (dist / 111.1)
+    dlon = dlat / np.cos(lat0 * np.pi / 180)
 
-    latmin= lat0 - dlat
-    latmax= lat0 + dlat
-    lonmin= lon0 - dlon
-    lonmax= lon0 + dlon
+    latmin = lat0 - dlat
+    latmax = lat0 + dlat
+    lonmin = lon0 - dlon
+    lonmax = lon0 + dlon
 
     return [lonmin, lonmax, latmin, latmax]
 
 
 def make_path(extent):
+    """
+    make a matplotlib Path based on a list formatted for
+    a matplotlib geoAxes.set_extent(). Useful for clipping axes to
+    lat, lon boundaries when they are not rectangular in 2D space.
+    DOES NOT WORK WITH MERCATOR PROJECTION - use with projections that make non
+    rectangular lat,lon boxes in 2D space e.g., Orthographic, AlbersEqualArea
+
+    Example:
+    ```python
+    fig,ax = plt.subplots(subplot_kw = {'projection': ccrs.Orthographic})
+    extent = [longitude_min, longitude_max, latitude_min, latitude_max]
+    ax.set_boundary(make_path(extent), transform=ccrs.Geodetic())
+
+    Parameters
+    ----------
+    extent : list
+        list of lat lon values formatted for matplotlib.geoAxes.set_extent() -
+        [longitude_min, longitude_max, latitude_min, latitude_max]
+
+    Return
+    matplotlib Path object representing the desired extent
+    ```
+    """
     n = 20
-    aoi = mPath(
-        list(zip(np.linspace(extent[0],extent[1], n), np.full(n, extent[3]))) + \
-        list(zip(np.full(n, extent[1]), np.linspace(extent[3], extent[2], n))) + \
-        list(zip(np.linspace(extent[1], extent[0], n), np.full(n, extent[2]))) + \
-        list(zip(np.full(n, extent[0]), np.linspace(extent[2], extent[3], n)))
+    aoi = mpath.Path(
+        list(zip(np.linspace(extent[0], extent[1], n), np.full(n, extent[3])))
+        + list(zip(np.full(n, extent[1]), np.linspace(extent[3], extent[2], n)))
+        + list(zip(np.linspace(extent[1], extent[0], n), np.full(n, extent[2])))
+        + list(zip(np.full(n, extent[0]), np.linspace(extent[2], extent[3], n)))
     )
 
-    return(aoi)
+    return aoi
 
 
 def great_circle_distance(origin, destination):
@@ -81,12 +116,31 @@ def great_circle_distance(origin, destination):
     return d
 
 
-def create_bounding_box(lat, lon, ydist, xdist):
+def get_bounding_box_limits(lat, lon, ydist, xdist):
     """
-    create a bounding box around a point on the earth
-    with user specified horizontal and vertical distance
+    get the lat and lon limits a user specified distance from a central point.
+    Effectively converts distance from a central point to degrees.
 
+    For more maths:
+    longitude - https://en.wikipedia.org/wiki/Longitude#Length_of_a_degree_of_longitude
+    latitude - https://en.wikipedia.org/wiki/Latitude#Length_of_a_degree_of_latitude
 
+    Used for when you want to effectively create bounding boxes around a central point
+
+    Example:
+    ```python
+    # for creating cartopy extents
+
+    d_deg_lat, d_deg_lon = get_bounding_box_limits(
+        lat=volc_lat, lon=volc_lon, xdist=x_dist, ydist=y_dist
+    )
+    # get bounding box lat and lon bounds
+    latitude_min, latitude_max = volc_lat - d_deg_lat, volc_lat + d_deg_lat
+    longitude_min, longitude_max = volc_lon - d_deg_lon, volc_lon + d_deg_lon
+
+    # bounding box extent in cartopy argument format
+    extent = [longitude_min, longitude_max, latitude_min, latitude_max]
+    ```
 
     Parameters
     ----------
@@ -131,98 +185,255 @@ def create_bounding_box(lat, lon, ydist, xdist):
     return d_deg_lat, d_deg_lon
 
 
-def make_map(latitude, longitude, main_dist=50, center_longitude=180, test=False):
+def make_map(
+    volc_lat,
+    volc_lon,
+    ax,
+    x_dist=25.0,
+    y_dist=None,
+    basemap="hillshade",
+    projection="mercator",
+    land_color="#80808050",
+):
     """
-    Make the base maps for all AVO-alarms that require maps
+    make the basemap for all AVO alarms that require maps.
+    This function is incredibly flexible to allow for use in both main
+    and inset maps.
 
-    Args:
-        latitude (float): latitude of volcano in decimal degrees
+    Example:
+    ```python
+    # A basic alarms template with a main map and inset axis:
+    fig, ax = plt.subplots(figsize=(6, 6))
 
-        longitude (float): longitude of volcano in decimal degrees
 
-        main_dist (int, optional): WECH WHAT IS THIS...some way of establishing bounding box?.
-        Defaults to 50.
+    # NORMAL MAP uses the default x_dist of 25
+    ax = make_map(
+        volc_lat,
+        volc_lon,
+        ax=ax,
+        basemap="hillshade",
+    )
+    ax.set_title("Alarms general template")
+    # INSET MAP
+    ax_inset = fig.add_axes([0.75, 0.75, 0.2, 0.2])
+    ax_inset = make_map(
+        volc_lat,
+        volc_lon,
+        x_dist=500,
+        y_dist=300,
+        ax=ax_inset,
+        basemap="land",
+        projection="orthographic",
+    )
+    ```
 
-        center_longitude (int, optional): center longitude of cartopy.ccrs.Mercator().Because
-        we are near the anti-meridian this works better than API default. Defaults to 180.
+    Parameters
+    ----------
+    volc_lat : float
+        volcano or central point latitude
+    volc_lon : float
+        volcano or central point longitude
+    ax : matplotlib.Axes
+        the matplotlib axis to create the map on
+    x_dist : float, optional
+        E-W distance from the central point in km, by default 25.
+    y_dist : float, optional
+        N-S distance from the central point in km, by default None.
+        If None, then y_dist = x_dist / 1.5. This creates relatively
+        square plots at AK latitudes
+    basemap : str, optional
+        what type of basemap to use. Options are:
+        'hillshade' - uses ShadedReliefEsri()
+        'land' - uses cartopy.cfeature.LAND
+        'boring' - uses cartopy.cfeature.STATES
+        by default 'hillshade'
+    projection : str, optional
+        which map projection to use. Options are:
+        'mercator' - uses ccrs.Mercator(central_longitude=volc_lon)
+        'orthographic' - uses ccrs.Orthographic(central_longitude=volc_lon,central_latitude=volc_lat)
+        'albers' - uses ccrs.AlbersEqualArea(central_longitude=volc_lon,central_latitude=volc_lat)
+        'nearside' - uses ccrs.NearsidePerspective(central_longitude=volc_lon,central_latitude=volc_lat)
+        by default "mercator". Note if basemap = 'hillshade', projection is forced to "mercator"
+        as this is the projection for the ShadedReliefEsri() image
+    land_color : str, optional
+        what color land you want? by default "#80808050"
+
+    Returns
+    -------
+    ax
+        matplotlib.geoAxes
     """
-    dlat = 1 * (main_dist / 111.1)
-    dlon = dlat / np.cos(latitude * np.pi / 180)
 
-    latitude_min = latitude - dlat
-    latitude_max = latitude + dlat
+    # type checking the ax argument
+    assert isinstance(ax, plt.Axes), "ax is not a matplotlib axis, make sure it is"
 
-    if longitude > 0:
-        longitude = (longitude - 180) - 180
+    # force either mercator or albers for projections
+    # should take care of the main and inset axes situations
+    projection = projection.upper()
+    possible_projections = ["MERCATOR", "ALBERS", "ORTHOGRAPHIC", "NEARSIDE"]
 
-    longitude_min = longitude - dlon
-    longitude_max = longitude + dlon
+    assert (
+        projection in possible_projections
+    ), f"{projection} not in possible projections. please choose mercator or albers"
 
+    basemap = basemap.upper()
+
+    possible_basemaps = ["BORING", "HILLSHADE", "LAND"]
+    assert (
+        basemap in possible_basemaps
+    ), f"{basemap} not in possible basemaps. please choose boring or hillshade"
+
+    # km to degrees conversion for bounding delta degrees from center
+    # uneven distances so that figure is square with mercator projection
+    if y_dist is None:
+        y_dist = x_dist / 1.5
+    d_deg_lat, d_deg_lon = get_bounding_box_limits(
+        lat=volc_lat, lon=volc_lon, xdist=x_dist, ydist=y_dist
+    )
+    # get bounding box lat and lon bounds
+    #
+    latitude_min, latitude_max = volc_lat - d_deg_lat, volc_lat + d_deg_lat
+    longitude_min, longitude_max = volc_lon - d_deg_lon, volc_lon + d_deg_lon
+
+    # bounding box extent in cartopy argument format
     extent = [longitude_min, longitude_max, latitude_min, latitude_max]
-    inset_extent = [
-        longitude_min - 5,
-        longitude_max + 5,
-        latitude_min - 2,
-        latitude_max + 2,
-    ]
-    # inset_extent = extent
 
-    land_color = "silver"
-    water_color = "lightblue"
+    # how detailed to make the hillshade scales to how
+    # big of an area to map
 
-    try:
-        fig = plt.gcf()
-    except:
-        fig = plt.figure(figsize=(4, 4))
+    if x_dist <= 50:
+        zoom_level = 13
+    elif (x_dist > 50) & (x_dist <= 100):
+        zoom_level = 11
+    elif (x_dist > 100) & (x_dist < 500):
+        zoom_level = 9
+    else:
+        zoom_level = 7
 
-    fig.set_facecolor("w")
+    if basemap == "HILLSHADE":
+        projection = "MERCATOR"
 
-    ax = fig.add_subplot(
-        1, 1, 1, projection=ccrs.Mercator(central_longitude=center_longitude)
+    # set projection
+    if projection == "MERCATOR":
+        crs = ccrs.Mercator(central_longitude=volc_lon)
+
+    elif projection == "ALBERS":
+        crs = ccrs.AlbersEqualArea(
+            central_longitude=volc_lon,
+            central_latitude=volc_lat,
+        )
+
+    elif projection == "ORTHOGRAPHIC":
+        crs = ccrs.Orthographic(
+            central_longitude=volc_lon,
+            central_latitude=volc_lat,
+        )
+
+    elif projection == "NEARSIDE":
+        crs = ccrs.NearsidePerspective(
+            central_longitude=volc_lon,
+            central_latitude=volc_lat,
+        )
+
+    # get axis position and label
+    ax_position = ax.get_position()
+    ax_label = ax.get_label()
+
+    # remove old "regular" axis and replace with geo axis
+    fig = plt.gcf()
+    ax.remove()
+    ax = fig.add_axes(rect=ax_position, projection=crs, label=ax_label)
+
+    # add the basemap
+    if basemap == "HILLSHADE":
+        ax.add_image(
+            ShadedReliefESRI(),
+            zoom_level,
+            alpha=0.8,
+        )
+
+    elif basemap == "BORING":
+        # add land and ocean features
+        ax.add_feature(cfeature.STATES, lw=0.5)
+
+    elif basemap == "LAND":
+        ax.add_feature(cfeature.LAND, facecolor=land_color)
+
+    ax.set_extent(extent, crs=ccrs.Geodetic())  # defaults to geodetic version of crs
+    # cant use set_boundary on mercator for some reason.
+    if projection != "MERCATOR":
+        ax.set_boundary(make_path(extent), transform=ccrs.Geodetic())
+
+    return ax
+
+
+def add_map_grid(volc_lat, volc_lon, ax, x_dist=25, y_dist=None, fontsize=6):
+    """
+    Add gridlines the way jubb and awech like them on their maps.
+
+    Example:
+    ```python
+    # A basic alarms template main map with gridlines
+    fig, ax = plt.subplots(figsize=(6, 6))
+
+
+    # NORMAL MAP uses the default x_dist of 25
+    ax = make_map(
+        volc_lat,
+        volc_lon,
+        ax=ax,
+        basemap="hillshade",
     )
-    # make the figure
+    gl = add_map_grid(volc_lat, volc_lon, ax)
+    ax.set_title("Alarms general template")
+    ```
 
-    # Create an inset GeoAxes
-    inset_ax = fig.add_axes(
-        [0.75, 0.75, 0.2, 0.2],
-        projection=ccrs.AlbersEqualArea(central_longitude=center_longitude),
-    )
+    Parameters
+    ----------
+    volc_lat : float
+        volcano or central point latitude
+    volc_lon : float
+        volcano or central point longitude
+    ax : ax : matplotlib.Axes
+        the matplotlib axis to create the map on
+    x_dist : float, optional
+        E-W distance from the central point in km, by default 25.
+    y_dist : float, optional
+        N-S distance from the central point in km, by default None.
+        If None, then y_dist = x_dist / 1.5. This creates relatively
+        square plots at AK latitudes
+    fontsize : int, optional
+       fontsize for the lat-lon labels, by default 6
 
-    ax.set_extent(extent, crs=ccrs.PlateCarree())
-    inset_ax.set_extent(inset_extent, crs=ccrs.PlateCarree())
-
-    try:
-        ax.coastlines(linewidth=0.5)
-        inset_ax.coastlines(linewidth=0.25)
-
-    except:
-        pass
-
-    # add thick border around edge
-    ax.spines["geo"].set_linewidth(2)
-    inset_ax.spines["geo"].set_linewidth(1)
-
-    # add land and ocean features
-    ax.add_feature(cfeature.LAND, facecolor=land_color)
-    ax.add_feature(cfeature.OCEAN, facecolor=water_color)
-
-    inset_ax.add_feature(cfeature.LAND, facecolor=land_color)
-    inset_ax.add_feature(cfeature.OCEAN, facecolor=water_color)
-
+    Returns
+    -------
+    cartopy.mpl.gridliner.Gridliner
+        yer gridlines object. Can be further customized outside this
+    """
+    # GRIDLINES FOR MAIN MAP
     # format the grid lines
     gl = ax.gridlines(
         crs=ccrs.PlateCarree(),
         draw_labels=True,
-        linewidth=0.5,
+        linewidth=0.25,
         linestyle="--",
-        color="gray",
+        color="#808080",
         formatter_kwargs={
             "direction_label": True,
             "number_format": ".2f",
         },
     )
-    # grid lines
-    lon_line_locs = [longitude - (dlon / 2), longitude + (dlon / 2)]
+    # so the axis is relatvely square at AK lats
+    if y_dist is None:
+        y_dist = x_dist / 1.5
+
+    d_lat, d_lon = get_bounding_box_limits(
+        lat=volc_lat, lon=volc_lon, xdist=x_dist, ydist=y_dist
+    )
+
+    # grid lines - taking care of being on either side of the
+    # anti-meridian
+    lon_line_locs = [volc_lon - (d_lon / 2), volc_lon + (d_lon / 2)]
     new_lon_locs = []
     for loc in lon_line_locs:
         if loc < -180:
@@ -230,68 +441,20 @@ def make_map(latitude, longitude, main_dist=50, center_longitude=180, test=False
         else:
             new_lon_locs.append(loc)
 
-    gl.ylocator = mticker.FixedLocator([latitude - (dlat / 2), latitude + (dlat / 2)])
+    new_lon_locs = np.array(new_lon_locs)
+    new_lon_locs[new_lon_locs > 180] = new_lon_locs[new_lon_locs > 180] - 360
+
+    gl.ylocator = mticker.FixedLocator([volc_lat - (d_lat / 2), volc_lat + (d_lat / 2)])
     # these aren't working with stuff that straddles the anti-meridian
     gl.xlocator = mticker.FixedLocator(new_lon_locs)
-    gl.xlabel_style = {"fontsize": 6}
-    gl.ylabel_style = {"fontsize": 6}
+    gl.xlabel_style = {"fontsize": fontsize}
+    gl.ylabel_style = {"fontsize": fontsize}
     gl.top_labels = False
-    gl.left_labels = True
+    gl.left_labels = False
     gl.bottom_labels = True
-    gl.right_labels = False
+    gl.right_labels = True
 
-    # box around main map within inset
-    extent_box = sgeom.box(extent[0], extent[2], extent[1], extent[3])
-    inset_ax.add_geometries(
-        [extent_box],
-        ccrs.PlateCarree(),
-        facecolor="none",
-        edgecolor="red",
-        linewidth=0.35,
-    )
-
-    if test is True:
-        add_watermark("TEST\nIMAGE", ax=ax)
-
-    # making non-rectangular bounding box on inset
-    # e.g., trim along lines of longitude
-    lower_space = 0
-    rect = mPath(
-        [
-            [inset_extent[0], inset_extent[2]],
-            [inset_extent[1], inset_extent[2]],
-            [inset_extent[1], inset_extent[3]],
-            [inset_extent[0], inset_extent[3]],
-            [inset_extent[0], inset_extent[2]],
-        ]
-    ).interpolated(20)
-    proj_to_data = ccrs.PlateCarree()._as_mpl_transform(inset_ax) - inset_ax.transData
-    rect_in_target = proj_to_data.transform_path(rect)
-
-    inset_ax.set_boundary(rect_in_target)
-    inset_ax.set_extent(
-        [
-            inset_extent[0],
-            inset_extent[1],
-            inset_extent[2] - lower_space,
-            inset_extent[3],
-        ]
-    )
-
-    # scale bar
-    # https://github.com/ppinard/matplotlib-scalebar
-    # need to check to see if this is the right dx
-    # ax.add_artist(
-    #     ScaleBar(
-    #         dx=1,
-    #         location="lower left",
-    #         box_color="none",
-    #         scale_loc="right",
-    #         font_properties={"size": 6},
-    #     )
-    # )
-
-    return ax, inset_ax
+    return gl
 
 
 def add_watermark(text, ax=None):
@@ -319,6 +482,22 @@ def add_watermark(text, ax=None):
 
 
 def save_file(plt, config, dpi=250):
+    """_summary_
+
+    Parameters
+    ----------
+    plt : _type_
+        _description_
+    config : _type_
+        _description_
+    dpi : int, optional
+        _description_, by default 250
+
+    Returns
+    -------
+    _type_
+        _description_
+    """
     home_dir = Path(os.environ["HOME_DIR"])
 
     png_file = (
@@ -409,5 +588,7 @@ def time_ticks(
             axes.set_ylim(0, 86400 * (T1 - T0))
         else:
             axes.set_ylim(num2date(T0), num2date(T1))
+        axes.set_yticks(ticks)
+        axes.set_yticklabels(tick_labels, rotation=rotation, ha=ha, **kwargs)
         axes.set_yticks(ticks)
         axes.set_yticklabels(tick_labels, rotation=rotation, ha=ha, **kwargs)

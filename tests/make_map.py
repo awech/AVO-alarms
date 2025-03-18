@@ -1,19 +1,28 @@
 import os
+import sys
+import time
 from pathlib import Path
 
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
+import matplotlib.path as mpath
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
-
-# from matplotlib_scalebar.scalebar import ScaleBar
+import shapely.geometry as sgeom
 from cartopy.io.img_tiles import GoogleTiles
-from matplotlib.dates import date2num, num2date
-from matplotlib.path import Path as mpath
-from obspy import UTCDateTime as utc
-from PIL import Image
+
+# get the script directory
+script_dir = Path(os.path.dirname(__file__))
+
+# set the current working directory to the script parent
+# directory
+os.chdir(script_dir.parent)
+# add to path
+sys.path.append(os.getcwd())
+
+plt.style.use(Path("utils") / "alarms.mplstyle")
 
 
 class ShadedReliefESRI(GoogleTiles):
@@ -36,84 +45,6 @@ class ShadedReliefESRI(GoogleTiles):
             "World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}.jpg"
         ).format(z=z, y=y, x=x)
         return url
-
-
-def get_extent(lat0, lon0, dist=20):
-
-    dlat = 1 * (dist / 111.1)
-    dlon = dlat / np.cos(lat0 * np.pi / 180)
-
-    latmin = lat0 - dlat
-    latmax = lat0 + dlat
-    lonmin = lon0 - dlon
-    lonmax = lon0 + dlon
-
-    return [lonmin, lonmax, latmin, latmax]
-
-
-def make_path(extent):
-    """
-    make a matplotlib Path based on a list formatted for
-    a matplotlib geoAxes.set_extent(). Useful for clipping axes to
-    lat, lon boundaries when they are not rectangular in 2D space.
-    DOES NOT WORK WITH MERCATOR PROJECTION - use with projections that make non
-    rectangular lat,lon boxes in 2D space e.g., Orthographic, AlbersEqualArea
-
-    Example:
-    ```python
-    fig,ax = plt.subplots(subplot_kw = {'projection': ccrs.Orthographic})
-    extent = [longitude_min, longitude_max, latitude_min, latitude_max]
-    ax.set_boundary(make_path(extent), transform=ccrs.Geodetic())
-
-    Parameters
-    ----------
-    extent : list
-        list of lat lon values formatted for matplotlib.geoAxes.set_extent() -
-        [longitude_min, longitude_max, latitude_min, latitude_max]
-
-    Return
-    matplotlib Path object representing the desired extent
-    ```
-    """
-    n = 20
-    aoi = mpath.Path(
-        list(zip(np.linspace(extent[0], extent[1], n), np.full(n, extent[3])))
-        + list(zip(np.full(n, extent[1]), np.linspace(extent[3], extent[2], n)))
-        + list(zip(np.linspace(extent[1], extent[0], n), np.full(n, extent[2])))
-        + list(zip(np.full(n, extent[0]), np.linspace(extent[2], extent[3], n)))
-    )
-
-    return aoi
-
-
-def great_circle_distance(origin, destination):
-    """_summary_
-
-    Parameters
-    ----------
-    origin : _type_
-        _description_
-    destination : _type_
-        _description_
-
-    Returns
-    -------
-    _type_
-        _description_
-    """
-    lat1, lon1 = origin
-    lat2, lon2 = destination
-    radius = 6371  # km
-
-    dlat = np.radians(lat2 - lat1)
-    dlon = np.radians(lon2 - lon1)
-    a = np.sin(dlat / 2) * np.sin(dlat / 2) + np.cos(np.radians(lat1)) * np.cos(
-        np.radians(lat2)
-    ) * np.sin(dlon / 2) * np.sin(dlon / 2)
-    c = 2 * np.atan2(np.sqrt(a), np.sqrt(1 - a))
-    d = radius * c
-
-    return d
 
 
 def get_bounding_box_limits(lat, lon, ydist, xdist):
@@ -183,6 +114,41 @@ def get_bounding_box_limits(lat, lon, ydist, xdist):
     d_deg_lat = ydist / d_km_lat
 
     return d_deg_lat, d_deg_lon
+
+
+def make_path(extent):
+    """
+    make a matplotlib Path based on a list formatted for
+    a matplotlib geoAxes.set_extent(). Useful for clipping axes to
+    lat, lon boundaries when they are not rectangular in 2D space.
+    DOES NOT WORK WITH MERCATOR PROJECTION - use with projections that make non
+    rectangular lat,lon boxes in 2D space e.g., Orthographic, AlbersEqualArea
+
+    Example:
+    ```python
+    fig,ax = plt.subplots(subplot_kw = {'projection': ccrs.Orthographic})
+    extent = [longitude_min, longitude_max, latitude_min, latitude_max]
+    ax.set_boundary(make_path(extent), transform=ccrs.Geodetic())
+
+    Parameters
+    ----------
+    extent : list
+        list of lat lon values formatted for matplotlib.geoAxes.set_extent() -
+        [longitude_min, longitude_max, latitude_min, latitude_max]
+
+    Return
+    matplotlib Path object representing the desired extent
+    ```
+    """
+    n = 20
+    aoi = mpath.Path(
+        list(zip(np.linspace(extent[0], extent[1], n), np.full(n, extent[3])))
+        + list(zip(np.full(n, extent[1]), np.linspace(extent[3], extent[2], n)))
+        + list(zip(np.linspace(extent[1], extent[0], n), np.full(n, extent[2])))
+        + list(zip(np.full(n, extent[0]), np.linspace(extent[2], extent[3], n)))
+    )
+
+    return aoi
 
 
 def make_map(
@@ -386,12 +352,7 @@ def add_map_grid(
         ax=ax,
         basemap="hillshade",
     )
-    label_kwargs = {
-            "direction_label": True,
-            "number_format": ".2f",
-        },
-
-    gl = add_map_grid(volc_lat, volc_lon, ax, xdist, formatter_kwargs = label_kwargs)
+    gl = add_map_grid(volc_lat, volc_lon, ax)
     ax.set_title("Alarms general template")
     ```
 
@@ -465,138 +426,219 @@ def add_map_grid(
     return gl
 
 
-def add_watermark(text, ax=None):
-    """Add a watermark to a figure
+#########################################################
+########## TESTING #######################################
+start = time.time()
 
-    Args:
-        text (str): the text to add as a watermark
-        ax (matplotlib Axes object, optional): the matplotlib axis to add the watermark to.
-        Defaults to None. if `None` then `plt.gca` is used.
-    """
-    if ax is None:
-        ax = plt.gca()
+output_folder = Path("tests") / "outputs"
 
-    ax.text(
-        0.5,
-        0.5,
-        text,
-        transform=ax.transAxes,
-        fontsize=50,
-        color="gray",
-        alpha=0.5,
-        va="center",
-        ha="center",
+df = pd.read_excel(Path("alarm_aux_files") / "volcano_list.xlsx").set_index("Volcano")
+volcano = "Spurr"
+
+print("making basemap example")
+fig, ax = plt.subplot_mosaic(
+    [
+        ["boring"],
+        ["land"],
+        ["hillshade"],
+    ],
+    figsize=(3, 10),
+)
+
+for a in ax:
+    ax[a] = make_map(
+        df.loc[volcano, "Latitude"],
+        df.loc[volcano, "Longitude"],
+        x_dist=2000,
+        ax=ax[a],
+        basemap=a,
+        projection="mercator",
+        # ticklabels=True,
     )
+    ax[a].set_title(f"basemap = '{a}'", fontsize=10)
 
 
-def save_file(plt, config, dpi=250):
-    """_summary_
+print("saving basemap example")
+plt.savefig(output_folder / "avo-alarms_map-basemap_example.png")
+######################################################################
+print("making projection example")
 
-    Parameters
-    ----------
-    plt : _type_
-        _description_
-    config : _type_
-        _description_
-    dpi : int, optional
-        _description_, by default 250
+fig, ax = plt.subplot_mosaic(
+    [
+        ["mercator"],
+        ["orthographic"],
+        ["albers"],
+        ["nearside"],
+    ],
+    figsize=(3, 12),
+)
 
-    Returns
-    -------
-    _type_
-        _description_
-    """
-    home_dir = Path(os.environ["HOME_DIR"])
-
-    png_file = (
-        home_dir
-        / f"{config.alarm_name.replace(' ','_')}_{utc.utcnow().strftime('%Y%m%d_%H%M%S')}.png"
+for a in ax:
+    ax[a] = make_map(
+        df.loc[volcano, "Latitude"],
+        df.loc[volcano, "Longitude"],
+        x_dist=2000,
+        ax=ax[a],
+        basemap="boring",
+        projection=a,
+        # ticklabels=True,
     )
-    jpg_file = (
-        home_dir
-        / f"{config.alarm_name.replace(' ','_')}_{utc.utcnow().strftime('%Y%m%d_%H%M%S')}.jpg"
-    )
+    ax[a].set_title(f"projection = '{a}'", fontsize=10)
 
-    plt.savefig(png_file, dpi=dpi, format="png")
-    im = Image.open(png_file)
-    im.convert("RGB").save(jpg_file, "JPEG")
-    os.remove(png_file)
+print("saving projection example")
+plt.savefig(output_folder / "avo-alarms_map-projection_example.png")
+#######################################################################
+print("making template example")
 
-    return jpg_file
+fig, ax = plt.subplots(figsize=(6, 6))
+
+# SET MAP EXTENT AND VOLCANO LAT LON
+xdist = 25
+ydist = xdist / 1.5
+
+volc_lat = df.loc[volcano, "Latitude"]
+volc_lon = df.loc[volcano, "Longitude"]
 
 
-def time_ticks(
-    axes,
-    starttime,
-    endtime,
-    dt_freq,
-    fmt="%Y-%m-%d",
-    relative=False,
-    axis="x",
-    rotation=45,
-    ha="right",
-    **kwargs,
-):
-    """Set the xlims and xticks with a specific start and end dates.
-    To be called after finished all plotting so the axes and ticks aren't subsequently modified.
+# NORMAL MAP
+ax = make_map(
+    volc_lat,
+    volc_lon,
+    x_dist=xdist,
+    ax=ax,
+    basemap="hillshade",
+)
 
-    Parameters
-    ----------
-    axes : _matplotlib axis object_
-        the axes object you wanna make more better
-    starttime : str | pandas timestamp
-        start time for tick generation and left x-axis limit. Can be string or pandas timestamp object
-    endtime : str | pandas timestamp
-        end time for tick generation and right x-axis limit. Can be string or pandas timestamp object
-    dt_freq : str
-        pandas frequency alias, typically a number and string combo, e.g.: 5 days = "5D"
-        can also be negative, so values will start from the endtime, e.g.: "-5D"
-        for string alias info, see:
-        https://pandas.pydata.org/docs/user_guide/timeseries.html#timeseries-offset-aliases
-    fmt : str, optional
-        datestr format, by default "%Y-%m-%d"
-    relative : bool, optional
-        set to True if x-axis is in seconds instead of datetime (e.g., spectrogram), by default False
-    axis : str, optional
-        Which axis you want to pin: "x", "y", by default "x"
-    rotation : float, optional
-        tick label rotation, by default 45
-    ha : str, optional
-        tick label horizontal alignment, by default "right"
-    **kwargs :
-        other customizations passed on to set_xticklabels()
-    """
+label_kwargs = (
+    {
+        "direction_label": True,
+        "number_format": ".2f",
+    },
+)
 
-    if isinstance(starttime, str):
-        starttime = pd.to_datetime(starttime)
-    if isinstance(endtime, str):
-        endtime = pd.to_datetime(endtime)
-    if dt_freq[0] == "-":
-        ticks = pd.date_range(endtime, starttime, freq=dt_freq)
-    else:
-        ticks = pd.date_range(starttime, endtime, freq=dt_freq)
+gl = add_map_grid(volc_lat, volc_lon, ax, xdist, formatter_kwargs=label_kwargs)
+ax.set_title("Alarms general template")
 
-    tick_labels = [ti.strftime(fmt) for ti in ticks]
+# MAKE THE INSET
+ax_inset = fig.add_axes([0.75, 0.75, 0.2, 0.2])
+ax_inset = make_map(
+    volc_lat,
+    volc_lon,
+    x_dist=500,
+    y_dist=300,
+    ax=ax_inset,
+    basemap="land",
+    projection="orthographic",
+)
 
-    T0 = date2num(starttime)
-    T1 = date2num(endtime)
+# INSET BOUNDING BOX
+# bounding box delta degrees
+d_deg_lat, d_deg_lon = get_bounding_box_limits(
+    lat=df.loc[volcano, "Latitude"],
+    lon=df.loc[volcano, "Longitude"],
+    ydist=ydist,
+    xdist=xdist,
+)
+# get bounding box lat and lon bounds
+latitude_min, latitude_max = volc_lat - d_deg_lat, volc_lat + d_deg_lat
+longitude_min, longitude_max = volc_lon - d_deg_lon, volc_lon + d_deg_lon
 
-    if relative:
-        ticks = 86400 * (date2num(ticks) - T0)
+# bounding box extent in cartopy argument format
+extent = sgeom.box(longitude_min, latitude_min, longitude_max, latitude_max)
+ax_inset.add_geometries(
+    [extent],
+    ccrs.PlateCarree(),
+    facecolor="none",
+    edgecolor="red",
+    linewidth=0.35,
+)
+# rivers for reference in case it's just a gray blob
+ax_inset.add_feature(cfeature.RIVERS, linewidth=0.5, linestyle=":")
 
-    if axis == "x":
-        if relative:
-            axes.set_xlim(0, 86400 * (T1 - T0))
-        else:
-            axes.set_xlim(num2date(T0), num2date(T1))
-        axes.set_xticks(ticks)
-        axes.set_xticklabels(tick_labels, rotation=rotation, ha=ha, **kwargs)
-    elif axis == "y":
-        if relative:
-            axes.set_ylim(0, 86400 * (T1 - T0))
-        else:
-            axes.set_ylim(num2date(T0), num2date(T1))
-        axes.set_yticks(ticks)
-        axes.set_yticklabels(tick_labels, rotation=rotation, ha=ha, **kwargs)
-        axes.set_yticks(ticks)
-        axes.set_yticklabels(tick_labels, rotation=rotation, ha=ha, **kwargs)
+print("saving template example")
+plt.savefig(output_folder / "avo-alarms_map-general_example.png")
+end = time.time()
+print(f"DONE in {end - start:.2f} seconds")
+
+###########################################
+
+# # CREATING A SCALEBAR - NOT SURE THIS REALLY WORKS
+# # SET MAP EXTENT AND VOLCANO LAT LON
+# xdist = 25
+# ydist = xdist / 1.5
+
+# volc_lat = df.loc[volcano, "Latitude"]
+# volc_lon = df.loc[volcano, "Longitude"]
+
+
+# fig, ax = plt.subplots(figsize=(5, 5))
+
+# ax = make_map(
+#     volc_lat=volc_lat,
+#     volc_lon=volc_lon,
+#     ax=ax,
+#     x_dist=xdist,
+#     basemap="land",
+#     projection="albers",
+# )
+
+# gl = add_map_grid(volc_lat=volc_lat, volc_lon=volc_lon, ax=ax, x_dist=xdist)
+# # https://stackoverflow.com/questions/56662941/cartopy-convert-point-from-axes-coordinates-to-lat-lon-coordinates
+# total_length = 5  # km
+
+# # axes coords
+# bar_origin = (0.1, 0.1)
+
+# # convert from Axes coordinates to display coordinates
+# bar_origin_display = ax.transAxes.transform(bar_origin)
+
+# # convert from display coordinates to data coordinates
+# bar_origin_data = ax.transData.inverted().transform(bar_origin_display)
+
+# # convert from data to cartesian coordinates
+# bar_origin_map = ccrs.PlateCarree().transform_point(
+#     *bar_origin_data,
+#     src_crs=ccrs.AlbersEqualArea(central_longitude=volc_lon, central_latitude=volc_lat),
+# )
+# print(bar_origin_map)
+
+
+# d_deg_lat, d_deg_lon = get_bounding_box_limits(
+#     lat=bar_origin_map[1],
+#     lon=bar_origin_map[0],
+#     ydist=total_length,
+#     xdist=total_length,
+# )
+
+# print(d_deg_lat, d_deg_lon)
+
+
+# ax.plot(
+#     (bar_origin_map[0], bar_origin_map[0] - d_deg_lon),
+#     (bar_origin_map[1], bar_origin_map[1]),
+#     marker="",
+#     ls="-",
+#     c="k",
+#     transform=ccrs.Geodetic(),
+# )
+# ax.plot(
+#     (bar_origin_map[0], bar_origin_map[0]),
+#     (bar_origin_map[1], bar_origin_map[1] + d_deg_lat),
+#     marker="",
+#     ls="-",
+#     c="k",
+#     transform=ccrs.Geodetic(),
+# )
+
+# ax.annotate(
+#     f"{total_length} km",
+#     xy=bar_origin,
+#     xycoords="axes fraction",
+#     xytext=(5, 5),
+#     textcoords="offset pixels",
+# )
+# # ax.plot(*bar_origin_map, transform=ccrs.PlateCarree(), marker="x", ms=10)
+# # ax.plot(*bar_origin, transform=ax.transAxes, marker=".")
+
+
+# plt.show()

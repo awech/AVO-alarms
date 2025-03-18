@@ -367,7 +367,9 @@ def make_map(
     return ax
 
 
-def add_map_grid(volc_lat, volc_lon, ax, x_dist=25, y_dist=None, fontsize=6):
+def add_map_grid(
+    volc_lat, volc_lon, ax, x_dist=25, y_dist=None, fontsize=6, **formatter_kwargs
+):
     """
     Add gridlines the way jubb and awech like them on their maps.
 
@@ -384,7 +386,12 @@ def add_map_grid(volc_lat, volc_lon, ax, x_dist=25, y_dist=None, fontsize=6):
         ax=ax,
         basemap="hillshade",
     )
-    gl = add_map_grid(volc_lat, volc_lon, ax)
+    label_kwargs = {
+            "direction_label": True,
+            "number_format": ".2f",
+        },
+
+    gl = add_map_grid(volc_lat, volc_lon, ax, xdist, formatter_kwargs = label_kwargs)
     ax.set_title("Alarms general template")
     ```
 
@@ -404,6 +411,10 @@ def add_map_grid(volc_lat, volc_lon, ax, x_dist=25, y_dist=None, fontsize=6):
         square plots at AK latitudes
     fontsize : int, optional
        fontsize for the lat-lon labels, by default 6
+    formatter_kwargs: dict
+        dictionary of keywords to be used for customizing the grid
+        labels. Keys are same as arguments for
+        https://scitools.org.uk/cartopy/docs/v0.22/reference/generated/cartopy.mpl.ticker.LongitudeFormatter.html
 
     Returns
     -------
@@ -418,10 +429,7 @@ def add_map_grid(volc_lat, volc_lon, ax, x_dist=25, y_dist=None, fontsize=6):
         linewidth=0.25,
         linestyle="--",
         color="#808080",
-        formatter_kwargs={
-            "direction_label": True,
-            "number_format": ".2f",
-        },
+        **formatter_kwargs,
     )
     # so the axis is relatvely square at AK lats
     if y_dist is None:

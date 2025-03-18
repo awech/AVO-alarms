@@ -333,7 +333,9 @@ def make_map(
     return ax
 
 
-def add_map_grid(volc_lat, volc_lon, ax, x_dist=25, y_dist=None, fontsize=6):
+def add_map_grid(
+    volc_lat, volc_lon, ax, x_dist=25, y_dist=None, fontsize=6, **formatter_kwargs
+):
     """
     Add gridlines the way jubb and awech like them on their maps.
 
@@ -370,6 +372,10 @@ def add_map_grid(volc_lat, volc_lon, ax, x_dist=25, y_dist=None, fontsize=6):
         square plots at AK latitudes
     fontsize : int, optional
        fontsize for the lat-lon labels, by default 6
+    formatter_kwargs: dict
+        dictionary of keywords to be used for customizing the grid
+        labels. Keys are same as arguments for
+        https://scitools.org.uk/cartopy/docs/v0.22/reference/generated/cartopy.mpl.ticker.LongitudeFormatter.html
 
     Returns
     -------
@@ -384,10 +390,7 @@ def add_map_grid(volc_lat, volc_lon, ax, x_dist=25, y_dist=None, fontsize=6):
         linewidth=0.25,
         linestyle="--",
         color="#808080",
-        formatter_kwargs={
-            "direction_label": True,
-            "number_format": ".2f",
-        },
+        **formatter_kwargs,
     )
     # so the axis is relatvely square at AK lats
     if y_dist is None:
@@ -505,7 +508,15 @@ ax = make_map(
     ax=ax,
     basemap="hillshade",
 )
-gl = add_map_grid(volc_lat, volc_lon, ax, xdist)
+
+label_kwargs = (
+    {
+        "direction_label": True,
+        "number_format": ".2f",
+    },
+)
+
+gl = add_map_grid(volc_lat, volc_lon, ax, xdist, formatter_kwargs=label_kwargs)
 ax.set_title("Alarms general template")
 
 # MAKE THE INSET
@@ -548,3 +559,86 @@ print("saving template example")
 plt.savefig(output_folder / "avo-alarms_map-general_example.png")
 end = time.time()
 print(f"DONE in {end - start:.2f} seconds")
+
+###########################################
+
+# # CREATING A SCALEBAR - NOT SURE THIS REALLY WORKS
+# # SET MAP EXTENT AND VOLCANO LAT LON
+# xdist = 25
+# ydist = xdist / 1.5
+
+# volc_lat = df.loc[volcano, "Latitude"]
+# volc_lon = df.loc[volcano, "Longitude"]
+
+
+# fig, ax = plt.subplots(figsize=(5, 5))
+
+# ax = make_map(
+#     volc_lat=volc_lat,
+#     volc_lon=volc_lon,
+#     ax=ax,
+#     x_dist=xdist,
+#     basemap="land",
+#     projection="albers",
+# )
+
+# gl = add_map_grid(volc_lat=volc_lat, volc_lon=volc_lon, ax=ax, x_dist=xdist)
+# # https://stackoverflow.com/questions/56662941/cartopy-convert-point-from-axes-coordinates-to-lat-lon-coordinates
+# total_length = 5  # km
+
+# # axes coords
+# bar_origin = (0.1, 0.1)
+
+# # convert from Axes coordinates to display coordinates
+# bar_origin_display = ax.transAxes.transform(bar_origin)
+
+# # convert from display coordinates to data coordinates
+# bar_origin_data = ax.transData.inverted().transform(bar_origin_display)
+
+# # convert from data to cartesian coordinates
+# bar_origin_map = ccrs.PlateCarree().transform_point(
+#     *bar_origin_data,
+#     src_crs=ccrs.AlbersEqualArea(central_longitude=volc_lon, central_latitude=volc_lat),
+# )
+# print(bar_origin_map)
+
+
+# d_deg_lat, d_deg_lon = get_bounding_box_limits(
+#     lat=bar_origin_map[1],
+#     lon=bar_origin_map[0],
+#     ydist=total_length,
+#     xdist=total_length,
+# )
+
+# print(d_deg_lat, d_deg_lon)
+
+
+# ax.plot(
+#     (bar_origin_map[0], bar_origin_map[0] - d_deg_lon),
+#     (bar_origin_map[1], bar_origin_map[1]),
+#     marker="",
+#     ls="-",
+#     c="k",
+#     transform=ccrs.Geodetic(),
+# )
+# ax.plot(
+#     (bar_origin_map[0], bar_origin_map[0]),
+#     (bar_origin_map[1], bar_origin_map[1] + d_deg_lat),
+#     marker="",
+#     ls="-",
+#     c="k",
+#     transform=ccrs.Geodetic(),
+# )
+
+# ax.annotate(
+#     f"{total_length} km",
+#     xy=bar_origin,
+#     xycoords="axes fraction",
+#     xytext=(5, 5),
+#     textcoords="offset pixels",
+# )
+# # ax.plot(*bar_origin_map, transform=ccrs.PlateCarree(), marker="x", ms=10)
+# # ax.plot(*bar_origin, transform=ax.transAxes, marker=".")
+
+
+# plt.show()

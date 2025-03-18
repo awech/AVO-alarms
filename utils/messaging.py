@@ -102,54 +102,53 @@ def send_alert(alarm_name, subject, body, filename=None, test=False):
         _description_, by default test
     """
 
-    if test:
-        print("Test mode. No sms or email sent")
-        return
+    print("Sending alarm email and sms...")
 
+    # read & parse notification list
+    home_dir = Path(os.environ["HOME_DIR"])
+    A = read_excel(home_dir / "distribution.xlsx")
+
+    if alarm_name in A.columns:
+        recipients = A[A[alarm_name].notna()]["Email"].tolist()
+        print("No specific alarm distribution")
     else:
-
-        print("Sending alarm email and sms...")
-
-        # read & parse notification list
-        home_dir = Path(os.environ["HOME_DIR"])
-        A = read_excel(home_dir / "distribution.xlsx")
-
-        if alarm_name in A.columns:
-            recipients = A[A[alarm_name].notna()]["Email"].tolist()
-        else:
-            recipients = A[A["All"].notna()]["Email"].tolist()
-        if not recipients:
-            print(f"No recipient found for . Check distribution list for {alarm_name}")
-            return
-
-        msg = MIMEMultipart()
-
-        fromaddr = alarm_name.replace(" ", "_") + "@usgs.gov"
-        msg["From"] = fromaddr
-        msg["Subject"] = subject
-        msg["To"] = ", ".join(recipients)
-
-        msg.attach(MIMEText(body, "plain"))
-
-        if filename:
-            name = filename.name
-            attachment = open(filename, "rb")
-            part = MIMEBase("application", "octet-stream")
-            part.set_payload((attachment).read())
-            encoders.encode_base64(part)
-            part.add_header(
-                "Content-Disposition", "attachment; filename= {}".format(name)
-            )
-            msg.attach(part)
-
-        server = smtplib.SMTP_SSL(
-            host=os.environ["SMTP_IP"], port=os.environ["SMTP_PORT"]
-        )
-        text = msg.as_string()
-        server.sendmail(fromaddr, recipients, text)
-        server.quit()
-
+        recipients = A[A["All"].notna()]["Email"].tolist()
+        print("Defaulting to \'All\' alarms list")
+    if test:
+        recipients = A[A["Error"].notna()]["Email"].tolist()
+        print("Test mode. Sending message to \'Error\' recipients")
+    if not recipients:
+        print(f"No recipient found. Check distribution list for {alarm_name}")
         return
+
+    msg = MIMEMultipart()
+
+    fromaddr = alarm_name.replace(" ", "_") + "@usgs.gov"
+    msg["From"] = fromaddr
+    msg["Subject"] = subject
+    msg["To"] = ", ".join(recipients)
+
+    msg.attach(MIMEText(body, "plain"))
+
+    if filename:
+        name = filename.name
+        attachment = open(filename, "rb")
+        part = MIMEBase("application", "octet-stream")
+        part.set_payload((attachment).read())
+        encoders.encode_base64(part)
+        part.add_header(
+            "Content-Disposition", "attachment; filename= {}".format(name)
+        )
+        msg.attach(part)
+
+    server = smtplib.SMTP_SSL(
+        host=os.environ["SMTP_IP"], port=os.environ["SMTP_PORT"]
+    )
+    text = msg.as_string()
+    server.sendmail(fromaddr, recipients, text)
+    server.quit()
+
+    return
 
 
 def post_mattermost(config, subject, body, filename=None, test=False):
@@ -169,43 +168,43 @@ def post_mattermost(config, subject, body, filename=None, test=False):
         _description_, by default False
     """
 
-    if test:
-        return
+
+    conn = mm.Mattermost(timeout=5, retries=4)
+
+    if hasattr(config, "mattermost_channel_id"):
+        conn.channel_id = config.mattermost_channel_id
     else:
+        conn.channel_id = os.environ["MATTERMOST_DEFAULT_CHANNEL_ID"]
 
-        conn = mm.Mattermost(timeout=5, retries=4)
+    if test:
+        conn.channel_id = os.environ["MATTERMOST_TEST_CHANNEL_ID"]
 
-        if hasattr(config, "mattermost_channel_id"):
-            conn.channel_id = config.mattermost_channel_id
-        else:
-            conn.channel_id = os.environ["MATTERMOST_DEFAULT_CHANNEL_ID"]
+    if not filename:
+        files = []
+    else:
+        files = [filename]
 
-        if not filename:
-            files = []
-        else:
-            files = [filename]
+    p = re.compile("\\n(.*)\*(:.*)", re.MULTILINE)
+    body = p.sub(r"\n- [x] __***\1\2***__", body)
+    p = re.compile("\\n([A-Z,1-9]{3,4}:.*/.*)", re.MULTILINE)
+    body = p.sub(r"\n- [ ] \1", body)
 
-        p = re.compile("\\n(.*)\*(:.*)", re.MULTILINE)
-        body = p.sub(r"\n- [x] __***\1\2***__", body)
-        p = re.compile("\\n([A-Z,1-9]{3,4}:.*/.*)", re.MULTILINE)
-        body = p.sub(r"\n- [ ] \1", body)
+    body = body.replace("Start: ", "Start:  ")
+    body = body.replace("End: ", "End:    ")
 
-        body = body.replace("Start: ", "Start:  ")
-        body = body.replace("End: ", "End:    ")
-
-        if config.alarm_name != "PIREP":
-            subject = subject.replace("--- ", "")
-            subject = subject.replace(" ---", "")
+    if config.alarm_name != "PIREP":
+        subject = subject.replace("--- ", "")
+        subject = subject.replace(" ---", "")
+        message = "### **{}**\n\n{}".format(subject, body)
+    else:
+        if "URGENT" in subject:
             message = "### **{}**\n\n{}".format(subject, body)
         else:
-            if "URGENT" in subject:
-                message = "### **{}**\n\n{}".format(subject, body)
-            else:
-                message = "#### **{}**\n\n{}".format(subject, body)
+            message = "#### **{}**\n\n{}".format(subject, body)
 
-        try:
-            conn.post(message, file_paths=files)
-        except:
-            conn.post(message, file_paths=files)
+    try:
+        conn.post(message, file_paths=files)
+    except:
+        conn.post(message, file_paths=files)
 
         return

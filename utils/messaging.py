@@ -103,57 +103,52 @@ def send_alert(alarm_name, subject, body, filename=None, test=False):
     """
 
     if test:
-
+        print("Test mode. No sms or email sent")
         return
 
     else:
 
-        home_dir = Path(os.environ["HOME_DIR"])
-
         print("Sending alarm email and sms...")
 
         # read & parse notification list
-        # distribution_file=''.join([os.environ['HOME_DIR'],'/','distribution.xlsx'])
-        distribution_file = home_dir / "distribution.xlsx"
+        home_dir = Path(os.environ["HOME_DIR"])
+        A = read_excel(home_dir / "distribution.xlsx")
 
-        A = read_excel(distribution_file)
+        if alarm_name in A.columns:
+            recipients = A[A[alarm_name].notna()]["Email"].tolist()
+        else:
+            recipients = A[A["All"].notna()]["Email"].tolist()
+        if not recipients:
+            print(f"No recipient found for . Check distribution list for {alarm_name}")
+            return
 
-        for recipient_group in ["x", "o"]:
-            # filter to appropriate recipients
-            recipients = A[A[alarm_name] == recipient_group]["Email"].tolist()
-            if not recipients:
-                continue
+        msg = MIMEMultipart()
 
-            msg = MIMEMultipart()
+        fromaddr = alarm_name.replace(" ", "_") + "@usgs.gov"
+        msg["From"] = fromaddr
+        msg["Subject"] = subject
+        msg["To"] = ", ".join(recipients)
 
-            fromaddr = alarm_name.replace(" ", "_") + "@usgs.gov"
-            msg["From"] = fromaddr
-            msg["Subject"] = subject
-            if recipient_group == "x":
-                msg["To"] = ", ".join(recipients)
-            elif recipient_group == "o":
-                msg["bcc"] = ", ".join(recipients)
+        msg.attach(MIMEText(body, "plain"))
 
-            msg.attach(MIMEText(body, "plain"))
-
-            if filename:
-                name = filename.name
-                attachment = open(filename, "rb")
-                part = MIMEBase("application", "octet-stream")
-                part.set_payload((attachment).read())
-                encoders.encode_base64(part)
-                part.add_header(
-                    "Content-Disposition", "attachment; filename= {}".format(name)
-                )
-                msg.attach(part)
-
-            server = smtplib.SMTP_SSL(
-                host=os.environ["SMTP_IP"], port=os.environ["SMTP_PORT"]
+        if filename:
+            name = filename.name
+            attachment = open(filename, "rb")
+            part = MIMEBase("application", "octet-stream")
+            part.set_payload((attachment).read())
+            encoders.encode_base64(part)
+            part.add_header(
+                "Content-Disposition", "attachment; filename= {}".format(name)
             )
-            # server = smtplib.SMTP(os.environ['SMTP_IP'])
-            text = msg.as_string()
-            server.sendmail(fromaddr, recipients, text)
-            server.quit()
+            msg.attach(part)
+
+        server = smtplib.SMTP_SSL(
+            host=os.environ["SMTP_IP"], port=os.environ["SMTP_PORT"]
+        )
+        # server = smtplib.SMTP(os.environ['SMTP_IP'])
+        text = msg.as_string()
+        server.sendmail(fromaddr, recipients, text)
+        server.quit()
 
         return
 

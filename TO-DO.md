@@ -10,7 +10,20 @@
 - [ ] sort out cartopy/basemap kerfuffle --> modernize to just use cartopy
 - [ ] utilize one map making function
 - [ ] make effort to use `subplot_mosaic` for panel plots 
+- [ ] implement test flag
+    - [ ] RSAM
+    - [ ] Infrasound
+    - [ ] Magnitude
+    - [ ] NOAA_CIMSS
+    - [ ] Pilot_Report
+    - [ ] SIGMET
+    - [ ] SO2
+    - [ ] Swarm
+    - [ ] Tremor
+    - [ ] utils.messaging
+    - [ ] utils.plotting (fig watermark)
 - [ ] add test data in own directory
+- [ ] implement default "all" message distribution
 - [ ] implement CI/CD with test data to run tests once a month 
 - [ ] add defaults to infrasound parameters that then can be overwritten if need be (`vmin`, `vmax`, `min_pa`)
 

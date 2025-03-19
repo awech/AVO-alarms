@@ -18,7 +18,19 @@ parser.add_argument("config", type=str, help="Name of the config file")
 parser.add_argument("-t", "--time", type=str, 
                     help="utc time stamp:YYYYMMDDHHMM (optional, otherwise grabs current utc time)")
 parser.add_argument("--test", help="Run in test mode", action="store_true")
+parser.add_argument("--mm", help="Post to mattermost", action=argparse.BooleanOptionalAction, default=None)
+parser.add_argument("--icinga", help="Send hearbeat to icinga", action=argparse.BooleanOptionalAction, default=None)
 args = parser.parse_args()
+
+if args.test and args.mm is None:
+    args.mm = False
+if args.test and args.icinga is None:
+    args.icinga = False
+
+if args.mm is None:
+    args.mm = True
+if args.icinga is None:
+    args.icinga = True
 
 if args.test:
     print("Running alarm in test mode")
@@ -50,7 +62,7 @@ try:
     # import the config file for the alarm you're running
     config = import_module(f"alarm_configs.{args.config}_config")
     ALARM = import_module(f"alarm_codes.{config.alarm_type}")
-    ALARM.run_alarm(config, T0, test=args.test)
+    ALARM.run_alarm(config, T0, test_flag=args.test, mm_flag=args.mm, icinga_flag=args.icinga)
 except:
     # if error, send message to designated recipients
     print("Error...")

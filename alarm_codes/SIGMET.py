@@ -1,5 +1,4 @@
-from . import utils
-import os
+import os, sys
 import re
 import numpy as np
 import pandas as pd
@@ -15,10 +14,15 @@ from matplotlib.path import Path
 import traceback
 import warnings
 warnings.filterwarnings("ignore")
+from pathlib import Path
 
 
+current_path = Path(__file__).parent
+sys.path.append(str(current_path.parents[0]))
+from utils import messaging, plotting, processing
 
-def run_alarm(config, T0, test=False):
+
+def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
 	print(T0)
 	attempt = 1
@@ -32,7 +36,7 @@ def run_alarm(config, T0, test=False):
 				print('Whoops.')
 				state='WARNING'
 				state_message='{} (UTC) webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
-				utils.icinga2_state(config,state,state_message)
+				messaging.icinga(config, state, state_message, send=icinga_flag)
 				return
 			print('Page error on attempt number {:g}'.format(attempt))
 			attempt += 1						
@@ -51,14 +55,14 @@ def run_alarm(config, T0, test=False):
 		print('Page error.')
 		state='WARNING'
 		state_message='{} (UTC) webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
-		utils.icinga2_state(config,state,state_message)	
+		messaging.icinga(config, state, state_message, send=icinga_flag)	
 		return	
 
 
 	if len(SIGMETS_FOUND)==0:
 		state='OK'
 		state_message='{} (UTC) No new SIGMETs'.format(T0.strftime('%Y-%m-%d %H:%M'))
-		utils.icinga2_state(config,state,state_message)	
+		messaging.icinga(config, state, state_message, send=icinga_flag)	
 		return
 
 
@@ -71,7 +75,7 @@ def run_alarm(config, T0, test=False):
 			print('Old SIGMET detected')
 			state='WARNING'
 			state_message='{} (UTC) Old SIGMET detected'.format(T0.strftime('%Y-%m-%d %H:%M'))
-			utils.icinga2_state(config,state,state_message)	
+			messaging.icinga(config, state, state_message, send=icinga_flag)	
 			continue
 
 		else:
@@ -91,30 +95,30 @@ def run_alarm(config, T0, test=False):
 			if len(LONS)>1:
 				#### Generate Figure ####
 				try:
-					attachment = make_map(evt, LONS, LATS, config)
+					filename = make_map(evt, LONS, LATS, config)
 				except:
-					attachment = []
+					filename = []
 					print('Problem making figure. Continue anyway')
 					b = traceback.format_exc()
 					err_message = ''.join('{}\n'.format(a) for a in b.splitlines())
 					print(err_message)
 			else:
-				attachment = []
+				filename = []
 				
 			subject, message = create_message(evt)
 			# print('Sending message...')
-			# utils.send_alert(config.alarm_name, subject, message, attachment)
+			# messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
 			print('Posting to mattermost...')
-			utils.post_mattermost(config, subject, message, filename=attachment)
+			messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
 
 			# delete the file you just sent
-			if attachment:
-				os.remove(attachment)
+			if filename:
+				os.remove(filename)
 
 			state = 'CRITICAL'
 			state_message = f'{T0.strftime("%Y-%m-%d %H:%M")} (UTC) New {subject}'
 			
-			utils.icinga2_state(config, state, state_message)
+			messaging.icinga(config, state, state_message, send=icinga_flag)
 
 
 def read_urls():
@@ -350,7 +354,7 @@ def make_map(evt, LONS, LATS, config):
 	plt.tight_layout()
 
 	print('Saving figure...')
-	jpg_file = utils.save_file(fig, config, dpi=250)
+	jpg_file = plotting.save_file(fig, config, dpi=250)
 	plt.close(fig)
 
 	return jpg_file

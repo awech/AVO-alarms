@@ -3,14 +3,13 @@
 #
 # Wech 2017-06-08
 
-from . import utils
+import os, sys
 from obspy import UTCDateTime, Stream
 from obspy.core.util import AttribDict
 from obspy.geodetics.base import gps2dist_azimuth
 from obspy.signal.cross_correlation import correlate, xcorr_max
 from itertools import combinations
 import numpy as np
-import os
 from pandas import DataFrame, Timestamp
 import time
 import matplotlib as m
@@ -18,19 +17,25 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from matplotlib.colors import LinearSegmentedColormap
 import matplotlib.dates as mdates
+from pathlib import Path
 
 
-# main function called by alarm.py
-def run_alarm(config, T0, test=False):
+current_path = Path(__file__).parent
+sys.path.append(str(current_path.parents[0]))
+from utils import messaging, plotting, processing
 
-    time.sleep(config.latency)
+
+def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
+
+    if os.getenv("FROMCRON") == "yep":
+        time.sleep(config.latency)
     state_message='{} (UTC) {}'.format(T0.strftime('%Y-%m-%d %H:%M'),config.alarm_name)
 
     #### download data ####
     SCNL=DataFrame.from_dict(config.SCNL)
     t1 = T0-config.duration
     t2 = T0
-    st = utils.grab_data(SCNL['scnl'].tolist(),t1,t2,fill_value=0)
+    st = processing.grab_data(SCNL['scnl'].tolist(),t1,t2,fill_value=0)
     st = add_coordinate_info(st,SCNL)
     ########################
 
@@ -41,7 +46,7 @@ def run_alarm(config, T0, test=False):
     if len(st)<config.min_chan:
         state_message='{} - Not enough channels!'.format(state_message)
         state='WARNING'
-        utils.icinga2_state(config,state,state_message)
+        messaging.icinga(config, state, state_message, send=icinga_flag)
         return
     ########################
 
@@ -53,7 +58,7 @@ def run_alarm(config, T0, test=False):
     if len(st)<config.min_chan:
         state_message='{} - Gappy data!'.format(state_message)
         state='WARNING'
-        utils.icinga2_state(config,state,state_message)
+        messaging.icinga(config, state, state_message, send=icinga_flag)
         return
     ########################
 
@@ -74,7 +79,7 @@ def run_alarm(config, T0, test=False):
     if len(st)<config.min_chan:
         state_message='{} - not enough channels exceeding amplitude threshold!'.format(state_message)
         state='OK'
-        utils.icinga2_state(config,state,state_message)
+        messaging.icinga(config, state, state_message, send=icinga_flag)
         return
     ########################
 
@@ -130,14 +135,14 @@ def run_alarm(config, T0, test=False):
         subject, message = create_message(t1,t2,config,volcano,azimuth,d_Azimuth,velocity,mx_pressure)
 
         ### Send message ###
-        utils.send_alert(config.alarm_name,subject,message,filename)
-        utils.post_mattermost(config,subject,message,filename)
+        messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
+        messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
         # delete the file you just sent
         if filename:
             os.remove(filename)
 
     # send heartbeat status message to icinga
-    utils.icinga2_state(config,state,state_message)
+    messaging.icinga(config, state, state_message, send=icinga_flag)
 
 
 def add_coordinate_info(st,SCNL):
@@ -318,10 +323,10 @@ def make_figure(st,volcano,T0,config,mx_pressure):
 
     start = time.time()
     ##### get seismic data #####
-    seis = utils.grab_data(volcano['seismic_scnl'],T0-seismic_plot_duration, T0,fill_value='interpolate')
+    seis = processing.grab_data(volcano['seismic_scnl'],T0-seismic_plot_duration, T0,fill_value='interpolate')
     ##### get infrasound data #####
     infra_scnl = ['{}.{}.{}.{}'.format(tr.stats.station,tr.stats.channel,tr.stats.network,tr.stats.location) for tr in st]
-    infra = utils.grab_data(infra_scnl,T0-infrasound_plot_duration, T0,fill_value='interpolate')
+    infra = processing.grab_data(infra_scnl,T0-infrasound_plot_duration, T0,fill_value='interpolate')
     end = time.time()
     print('{:.2f} seconds to grab figure data.'.format(end - start))
 
@@ -445,7 +450,7 @@ def make_figure(st,volcano,T0,config,mx_pressure):
 
     plt.subplots_adjust(left=0.08,right=.94,top=0.92,bottom=0.1,hspace=0.1)
     
-    jpg_file=utils.save_file(plt,config,dpi=250)
+    jpg_file=plotting.save_file(plt,config,dpi=250)
 
     return jpg_file
 

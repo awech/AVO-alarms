@@ -15,7 +15,7 @@ from tomputils import mattermost as mm
 import warnings
 warnings.filterwarnings("ignore")
 
-def icinga(config, state, state_message, test=False):
+def icinga(config, state, state_message, send=True):
     """_summary_
 
     Parameters
@@ -30,62 +30,59 @@ def icinga(config, state, state_message, test=False):
         _description_, by default False
     """
 
-    if test:
-
+    if not send:
+        print("Not attempting to send heartbeat to icinga.")
         return
 
+    print("Sending state and message to icinga2:")
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    states = {"OK": 0, "WARNING": 1, "CRITICAL": 2, "UNKNOWN": 3}
+
+    state_num = states[state]
+
+    #### which icinga service ####
+    ##############################
+    if hasattr(config, "icinga_service_name"):
+        icinga_service_name = config.icinga_service_name
     else:
+        icinga_service_name = config.alarm_name
+    ##############################
+    ##############################
 
-        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    headers = {"Accept": "application/json", "X-HTTP-Method-Override": "POST"}
+    data = {
+        "type": "Service",
+        "filter": 'host.name=="{}" && service.name=="{}"'.format(
+            os.environ["ICINGA_HOST_NAME"], icinga_service_name
+        ),
+        "exit_status": state_num,
+        "plugin_output": state_message,
+    }
 
-        print("Sending state and message to icinga2:")
-
-        states = {"OK": 0, "WARNING": 1, "CRITICAL": 2, "UNKNOWN": 3}
-
-        state_num = states[state]
-
-        #### which icinga service ####
-        ##############################
-        if hasattr(config, "icinga_service_name"):
-            icinga_service_name = config.icinga_service_name
+    try:
+        resp = requests.get(
+            os.environ["ICINGA_URL"],
+            headers=headers,
+            auth=(os.environ["ICINGA_USERNAME"], os.environ["ICINGA_PASSWORD"]),
+            data=json.dumps(data),
+            verify=False,
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            print(resp.json()["results"][0]["status"])
+            print("Success. Message sent to icinga2")
         else:
-            icinga_service_name = config.alarm_name
-        ##############################
-        ##############################
+            print("Status code = {:g}".format(resp.status_code))
+            print("Failed to send message to icinga2")
+    except:
 
-        headers = {"Accept": "application/json", "X-HTTP-Method-Override": "POST"}
-        data = {
-            "type": "Service",
-            "filter": 'host.name=="{}" && service.name=="{}"'.format(
-                os.environ["ICINGA_HOST_NAME"], icinga_service_name
-            ),
-            "exit_status": state_num,
-            "plugin_output": state_message,
-        }
+        print("requests error. Failed to send message to icinga2")
 
-        try:
-            resp = requests.get(
-                os.environ["ICINGA_URL"],
-                headers=headers,
-                auth=(os.environ["ICINGA_USERNAME"], os.environ["ICINGA_PASSWORD"]),
-                data=json.dumps(data),
-                verify=False,
-                timeout=10,
-            )
-            if resp.status_code == 200:
-                print(resp.json()["results"][0]["status"])
-                print("Success. Message sent to icinga2")
-            else:
-                print("Status code = {:g}".format(resp.status_code))
-                print("Failed to send message to icinga2")
-        except:
-
-            print("requests error. Failed to send message to icinga2")
-
-        return
+    return
 
 
-def send_alert(alarm_name, subject, body, filename=None, test=False):
+def send_alert(alarm_name, subject, body, attachment=None, test=False):
     """_summary_
 
     Parameters
@@ -96,7 +93,7 @@ def send_alert(alarm_name, subject, body, filename=None, test=False):
         _description_
     body : _type_
         _description_
-    filename : _type_, optional
+    attachment : _type_, optional
         _description_, by default None
     test : _type_, optional
         _description_, by default test
@@ -108,15 +105,17 @@ def send_alert(alarm_name, subject, body, filename=None, test=False):
     home_dir = Path(os.environ["HOME_DIR"])
     A = read_excel(home_dir / "distribution.xlsx")
 
-    if alarm_name in A.columns:
-        recipients = A[A[alarm_name].notna()]["Email"].tolist()
-        print("No specific alarm distribution")
-    else:
-        recipients = A[A["All"].notna()]["Email"].tolist()
-        print("Defaulting to \'All\' alarms list")
     if test:
         recipients = A[A["Error"].notna()]["Email"].tolist()
         print("Test mode. Sending message to \'Error\' recipients")
+    else:
+        if alarm_name in A.columns:
+            recipients = A[A[alarm_name].notna()]["Email"].tolist()
+            print("No specific alarm distribution")
+        else:
+            recipients = A[A["All"].notna()]["Email"].tolist()
+            print("Defaulting to \'All\' alarms list")
+
     if not recipients:
         print(f"No recipient found. Check distribution list for {alarm_name}")
         return
@@ -130,9 +129,9 @@ def send_alert(alarm_name, subject, body, filename=None, test=False):
 
     msg.attach(MIMEText(body, "plain"))
 
-    if filename:
-        name = filename.name
-        attachment = open(filename, "rb")
+    if attachment:
+        name = attachment.name
+        attachment = open(attachment, "rb")
         part = MIMEBase("application", "octet-stream")
         part.set_payload((attachment).read())
         encoders.encode_base64(part)
@@ -151,7 +150,7 @@ def send_alert(alarm_name, subject, body, filename=None, test=False):
     return
 
 
-def post_mattermost(config, subject, body, filename=None, test=False):
+def post_mattermost(config, subject, body, attachment=None, send=False, test=False):
     """_summary_
 
     Parameters
@@ -162,12 +161,15 @@ def post_mattermost(config, subject, body, filename=None, test=False):
         _description_
     body : _type_
         _description_
-    filename : _type_, optional
+    attachment : _type_, optional
         _description_, by default None
     test : bool, optional
         _description_, by default False
     """
 
+    if not send:
+        print("Not posting anything to Mattermost")
+        return
 
     conn = mm.Mattermost(timeout=5, retries=4)
 
@@ -179,10 +181,10 @@ def post_mattermost(config, subject, body, filename=None, test=False):
     if test:
         conn.channel_id = os.environ["MATTERMOST_TEST_CHANNEL_ID"]
 
-    if not filename:
+    if not attachment:
         files = []
     else:
-        files = [filename]
+        files = [attachment]
 
     p = re.compile("\\n(.*)\*(:.*)", re.MULTILINE)
     body = p.sub(r"\n- [x] __***\1\2***__", body)

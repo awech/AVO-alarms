@@ -1,5 +1,4 @@
-import os
-import sys
+import os, sys
 import pandas as pd
 import numpy as np
 from obspy import Catalog, UTCDateTime, Stream
@@ -36,7 +35,7 @@ while attempt <= 3:
         attempt += 1
         client = None
 
-def run_alarm(config, T0, test=False):
+def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
     # Download the event data
     T0_str = T0.strftime('%Y-%m-%d %H:%M')
@@ -57,14 +56,14 @@ def run_alarm(config, T0, test=False):
     if CAT is None:
         state = "WARNING"
         state_message = f"{T0_str} (UTC) FDSN connection error"
-        messaging.icinga(config, state, state_message)
+        messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 
     # No events
     if len(CAT) == 0:
         state = "OK"
         state_message = f"{T0_str} (UTC) No new earthquakes"
-        messaging.icinga(config, state, state_message)
+        messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 
     # Compare new event distance with volcanoes
@@ -77,7 +76,7 @@ def run_alarm(config, T0, test=False):
         print("Earthquakes detected, but not near any volcanoes")
         state = "OK"
         state_message = f"{T0_str} (UTC) No new earthquakes"
-        messaging.icinga(config, state, state_message)
+        messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 
     # Read in old events. Write all recent events. Filter to new events
@@ -91,7 +90,7 @@ def run_alarm(config, T0, test=False):
         print("Earthquakes detected, but already processed in previous run")
         state = "WARNING"
         state_message = f"{T0_str} (UTC) Old event detected"
-        messaging.icinga(config, state, state_message)
+        messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 
     print(f"{len(NEW_EVENTS)} new events found. Looping through events...")
@@ -118,16 +117,16 @@ def run_alarm(config, T0, test=False):
 
         #### Generate Figure ####
         try:
-            attachment = plot_event(eq, volcs, config)
+            filename = plot_event(eq, volcs, config)
             fig_dir = Path(os.environ["TMP_FIGURE_DIR"])
             eq_time = eq.preferred_origin().time.strftime("%Y%m%dT%H%M%S")
             eq_mag = eq.preferred_magnitude().mag
             eq_id = "".join(eq.resource_id.id.split("/")[-2:]).lower()
             new_filename = fig_dir / f"{eq_time}_M{eq_mag:.1f}_{eq_id}.png"
-            os.rename(attachment, new_filename)
-            attachment = new_filename
+            os.rename(filename, new_filename)
+            filename = new_filename
         except:
-            attachment = []
+            filename = []
             print("Problem making figure. Continue anyway")
             b = traceback.format_exc()
             err_message = "".join(f"{a}\n" for a in b.splitlines())
@@ -137,25 +136,25 @@ def run_alarm(config, T0, test=False):
         subject, message = create_message(eq, volcs)
 
         print("Sending message...")
-        # messaging.send_alert(config.alarm_name, subject, message, attachment)
+        # messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
         print("Posting to mattermost...")
-        messaging.post_mattermost(config, subject, message, filename=attachment)
+        messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
 
         # Post to dedicated response channels for volcnoes listed in config file
         if "mm_response_channels" in dir(config):
             if volcs.iloc[0].Volcano in config.mm_response_channels.keys():
                 config.mattermost_channel_id = config.mm_response_channels[volcs.iloc[0].Volcano]
-                messaging.post_mattermost(config, subject, message, filename=attachment)
+                messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
 
         # delete the file you just sent
-        if attachment:
-            os.remove(attachment)
+        if filename:
+            os.remove(filename)
 
         state = "CRITICAL"
         eq_str = eq.preferred_origin().time.strftime("%Y-%m-%d %H:%M:%S")
         state_message = f"{eq_str} (UTC) {subject}"
 
-    messaging.icinga(config, state, state_message)
+    messaging.icinga(config, state, state_message, send=icinga_flag)
 
     return
 
@@ -318,6 +317,7 @@ def plot_event(eq, volcs, config):
             transform=ax[sta].transAxes,
             bbox=dict(boxstyle="round", fc="w", ec="w", alpha=0.8, linewidth=0),
         )
+        trace_t1 = tr.stats.starttime.datetime
         try:
             p_time = (plot_chans.iloc[i].P.datetime - trace_t1).total_seconds()
             ax[sta].axvline(p_time, ymin=0.25, ymax=0.75, color="r", linewidth=1)

@@ -1,5 +1,4 @@
-from . import utils
-import os
+import os, sys
 import pandas as pd
 import numpy as np
 import requests
@@ -15,12 +14,16 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
 import matplotlib.image as mpimg
 import traceback
-
-
+from pathlib import Path
 warnings.filterwarnings("ignore")
 
 
-def run_alarm(config, T0, test=False):
+current_path = Path(__file__).parent
+sys.path.append(str(current_path.parents[0]))
+from utils import messaging, plotting, processing
+
+
+def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
     ### get alerts from volcview api ###
     ####################################
@@ -52,7 +55,7 @@ def run_alarm(config, T0, test=False):
         state_message = "{} (UTC) Error getting data from Volcview-API".format(
             T0.strftime("%Y-%m-%d %H:%M")
         )
-        utils.icinga2_state(config, state, state_message)
+        messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 
     ####################################
@@ -109,7 +112,7 @@ def run_alarm(config, T0, test=False):
         ALERT_TYPE = {"ash": "NOAA Ash", "hot": "NOAA Thermal", "ice": "NOAA Ice"}
         volcs = VOLCS.loc[VOLCS[ALERT_TYPE[alert.alert_type]] == "Y"]
 
-        volcs = utils.volcano_distance(alert.lon_rc, alert.lat_rc, volcs)
+        volcs = processing.volcano_distance(alert.lon_rc, alert.lat_rc, volcs)
         volcs = volcs.sort_values("distance")
 
         if volcs.distance.min() >= config.max_distance:
@@ -195,10 +198,10 @@ def run_alarm(config, T0, test=False):
 
                 print("Trying to make figure attachment")
                 try:
-                    attachment = plot_fig(alert, volcs, config)
+                    filename = plot_fig(alert, volcs, config)
                     print("Figure generated successfully")
                 except:
-                    attachment = []
+                    filename = []
                     print("Problem making figure. Continue anyway")
                     b = traceback.format_exc()
                     err_message = "".join("{}\n".format(a) for a in b.splitlines())
@@ -212,9 +215,9 @@ def run_alarm(config, T0, test=False):
                 )
 
                 # print('Sending message...')
-                # utils.send_alert(config.alarm_name, subject, message, attachment)
+                # messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
                 print("Posting to mattermost...")
-                utils.post_mattermost(config, subject, message, filename=attachment)
+                messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
 
                 ##################################################################
                 # Send thermal alerts to their own channel
@@ -222,9 +225,7 @@ def run_alarm(config, T0, test=False):
                 if (alert.alert_type == "hot") and ("THERMAL" in alert.alert_header):
                     if volcs.iloc[0].distance < config.thermal_alert_dist:
                         config.mattermost_channel_id = config.thermal_alerts_mm
-                        utils.post_mattermost(
-                            config, subject, message, filename=attachment
-                        )
+                        messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
                 #
                 ##################################################################
 
@@ -237,7 +238,7 @@ def run_alarm(config, T0, test=False):
 
                 if elevated_volcs.iloc[0].distance < config.elevated_volcano_dist:
                     config.mattermost_channel_id = config.elevated_volcano_mm
-                    utils.post_mattermost(config, subject, message, filename=attachment)
+                    messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
                 #
                 ##################################################################
 
@@ -250,10 +251,10 @@ def run_alarm(config, T0, test=False):
                 )
 
                 # delete the file you just sent
-                if attachment:
-                    os.remove(attachment)
+                if filename:
+                    os.remove(filename)
 
-    utils.icinga2_state(config, state, state_message)
+    messaging.icinga(config, state, state_message, send=icinga_flag)
 
 
 def create_message(alert, instrument, height_txt, volcs, status_txt, type_txt):
@@ -411,7 +412,7 @@ def plot_fig(alert, volcs, config):
 
     lat0 = alert.lat_rc
     lon0 = alert.lon_rc
-    m_map, inmap = utils.make_map(
+    m_map, inmap = plotting.make_map(
         ax, lat0, lon0, main_dist=150, inset_dist=400, scale=50
     )
 
@@ -466,7 +467,7 @@ def plot_fig(alert, volcs, config):
 
     plt.tight_layout(pad=0.5)
 
-    jpg_file = utils.save_file(plt, config, dpi=500)
+    jpg_file = plotting.save_file(plt, config, dpi=500)
 
     # remove images downloaded from NOAA/CIMSS webpage
     os.remove(tmp_file1)

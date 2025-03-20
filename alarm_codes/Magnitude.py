@@ -1,18 +1,12 @@
 import os, sys
 import pandas as pd
 import numpy as np
-from obspy import Catalog, UTCDateTime, Stream
+from obspy import Catalog
 from obspy.geodetics.base import gps2dist_azimuth
 from obspy.clients.fdsn import Client
 import cartopy
-from cartopy.io.img_tiles import GoogleTiles
-from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
-from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
-from matplotlib.ticker import FormatStrFormatter
-import matplotlib.pyplot as plt
-from matplotlib.dates import date2num
 import matplotlib as m
-import shapely.geometry as sgeom
+import matplotlib.pyplot as plt
 import warnings
 import traceback
 import time
@@ -122,7 +116,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
             eq_time = eq.preferred_origin().time.strftime("%Y%m%dT%H%M%S")
             eq_mag = eq.preferred_magnitude().mag
             eq_id = "".join(eq.resource_id.id.split("/")[-2:]).lower()
-            new_filename = fig_dir / f"{eq_time}_M{eq_mag:.1f}_{eq_id}.png"
+            new_filename = fig_dir / f"{eq_time}_M{eq_mag:.1f}_{eq_id}{filename.suffix}"
             os.rename(filename, new_filename)
             filename = new_filename
         except:
@@ -147,8 +141,8 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
                 messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
 
         # delete the file you just sent
-        # if filename:
-        #     os.remove(filename)
+        if filename:
+            os.remove(filename)
 
         state = "CRITICAL"
         eq_str = eq.preferred_origin().time.strftime("%Y-%m-%d %H:%M:%S")
@@ -254,7 +248,9 @@ def get_channels(eq):
 def get_axes_and_ratios(st):
     axes_list = np.array([tr.stats.station for tr in st])
     h_ratios = np.full(axes_list.shape, 1 / len(axes_list))
+    axes_list = np.insert(axes_list, 0, ".")
     axes_list = np.insert(axes_list, 0, "map")
+    h_ratios = np.insert(h_ratios, 0, 0)
     h_ratios = np.insert(h_ratios, 0, h_ratios.sum() * 0.5)
     axes_list = axes_list.reshape(axes_list.shape[0], 1)
 
@@ -275,7 +271,7 @@ def get_xticks(st, fmt="15s"):
 
 
 def plot_event(eq, volcs, config):
-    m.use("Agg")
+    m.use('Agg')
 
     ################### Download data ###################
     channels = get_channels(eq)
@@ -303,7 +299,7 @@ def plot_event(eq, volcs, config):
     )
 
     x_ticks, x_tick_labels = get_xticks(st)
-        
+
     for i, tr in enumerate(st):
         sta = tr.stats.station
         ax[sta].plot(tr.times("relative"), tr.data, lw=0.5, c="0.2")
@@ -363,24 +359,22 @@ def plot_event(eq, volcs, config):
 
     vlat = volcs.iloc[0]["Latitude"]
     vlon = volcs.iloc[0]["Longitude"]
-    xdist = 25
-    ydist = 25
+    dist = 25
     ax["map"] = plotting.make_map(
         vlat,
         vlon,
         ax=ax["map"],
         basemap="hillshade",
-        x_dist=xdist,
-        y_dist=ydist
+        x_dist=dist,
+        y_dist=dist
     )
-    extent = plotting.get_extent(vlat, vlon, dist=xdist)
+    extent = plotting.get_extent(vlat, vlon, xdist=dist, ydist=dist)
     plotting.map_ticks(ax["map"], extent, nticks_x=2, nticks_y=2, grid_kwargs={"lw": 0.2, "ls": "--"},lon_fmt_kwargs=None, lat_fmt_kwargs=None, y_rotate=90, ticks_right=True)
     ax["map"].tick_params(length=0)
     ax["map"].plot(volcs[:10].Longitude, volcs[:10].Latitude, '^', markerfacecolor='g', markersize=8, markeredgecolor='k', markeredgewidth=0.5, transform=cartopy.crs.PlateCarree())
     ax["map"].plot(channels.Longitude, channels.Latitude, 's', markerfacecolor='orange', markersize=5, markeredgecolor='k', markeredgewidth=0.4, transform=cartopy.crs.PlateCarree())
     ax["map"].plot(eq.preferred_origin().longitude, eq.preferred_origin().latitude, 'o', markerfacecolor='firebrick', markersize=8, markeredgecolor='k', markeredgewidth=0.7, transform=cartopy.crs.PlateCarree())
     for i, row in channels.iterrows():
-        # t = ax["map"].text(row.Longitude+0.007, row.Latitude+0.007, row.NS.split('.')[-1], clip_on=True, fontsize=6, transform=cartopy.crs.PlateCarree())
         t = ax["map"].annotate(row.NS.split('.')[-1], (row.Longitude, row.Latitude), xytext=(10,10), textcoords="offset pixels", fontsize=6, transform=cartopy.crs.Geodetic())
         t.clipbox = ax["map"].bbox
 
@@ -403,17 +397,12 @@ def plot_event(eq, volcs, config):
         projection="orthographic",
     )
 
-    extent_new = [sgeom.box(extent[0], extent[2], extent[1], extent[3])]
-    ax_inset.add_geometries(
-        extent_new,
-        cartopy.crs.PlateCarree(),
-        facecolor="none",
-        edgecolor="red",
-        linewidth=0.35,
+    plotting.add_inset_polygon(
+        ax_inset, extent, facecolor="none", edgecolor="red", linewidth=0.35
     )
 
     print('Saving figure...')
-    jpg_file = plotting.save_file(fig, config, dpi=250)
+    jpg_file = plotting.save_file(fig, config, dpi=200)
     plt.close(fig)
 
     return jpg_file

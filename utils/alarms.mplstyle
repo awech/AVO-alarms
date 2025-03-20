@@ -5,21 +5,22 @@
 
 
 # FIGURE LEVEL
+backend: Agg
 pdf.fonttype: 42
 figure.figsize: 4,4
 figure.edgecolor: black
 figure.facecolor: white
-savefig.dpi: 300
+savefig.dpi: 250
 figure.titlesize: 24
 savefig.bbox: tight
 
 # AXIS LEVEL
-axes.linewidth: 1.5
+axes.linewidth: 0.75
 axes.facecolor: white
 axes.labelsize: 12
 # axes.prop_cycle: cycler(marker = ['o','s','^','D'], linestyle = ['-','--',':','-.']) * cycler(color = ["#009ADE","#FF1F5B","#00CD6C","#AF58BA","#FFC61E","#089099","#F28522","#A0B1BA","#045275",], markeredgecolor = ["#009ADE","#FF1F5B","#00CD6C","#AF58BA","#FFC61E","#089099","#F28522","#A0B1BA","#045275",])
 axes.titlesize: 14
-axes.titlelocation: left
+axes.titlelocation: center
 errorbar.capsize: 0
 
 

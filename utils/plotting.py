@@ -3,17 +3,17 @@ from pathlib import Path
 
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
+import shapely.geometry as sgeom
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
 
-# from matplotlib_scalebar.scalebar import ScaleBar
 from cartopy.io.img_tiles import GoogleTiles
+from cartopy.mpl.gridliner import LongitudeFormatter, LatitudeFormatter
 from matplotlib.dates import date2num, num2date
 from matplotlib.path import Path as mpath
 from obspy import UTCDateTime as utc
-from PIL import Image
 
 
 class ShadedReliefESRI(GoogleTiles):
@@ -38,10 +38,10 @@ class ShadedReliefESRI(GoogleTiles):
         return url
 
 
-def get_extent(lat0, lon0, dist=20):
+def get_extent(lat0, lon0, xdist=25, ydist=25):
 
-    dlat = 1 * (dist / 111.1)
-    dlon = dlat / np.cos(lat0 * np.pi / 180)
+    dlat = ydist / 111.1
+    dlon = (xdist / 111.1) / np.cos(lat0 * np.pi / 180)
 
     latmin = lat0 - dlat
     latmax = lat0 + dlat
@@ -76,113 +76,14 @@ def make_path(extent):
     ```
     """
     n = 20
-    aoi = mpath.Path(
-        list(zip(np.linspace(extent[0], extent[1], n), np.full(n, extent[3])))
-        + list(zip(np.full(n, extent[1]), np.linspace(extent[3], extent[2], n)))
-        + list(zip(np.linspace(extent[1], extent[0], n), np.full(n, extent[2])))
-        + list(zip(np.full(n, extent[0]), np.linspace(extent[2], extent[3], n)))
+    aoi = mpath(
+        list(zip(np.linspace(extent[1], extent[0], n), np.full(n, extent[3])))
+        + list(zip(np.full(n, extent[0]), np.linspace(extent[3], extent[2], n)))
+        + list(zip(np.linspace(extent[0], extent[1], n), np.full(n, extent[2])))
+        + list(zip(np.full(n, extent[1]), np.linspace(extent[2], extent[3], n)))
     )
 
     return aoi
-
-
-def great_circle_distance(origin, destination):
-    """_summary_
-
-    Parameters
-    ----------
-    origin : _type_
-        _description_
-    destination : _type_
-        _description_
-
-    Returns
-    -------
-    _type_
-        _description_
-    """
-    lat1, lon1 = origin
-    lat2, lon2 = destination
-    radius = 6371  # km
-
-    dlat = np.radians(lat2 - lat1)
-    dlon = np.radians(lon2 - lon1)
-    a = np.sin(dlat / 2) * np.sin(dlat / 2) + np.cos(np.radians(lat1)) * np.cos(
-        np.radians(lat2)
-    ) * np.sin(dlon / 2) * np.sin(dlon / 2)
-    c = 2 * np.atan2(np.sqrt(a), np.sqrt(1 - a))
-    d = radius * c
-
-    return d
-
-
-def get_bounding_box_limits(lat, lon, ydist, xdist):
-    """
-    get the lat and lon limits a user specified distance from a central point.
-    Effectively converts distance from a central point to degrees.
-
-    For more maths:
-    longitude - https://en.wikipedia.org/wiki/Longitude#Length_of_a_degree_of_longitude
-    latitude - https://en.wikipedia.org/wiki/Latitude#Length_of_a_degree_of_latitude
-
-    Used for when you want to effectively create bounding boxes around a central point
-
-    Example:
-    ```python
-    # for creating cartopy extents
-
-    d_deg_lat, d_deg_lon = get_bounding_box_limits(
-        lat=volc_lat, lon=volc_lon, xdist=x_dist, ydist=y_dist
-    )
-    # get bounding box lat and lon bounds
-    latitude_min, latitude_max = volc_lat - d_deg_lat, volc_lat + d_deg_lat
-    longitude_min, longitude_max = volc_lon - d_deg_lon, volc_lon + d_deg_lon
-
-    # bounding box extent in cartopy argument format
-    extent = [longitude_min, longitude_max, latitude_min, latitude_max]
-    ```
-
-    Parameters
-    ----------
-    lat : float
-        latitude of box center
-    lon : float
-        longitude of box center
-    xdist : float
-        horizontal distance from the center of box to the edge
-    ydist : float
-        vertical distance from the center of the box to the edge
-
-
-    Return
-
-    d_deg_lat : float
-        degrees from lat to bounding box edge
-    d_deg_lon : float
-        degrees from lon to bounding box edge
-
-    """
-
-    a = 6378.1370
-    b = 6356.7523
-
-    e = (a**2 - b**2) / a**2
-    # km per degree of longitude
-    d_km_lon = (np.pi * a * np.cos(np.deg2rad(lon))) / (
-        180 * np.sqrt(1 - e**2 * np.sin(np.deg2rad(lon)) ** 2)
-    )
-    # km per degree of latitude
-    d_km_lat = (np.pi * a * (1 - e**2)) / (
-        180 * (1 - e**2 * np.sin(np.deg2rad(lat)) ** 2) ** 1.5
-    )
-
-    # degrees needed to move to move the xdist
-    d_deg_lon = xdist / d_km_lon
-
-    # degrees neeeded to move to move the ydist
-    d_deg_lat = ydist / d_km_lat
-
-    return d_deg_lat, d_deg_lon
 
 
 def make_map(
@@ -190,7 +91,7 @@ def make_map(
     volc_lon,
     ax,
     x_dist=25.0,
-    y_dist=None,
+    y_dist=25.0,
     basemap="hillshade",
     projection="mercator",
     land_color="#80808050",
@@ -283,20 +184,7 @@ def make_map(
         basemap in possible_basemaps
     ), f"{basemap} not in possible basemaps. please choose boring or hillshade"
 
-    # km to degrees conversion for bounding delta degrees from center
-    # uneven distances so that figure is square with mercator projection
-    if y_dist is None:
-        y_dist = x_dist / 1.5
-    d_deg_lat, d_deg_lon = get_bounding_box_limits(
-        lat=volc_lat, lon=volc_lon, xdist=x_dist, ydist=y_dist
-    )
-    # get bounding box lat and lon bounds
-    #
-    latitude_min, latitude_max = volc_lat - d_deg_lat, volc_lat + d_deg_lat
-    longitude_min, longitude_max = volc_lon - d_deg_lon, volc_lon + d_deg_lon
-
-    # bounding box extent in cartopy argument format
-    extent = [longitude_min, longitude_max, latitude_min, latitude_max]
+    extent = get_extent(volc_lat, volc_lon, xdist=x_dist, ydist=y_dist)
 
     # how detailed to make the hillshade scales to how
     # big of an area to map
@@ -359,110 +247,95 @@ def make_map(
     elif basemap == "LAND":
         ax.add_feature(cfeature.LAND, facecolor=land_color)
 
-    ax.set_extent(extent, crs=ccrs.Geodetic())  # defaults to geodetic version of crs
     # cant use set_boundary on mercator for some reason.
     if projection != "MERCATOR":
         ax.set_boundary(make_path(extent), transform=ccrs.Geodetic())
 
+    ax.set_extent(extent, crs=ccrs.Geodetic())  # defaults to geodetic version of crs
+
     return ax
 
 
-def add_map_grid(
-    volc_lat, volc_lon, ax, x_dist=25, y_dist=None, fontsize=6, **formatter_kwargs
-):
-    """
-    Add gridlines the way jubb and awech like them on their maps.
-
-    Example:
-    ```python
-    # A basic alarms template main map with gridlines
-    fig, ax = plt.subplots(figsize=(6, 6))
-
-
-    # NORMAL MAP uses the default x_dist of 25
-    ax = make_map(
-        volc_lat,
-        volc_lon,
-        ax=ax,
-        basemap="hillshade",
+def add_inset_polygon(ax, extent, **kwargs):
+    extent_new = [sgeom.box(extent[0], extent[2], extent[1], extent[3])]
+    ax.add_geometries(
+        extent_new,
+        ccrs.PlateCarree(),
+        **kwargs,
     )
-    label_kwargs = {
-            "direction_label": True,
-            "number_format": ".2f",
-        },
 
-    gl = add_map_grid(volc_lat, volc_lon, ax, xdist, formatter_kwargs = label_kwargs)
-    ax.set_title("Alarms general template")
-    ```
+
+def map_ticks(ax, extent, nticks_x=2, nticks_y=2, grid_kwargs=None, lon_fmt_kwargs=None, lat_fmt_kwargs=None, y_rotate=None, ticks_right=True):
+    """Adds ticks and/or grid to a cartopy map axis at specified locations.
 
     Parameters
     ----------
-    volc_lat : float
-        volcano or central point latitude
-    volc_lon : float
-        volcano or central point longitude
-    ax : ax : matplotlib.Axes
-        the matplotlib axis to create the map on
-    x_dist : float, optional
-        E-W distance from the central point in km, by default 25.
-    y_dist : float, optional
-        N-S distance from the central point in km, by default None.
-        If None, then y_dist = x_dist / 1.5. This creates relatively
-        square plots at AK latitudes
-    fontsize : int, optional
-       fontsize for the lat-lon labels, by default 6
-    formatter_kwargs: dict
-        dictionary of keywords to be used for customizing the grid
-        labels. Keys are same as arguments for
+    ax : cartopy axis
+        
+    xlocs : list or numpy array
+        longitudes of grids and/or xticks
+    ylocs : list or numpy array
+        latitudes of grids and/or xticks
+    grid_kwargs : dict, optional
+        additional arguments for cartopy's ax.gridlines(), by default None
+        https://matplotlib.org/stable/api/_as_gen/matplotlib.pyplot.grid.html
+    lon_fmt_kwargs : dict, optional
+        arguments for cartopy's LongitudeFormatter(), by default None
         https://scitools.org.uk/cartopy/docs/v0.22/reference/generated/cartopy.mpl.ticker.LongitudeFormatter.html
+    lat_fmt_kwargs : dict, optional
+        arguments for cartopy's LatitudeFormatter(), by default None
+        https://scitools.org.uk/cartopy/docs/v0.22/reference/generated/cartopy.mpl.ticker.LatitudeFormatter.html
+    y_rotate : float, optional
+        rotate y-ticklabels, by default None
+    ticks_right : bool, optional
+        move y-axis ticks to the right, by default True
 
     Returns
     -------
-    cartopy.mpl.gridliner.Gridliner
-        yer gridlines object. Can be further customized outside this
+    None, or:
+        Gridliner() instance if grid_kwargs are passed AND grid_kwargs["draw_labels"]=True
     """
-    # GRIDLINES FOR MAIN MAP
-    # format the grid lines
-    gl = ax.gridlines(
-        crs=ccrs.PlateCarree(),
-        draw_labels=True,
-        linewidth=0.25,
-        linestyle="--",
-        color="#808080",
-        **formatter_kwargs,
-    )
-    # so the axis is relatvely square at AK lats
-    if y_dist is None:
-        y_dist = x_dist / 1.5
 
-    d_lat, d_lon = get_bounding_box_limits(
-        lat=volc_lat, lon=volc_lon, xdist=x_dist, ydist=y_dist
-    )
+    if lon_fmt_kwargs is None:
+        lon_formatter = LongitudeFormatter(
+            number_format=".2f", dateline_direction_label=True, direction_label=True,
+        )
+    else:
+        lon_formatter = LongitudeFormatter(**lon_fmt_kwargs)
+    if lat_fmt_kwargs is None:
+        lat_formatter = LatitudeFormatter(number_format=".2f", direction_label=True)
+    else:
+        lat_formatter = LatitudeFormatter(**lat_fmt_kwargs)
 
-    # grid lines - taking care of being on either side of the
-    # anti-meridian
-    lon_line_locs = [volc_lon - (d_lon / 2), volc_lon + (d_lon / 2)]
-    new_lon_locs = []
-    for loc in lon_line_locs:
-        if loc < -180:
-            new_lon_locs.append(loc + 360)
-        else:
-            new_lon_locs.append(loc)
+    xlocs = np.linspace(extent[0], extent[1], nticks_x+2)[1:-1]
+    ylocs = np.linspace(extent[2], extent[3], nticks_y+2)[1:-1]
 
-    new_lon_locs = np.array(new_lon_locs)
-    new_lon_locs[new_lon_locs > 180] = new_lon_locs[new_lon_locs > 180] - 360
+    for i, l in enumerate(xlocs):
+        if l < -180:
+            xlocs[i] = l + 360 
 
-    gl.ylocator = mticker.FixedLocator([volc_lat - (d_lat / 2), volc_lat + (d_lat / 2)])
-    # these aren't working with stuff that straddles the anti-meridian
-    gl.xlocator = mticker.FixedLocator(new_lon_locs)
-    gl.xlabel_style = {"fontsize": fontsize}
-    gl.ylabel_style = {"fontsize": fontsize}
-    gl.top_labels = False
-    gl.left_labels = False
-    gl.bottom_labels = True
-    gl.right_labels = True
+    if grid_kwargs is not None:
+        grid_kwargs["xformatter"] = lon_formatter
+        grid_kwargs["yformatter"] = lat_formatter
+        gl = ax.gridlines(xlocs=xlocs, ylocs=ylocs, **grid_kwargs)
+        if "draw_labels" in grid_kwargs and grid_kwargs["draw_labels"]:
+            return gl
 
-    return gl
+    ax.set_xticks(xlocs, crs=ccrs.PlateCarree())
+    ax.set_yticks(ylocs, crs=ccrs.PlateCarree())
+    if y_rotate is not None:
+        ax.set_yticklabels(
+            ylocs,
+            rotation=y_rotate,
+            ha="center",
+            rotation_mode="anchor",
+        )
+        ax.tick_params(axis="y", pad=7)
+
+    ax.xaxis.set_major_formatter(lon_formatter)
+    ax.yaxis.set_major_formatter(lat_formatter)
+    if ticks_right:
+        ax.yaxis.tick_right()
 
 
 def add_watermark(text, ax=None):
@@ -489,7 +362,7 @@ def add_watermark(text, ax=None):
     )
 
 
-def save_file(plt, config, dpi=250):
+def save_file(fig, config, dpi=250):
     """_summary_
 
     Parameters
@@ -508,19 +381,12 @@ def save_file(plt, config, dpi=250):
     """
     home_dir = Path(os.environ["HOME_DIR"])
 
-    png_file = (
-        home_dir
-        / f"{config.alarm_name.replace(' ','_')}_{utc.utcnow().strftime('%Y%m%d_%H%M%S')}.png"
-    )
     jpg_file = (
         home_dir
         / f"{config.alarm_name.replace(' ','_')}_{utc.utcnow().strftime('%Y%m%d_%H%M%S')}.jpg"
     )
 
-    plt.savefig(png_file, dpi=dpi, format="png")
-    im = Image.open(png_file)
-    im.convert("RGB").save(jpg_file, "JPEG")
-    os.remove(png_file)
+    fig.savefig(jpg_file, dpi=dpi)
 
     return jpg_file
 

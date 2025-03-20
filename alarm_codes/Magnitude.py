@@ -365,8 +365,8 @@ def plot_event(eq, volcs, config):
         vlon,
         ax=ax["map"],
         basemap="hillshade",
-        x_dist=dist,
-        y_dist=dist
+        xdist=dist,
+        ydist=dist
     )
     extent = plotting.get_extent(vlat, vlon, xdist=dist, ydist=dist)
     plotting.map_ticks(ax["map"], extent, nticks_x=2, nticks_y=2, grid_kwargs={"lw": 0.2, "ls": "--"},lon_fmt_kwargs=None, lat_fmt_kwargs=None, y_rotate=90, ticks_right=True)
@@ -390,8 +390,8 @@ def plot_event(eq, volcs, config):
     ax_inset = plotting.make_map(
         vlat,
         vlon,
-        x_dist=150,
-        y_dist=150,
+        xdist=150,
+        ydist=150,
         ax=ax_inset,
         basemap="land",
         projection="orthographic",

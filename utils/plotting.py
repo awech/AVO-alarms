@@ -90,8 +90,8 @@ def make_map(
     volc_lat,
     volc_lon,
     ax,
-    x_dist=25.0,
-    y_dist=25.0,
+    xdist=25.0,
+    ydist=25.0,
     basemap="hillshade",
     projection="mercator",
     land_color="#80808050",
@@ -107,7 +107,7 @@ def make_map(
     fig, ax = plt.subplots(figsize=(6, 6))
 
 
-    # NORMAL MAP uses the default x_dist of 25
+    # NORMAL MAP uses the default xdist of 25
     ax = make_map(
         volc_lat,
         volc_lon,
@@ -120,8 +120,8 @@ def make_map(
     ax_inset = make_map(
         volc_lat,
         volc_lon,
-        x_dist=500,
-        y_dist=300,
+        xdist=500,
+        ydist=300,
         ax=ax_inset,
         basemap="land",
         projection="orthographic",
@@ -136,11 +136,11 @@ def make_map(
         volcano or central point longitude
     ax : matplotlib.Axes
         the matplotlib axis to create the map on
-    x_dist : float, optional
+    xdist : float, optional
         E-W distance from the central point in km, by default 25.
-    y_dist : float, optional
+    ydist : float, optional
         N-S distance from the central point in km, by default None.
-        If None, then y_dist = x_dist / 1.5. This creates relatively
+        If None, then ydist = xdist / 1.5. This creates relatively
         square plots at AK latitudes
     basemap : str, optional
         what type of basemap to use. Options are:
@@ -184,16 +184,16 @@ def make_map(
         basemap in possible_basemaps
     ), f"{basemap} not in possible basemaps. please choose boring or hillshade"
 
-    extent = get_extent(volc_lat, volc_lon, xdist=x_dist, ydist=y_dist)
+    extent = get_extent(volc_lat, volc_lon, xdist=xdist, ydist=ydist)
 
     # how detailed to make the hillshade scales to how
     # big of an area to map
 
-    if x_dist <= 50:
+    if xdist <= 50:
         zoom_level = 13
-    elif (x_dist > 50) & (x_dist <= 100):
+    elif (xdist > 50) & (xdist <= 100):
         zoom_level = 11
-    elif (x_dist > 100) & (x_dist < 500):
+    elif (xdist > 100) & (xdist < 500):
         zoom_level = 9
     else:
         zoom_level = 7

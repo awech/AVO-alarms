@@ -129,7 +129,7 @@ label_kwargs = (
 )
 
 plotting.map_ticks(
-    ax["map"],
+    ax,
     extent,
     nticks_x=2,
     nticks_y=2,

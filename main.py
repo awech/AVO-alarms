@@ -6,7 +6,7 @@ start = time.time()
 
 import argparse
 from importlib import import_module
-from alarm_codes import utils
+from utils import messaging
 from obspy import UTCDateTime as utc
 import os
 import sys
@@ -70,8 +70,8 @@ except:
     message = "".join(f"{a}\n" for a in b.splitlines())
     message = f"{str(T0)}\n\n{message}"
     subject = config.alarm_name + " error"
-    attachment = Path("alarm_aux_files") / "oops.jpg"
-    utils.send_alert("Error", subject, message, attachment)
+    filename = Path("alarm_aux_files") / "oops.jpg"
+    messaging.send_alert("Error", subject, message, attachment=filename)
 
 print(utc.utcnow().strftime("%Y.%m.%d %H:%M:%S"))
 end = time.time()

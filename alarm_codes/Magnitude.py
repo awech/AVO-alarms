@@ -22,7 +22,7 @@ current_path = Path(__file__).parent
 sys.path.append(str(current_path.parents[0]))
 from utils import messaging, plotting, processing
 
-
+plt.style.use(Path("utils") / "alarms.mplstyle")
 warnings.filterwarnings("ignore")
 
 attempt = 1
@@ -147,8 +147,8 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
                 messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
 
         # delete the file you just sent
-        if filename:
-            os.remove(filename)
+        # if filename:
+        #     os.remove(filename)
 
         state = "CRITICAL"
         eq_str = eq.preferred_origin().time.strftime("%Y-%m-%d %H:%M:%S")
@@ -275,8 +275,7 @@ def get_xticks(st, fmt="15s"):
 
 
 def plot_event(eq, volcs, config):
-    m.use('Agg')
-    n_blank = 4
+    m.use("Agg")
 
     ################### Download data ###################
     channels = get_channels(eq)
@@ -301,7 +300,6 @@ def plot_event(eq, volcs, config):
         axes_list,
         figsize=(4, 9),
         height_ratios=h_ratios,
-        layout="constrained",
     )
 
     x_ticks, x_tick_labels = get_xticks(st)
@@ -363,86 +361,56 @@ def plot_event(eq, volcs, config):
             ax[sta].spines[spine].set_visible(False)
     ax[sta].set_xticklabels(x_tick_labels, fontsize=6)
 
-    # #################### Add main map ####################
-    # grid = plt.GridSpec(len(ST), 1, wspace=0.05, hspace=0.6)
-    # print('Plotting main map...')
-    # extent = get_extent(volcs.iloc[0].Latitude, volcs.iloc[0].Longitude, dist=25)
-    # # CRS = cartopy.crs.Mercator(central_longitude=np.mean(extent[:2]), min_latitude=extent[2], max_latitude=extent[3], globe=None)
-    # # ax1 = plt.subplot(grid[:n_blank,0], projection=CRS)
-    # # ax1.set_extent(extent,cartopy.crs.PlateCarree())
-    # # coast = cartopy.feature.GSHHSFeature(scale="high", rasterized=True)
-    # # ax1.add_feature(coast, facecolor="lightgray", linewidth=0.5)
-    # # water_col=tuple(np.array([165,213,229])/255.)
-    # # ax1.set_facecolor(water_col)
-    # # ax1.background_patch.set_facecolor(water_col)
-    # ax1 = plt.subplot(grid[:n_blank,0], projection=ShadedReliefESRI().crs)
-    # ax1.set_extent(extent)
-    # ax1.add_image(ShadedReliefESRI(), 11)
-    # lon_grid = [np.mean(extent[:2])-np.diff(extent[:2])[0]/4, np.mean(extent[:2])+np.diff(extent[:2])[0]/4]
-    # lat_grid = [np.mean(extent[-2:])-np.diff(extent[-2:])[0]/4, np.mean(extent[-2:])+np.diff(extent[-2:])[0]/4]
-    # # gl = ax1.gridlines(draw_labels={"bottom": "x", "right": "y"},
-    # # 				   xlocs=lon_grid, ylocs=lat_grid,
-    # # 				   xformatter=LongitudeFormatter(number_format='.2f', direction_label=False),
-    # # 				   yformatter=LatitudeFormatter(number_format='.2f', direction_label=False),
-    # # 				   alpha=0.2,
-    # # 				   color='gray',
-    # # 				   linewidth=0.5,
-    # # 				   xlabel_style={'fontsize':6},
-    # # 				   ylabel_style={'fontsize':6})
-    # gl = ax1.gridlines(draw_labels=True, xlocs=lon_grid, ylocs=lat_grid,
-    #                    alpha=0.0,
-    #                    color='gray',
-    #                    linewidth=0.5)
-    # gl.xlabels_top = False
-    # gl.ylabels_left = False
-    # gl.xformatter = LONGITUDE_FORMATTER
-    # gl.yformatter = LATITUDE_FORMATTER
-    # gl.xlabel_style = {'size': 6}
-    # gl.ylabel_style = {'size': 6}
+    vlat = volcs.iloc[0]["Latitude"]
+    vlon = volcs.iloc[0]["Longitude"]
+    xdist = 25
+    ydist = 25
+    ax["map"] = plotting.make_map(
+        vlat,
+        vlon,
+        ax=ax["map"],
+        basemap="hillshade",
+        x_dist=xdist,
+        y_dist=ydist
+    )
+    extent = plotting.get_extent(vlat, vlon, dist=xdist)
+    plotting.map_ticks(ax["map"], extent, nticks_x=2, nticks_y=2, grid_kwargs={"lw": 0.2, "ls": "--"},lon_fmt_kwargs=None, lat_fmt_kwargs=None, y_rotate=90, ticks_right=True)
+    ax["map"].tick_params(length=0)
+    ax["map"].plot(volcs[:10].Longitude, volcs[:10].Latitude, '^', markerfacecolor='g', markersize=8, markeredgecolor='k', markeredgewidth=0.5, transform=cartopy.crs.PlateCarree())
+    ax["map"].plot(channels.Longitude, channels.Latitude, 's', markerfacecolor='orange', markersize=5, markeredgecolor='k', markeredgewidth=0.4, transform=cartopy.crs.PlateCarree())
+    ax["map"].plot(eq.preferred_origin().longitude, eq.preferred_origin().latitude, 'o', markerfacecolor='firebrick', markersize=8, markeredgecolor='k', markeredgewidth=0.7, transform=cartopy.crs.PlateCarree())
+    for i, row in channels.iterrows():
+        # t = ax["map"].text(row.Longitude+0.007, row.Latitude+0.007, row.NS.split('.')[-1], clip_on=True, fontsize=6, transform=cartopy.crs.PlateCarree())
+        t = ax["map"].annotate(row.NS.split('.')[-1], (row.Longitude, row.Latitude), xytext=(10,10), textcoords="offset pixels", fontsize=6, transform=cartopy.crs.Geodetic())
+        t.clipbox = ax["map"].bbox
 
-    # ax1.plot(volcs[:10].Longitude, volcs[:10].Latitude, '^', markerfacecolor='g', markersize=8, markeredgecolor='k', markeredgewidth=0.5, transform=cartopy.crs.PlateCarree())
-    # ax1.plot(channels.Longitude, channels.Latitude, 's', markerfacecolor='orange', markersize=5, markeredgecolor='k', markeredgewidth=0.4, transform=cartopy.crs.PlateCarree())
-    # ax1.plot(eq.preferred_origin().longitude, eq.preferred_origin().latitude, 'o', markerfacecolor='firebrick', markersize=8, markeredgecolor='k', markeredgewidth=0.7, transform=cartopy.crs.PlateCarree())
-    # for i, row in channels.iterrows():
-    #     t = ax1.text(row.Longitude+0.006, row.Latitude+0.006, row.NS.split('.')[-1], clip_on=True, fontsize=6, transform=cartopy.crs.PlateCarree())
-    #     t.clipbox = ax1.bbox
+    ax["map"].set_title('{}\nM{:.1f}, {:.1f} km from {}\nDepth: {:.1f} km'.format(eq.preferred_origin().time.strftime('%Y-%m-%d %H:%M:%S'),
+                                                               eq.preferred_magnitude().mag,
+                                                               volcs.iloc[0].distance,
+                                                               volcs.iloc[0].Volcano,
+                                                               eq.preferred_origin().depth/1000,
+                                                               ),
+                        fontsize=8)
 
-    # ax1.set_title('{}\nM{:.1f}, {:.1f} km from {}\nDepth: {:.1f} km'.format(eq.preferred_origin().time.strftime('%Y-%m-%d %H:%M:%S'),
-    #                                                            eq.preferred_magnitude().mag,
-    #                                                            volcs.iloc[0].distance,
-    #                                                            volcs.iloc[0].Volcano,
-    #                                                            eq.preferred_origin().depth/1000,
-    #                                                            ),
-    #               fontsize=8)
+    ax_inset = fig.add_axes([0.66, 0.80, 0.12, 0.12])
+    ax_inset = plotting.make_map(
+        vlat,
+        vlon,
+        x_dist=150,
+        y_dist=150,
+        ax=ax_inset,
+        basemap="land",
+        projection="orthographic",
+    )
 
-    # fig.subplots_adjust(top=0.94)
-    # fig.subplots_adjust(bottom=0.03)
-
-    # ################### Add inset map ###################
-    # print('Plotting inset map...')
-    # extent2 = get_extent(volcs.iloc[0].Latitude, volcs.iloc[0].Longitude, dist=150)
-    # CRS2 = cartopy.crs.AlbersEqualArea(central_longitude=np.mean(extent2[:2]), central_latitude=np.mean(extent[2:]), globe=None)
-    # glb_ax = fig.add_axes([0.75, 0.84, 0.17, 0.17], projection=CRS2)
-    # glb_ax.set_boundary(make_path(extent2), transform=cartopy.crs.Geodetic())
-    # glb_ax.set_extent(extent2,cartopy.crs.Geodetic())
-    # coast = cartopy.feature.GSHHSFeature(scale="intermediate", rasterized=True)
-    # glb_ax.add_feature(coast, facecolor="lightgray", linewidth=0.1)
-    # extent_lons=np.concatenate( (np.linspace(extent[0],extent[1],100),
-    #                              extent[1]*np.ones(100),
-    #                              np.linspace(extent[1],extent[0],100),
-    #                              extent[0]*np.ones(100)
-    #                             )
-    #                           )
-    # extent_lats=np.concatenate( (extent[2]*np.ones(100),
-    #                              np.linspace(extent[2],extent[3],100),
-    #                              extent[3]*np.ones(100),
-    #                              np.linspace(extent[3],extent[2],100),
-    #                             )
-    #                           )
-    # pointList = [sgeom.Point(x,y) for x,y in zip(extent_lons,extent_lats)]
-    # poly = sgeom.Polygon([[p.x, p.y] for p in pointList])
-    # glb_ax.add_geometries([poly], cartopy.crs.Geodetic(), facecolor='none', edgecolor='crimson', linewidth=.75,zorder=1e3)
-    # #####################################################
+    extent_new = [sgeom.box(extent[0], extent[2], extent[1], extent[3])]
+    ax_inset.add_geometries(
+        extent_new,
+        cartopy.crs.PlateCarree(),
+        facecolor="none",
+        edgecolor="red",
+        linewidth=0.35,
+    )
 
     print('Saving figure...')
     jpg_file = plotting.save_file(fig, config, dpi=250)

@@ -8,7 +8,7 @@ SCNL=[
 {'scnl':'DLL.HDF.AV.03'	, 'sta_lat': 59.12904044	, 'sta_lon': -158.6146964},
 {'scnl':'DLL.HDF.AV.04'	, 'sta_lat': 59.13602776	, 'sta_lon': -158.6142354},
 {'scnl':'DLL.HDF.AV.05'	, 'sta_lat': 59.13509488	, 'sta_lon': -158.6136803},
-{'scnl':'DLL.HDF.AV.06'	, 'sta_lat': 59.13532733	, 'sta_lon': -158.6155527},
+# {'scnl':'DLL.HDF.AV.06'	, 'sta_lat': 59.13532733	, 'sta_lon': -158.6155527},
 ]
 
 

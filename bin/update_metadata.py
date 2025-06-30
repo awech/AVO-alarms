@@ -14,8 +14,8 @@ def update_metadata():
         file = (
             os.environ["LOGS_DIR"]
             + "/Metadata-"
-            + UTCDateTime.now().strftime("%Y%m%d-%H")
-            + ".out"
+            + UTCDateTime.now().strftime("%Y%m%d")
+            + ".log"
         )
         os.system("touch {}".format(file))
         f = open(file, "a")

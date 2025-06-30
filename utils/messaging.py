@@ -111,15 +111,17 @@ def send_alert(alarm_name, subject, body, attachment=None, test=False):
     else:
         if alarm_name in A.columns:
             recipients = A[A[alarm_name].notna()]["Email"].tolist()
-            print("No specific alarm distribution")
+            print(f"Sending to \'{alarm_name}\' alarm distribution list")
         else:
             recipients = A[A["All"].notna()]["Email"].tolist()
+            print("No specific alarm distribution")
             print("Defaulting to \'All\' alarms list")
 
     if not recipients:
         print(f"No recipient found. Check distribution list for {alarm_name}")
         return
 
+    print(recipients)
     msg = MIMEMultipart()
 
     fromaddr = alarm_name.replace(" ", "_") + "@usgs.gov"

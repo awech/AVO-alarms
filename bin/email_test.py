@@ -1,5 +1,6 @@
 import os
 import sys
+import socket
 from obspy import UTCDateTime
 from pathlib import Path
 
@@ -13,15 +14,16 @@ def send_test_email():
         file = (
             os.environ["LOGS_DIR"]
             + "/Email_test-"
-            + UTCDateTime.now().strftime("%Y%m%d-%H")
-            + ".out"
+            + UTCDateTime.now().strftime("%Y%m%d")
+            + ".log"
         )
         os.system("touch {}".format(file))
         f = open(file, "a")
         sys.stdout = sys.stderr = f
 
     T0 = UTCDateTime.now() - 3600 * 8
-    message = f"{T0.strftime('%Y-%m-%d %H:%M')} from avoalarm2"
+    hostname = socket.gethostname()
+    message = f"{T0.strftime('%Y-%m-%d %H:%M')} from {hostname} user {os.environ.get('LOGNAME')}"
     subject = "Alarm Email Test"
 
     attachment = current_path.parents[0] / "alarm_aux_files" / "oops.jpg"

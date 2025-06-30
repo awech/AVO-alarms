@@ -111,7 +111,7 @@ def send_alert(alarm_name, subject, body, attachment=None, test=False):
     else:
         if alarm_name in A.columns:
             recipients = A[A[alarm_name].notna()]["Email"].tolist()
-            print(f"Sending to \'{alarm_name}\' alarm distribution list")
+            print(f"Sending to recipients in '{alarm_name}' column")
         else:
             recipients = A[A["All"].notna()]["Email"].tolist()
             print("No specific alarm distribution")
@@ -134,7 +134,8 @@ def send_alert(alarm_name, subject, body, attachment=None, test=False):
     if attachment:
         name = attachment.name
         attachment = open(attachment, "rb")
-        part = MIMEBase("application", "octet-stream")
+        # part = MIMEBase("application", "octet-stream")
+        part = MIMEBase('image', 'jpeg')
         part.set_payload((attachment).read())
         encoders.encode_base64(part)
         part.add_header(

@@ -40,7 +40,7 @@ if os.getenv("FROMCRON") == "yep":
     T0 = utc.now()
     d_hour = int(T0.strftime("%H")) % 4
     f_time = utc(T0.strftime("%Y%m%d")) + (int(T0.strftime("%H")) - d_hour) * 3600
-    file = Path(os.environ["LOGS_DIR"]) / f"{args.config}-{f_time.strftime('%Y%m%d-%H')}.out"
+    file = Path(os.environ["LOGS_DIR"]) / f"{args.config}-{f_time.strftime('%Y%m%d-%H')}.log"
     os.system(f"touch {file}")
     f = open(file, "a")
     sys.stdout = sys.stderr = f

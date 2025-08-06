@@ -60,7 +60,7 @@ else:
 
 try:
     # import the config file for the alarm you're running
-    config = import_module(f"alarm_configs.{args.config}_config")
+    config = import_module(f"alarm_configs.{args.config}")
     ALARM = import_module(f"alarm_codes.{config.alarm_type}")
     ALARM.run_alarm(config, T0, test_flag=args.test, mm_flag=args.mm, icinga_flag=args.icinga)
 except:

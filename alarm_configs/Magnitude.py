@@ -9,7 +9,7 @@ MAXDEP = 40
 DISTANCE = 10
 DURATION = 2*3600
 
-mattermost_channel_id = '1yxp3dhsjtd55jbbrawddzkk6h'
+# mattermost_channel_id = '1yxp3dhsjtd55jbbrawddzkk6h'
 
 mm_response_channels = {
 	'Aniakchak': 'eoeizwgp8bdnpmqpcicb7tjqbw',

@@ -25,7 +25,7 @@ swarm_parameters = [
 	},
 ]
 
-mattermost_channel_id = '1yxp3dhsjtd55jbbrawddzkk6h'
+# mattermost_channel_id = '1yxp3dhsjtd55jbbrawddzkk6h'
 
 mm_response_channels = {
 	'Aniakchak': 'eoeizwgp8bdnpmqpcicb7tjqbw',

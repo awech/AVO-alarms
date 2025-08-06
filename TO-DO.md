@@ -24,6 +24,7 @@
     - [ ] utils.plotting (fig watermark)
 - [ ] add test data in own directory
 - [x] implement default "all" message distribution
+- [ ] implement Python logger
 - [ ] implement CI/CD with test data to run tests once a month 
 - [ ] add defaults to infrasound parameters that then can be overwritten if need be (`vmin`, `vmax`, `min_pa`)
 

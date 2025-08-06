@@ -149,10 +149,10 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         try:
             # stations = get_swarm_stations(swarm)
             filename = plot_event(swarm, T0, config, VOLCS, CAT)
-            new_filename = '{}/{}_M{:.1f}_{}.png'.format(os.environ['TMP_FIGURE_DIR'],
-                                                 swarm.iloc[0].Time.strftime('%Y%m%dT%H%M%S'),
+            new_filename = Path(os.environ["TMP_FIGURE_DIR"])
+            new_filename = new_filename / "{}_M{:.1f}_{}.png".format(swarm.iloc[0].Time.strftime("%Y%m%dT%H%M%S"),
                                                  swarm.iloc[0].Magnitude,
-                                                 ''.join(swarm.iloc[0].ID.split('/')[-2:]).lower())
+                                                 "".join(swarm.iloc[0].ID.split("/")[-2:]).lower())
             os.rename(filename, new_filename)
             filename = new_filename
         except:
@@ -168,10 +168,10 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
 
         # Post to dedicated response channels for volcnoes listed in config file
-        if 'mm_response_channels' in dir(config):
-            if swarm.iloc[0].VOLCANO in config.mm_response_channels.keys():
-                config.mattermost_channel_id = config.mm_response_channels[swarm.iloc[0].VOLCANO]
-                messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
+        # if 'mm_response_channels' in dir(config):
+        #     if swarm.iloc[0].VOLCANO in config.mm_response_channels.keys():
+        #         config.mattermost_channel_id = config.mm_response_channels[swarm.iloc[0].VOLCANO]
+        #         messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
 
         if filename:
             os.remove(filename)
@@ -205,7 +205,7 @@ def make_path(extent):
 
     return(aoi)
 
-
+#TODO Move this class to plotting:
 class ShadedReliefESRI(GoogleTiles):
     # shaded relief
     def _image_url(self, tile):

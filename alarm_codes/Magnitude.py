@@ -135,10 +135,10 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
 
         # Post to dedicated response channels for volcnoes listed in config file
-        if "mm_response_channels" in dir(config):
-            if volcs.iloc[0].Volcano in config.mm_response_channels.keys():
-                config.mattermost_channel_id = config.mm_response_channels[volcs.iloc[0].Volcano]
-                messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
+        # if "mm_response_channels" in dir(config):
+        #     if volcs.iloc[0].Volcano in config.mm_response_channels.keys():
+        #         config.mattermost_channel_id = config.mm_response_channels[volcs.iloc[0].Volcano]
+        #         messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
 
         # delete the file you just sent
         if filename:

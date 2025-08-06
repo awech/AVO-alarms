@@ -71,6 +71,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
     archive.extractall(path=config.tmp_zipped_dir)
     #shp_path=config.tmp_zipped_dir+'/stormattr_{}_{}'.format(T1.strftime('%Y%m%d%H%M'),T2.strftime('%Y%m%d%H%M'))
+    ##TODO fix path here to use pathlib:
     shp_path = config.tmp_zipped_dir+'/pireps_{}_{}'.format(T1.strftime('%Y%m%d%H%M'), T2.strftime('%Y%m%d%H%M'))
 
 

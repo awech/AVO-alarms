@@ -40,7 +40,7 @@ def run_alarm(config, T0):
 	config.DURATION = np.array([swm['MAX_EVT_TIME'] for swm in config.swarm_parameters]).max()
 	T2 = T0
 	T1 = T2 - config.DURATION
-	URL = '{}starttime={}&endtime={}&maxdepth={}&includearrivals=true&format=xml'.format(os.environ['GUGUAN_URL'],
+	URL = '{}starttime={}&endtime={}&maxdepth={}&includearrivals=true&format=xml'.format(os.environ['FDSN'],
 																					     T1.strftime('%Y-%m-%dT%H:%M:%S'),
 																					     T2.strftime('%Y-%m-%dT%H:%M:%S'),
 																					     config.MAXDEP)

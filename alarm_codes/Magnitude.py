@@ -38,7 +38,7 @@ def run_alarm(config, T0):
 	print('Downloading events...')
 	T2 = T0
 	T1 = T2 - config.DURATION
-	URL = '{}starttime={}&endtime={}&minmagnitude={}&maxdepth={}&includearrivals=true&format=xml'.format(os.environ['GUGUAN_URL'],
+	URL = '{}starttime={}&endtime={}&minmagnitude={}&maxdepth={}&includearrivals=true&format=xml'.format(os.environ['FDSN'],
 																									     T1.strftime('%Y-%m-%dT%H:%M:%S'),
 																									     T2.strftime('%Y-%m-%dT%H:%M:%S'),
 																									     config.MAGMIN,

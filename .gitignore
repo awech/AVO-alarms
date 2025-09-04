@@ -6,6 +6,7 @@ bin/perms.sh
 common/
 www/
 logs/*.out
+logs/*.log
 
 distribution.xlsx
 .env

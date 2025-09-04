@@ -189,6 +189,7 @@ def post_mattermost(config, subject, body, attachment=None, send=False, test=Fal
     else:
         files = [attachment]
 
+    # TODO Fix SyntaxWarning: invalid escape sequence '\*'
     p = re.compile("\\n(.*)\*(:.*)", re.MULTILINE)
     body = p.sub(r"\n- [x] __***\1\2***__", body)
     p = re.compile("\\n([A-Z,1-9]{3,4}:.*/.*)", re.MULTILINE)

@@ -9,6 +9,8 @@ SCNL=[
 {'scnl':'KOKL.BHZ.AV.--'	, 'value':   700	},
 {'scnl':'KOFP.BHZ.AV.--'	, 'value':   450	},
 {'scnl':'KOSE.BHZ.AV.--'	, 'value':   600	},
+{'scnl':'KONE.BDF.AV.--'	, 'value':  1e6 	}, # infrasound channel (for plotting only)
+{'scnl':'KONW.BDF.AV.--'	, 'value':  1e6 	}, # infrasound channel (for plotting only)
 {'scnl':'GSCK.BHZ.AV.--'	, 'value':   600 	}, # arrestor station 
 # {'scnl':'GSIG.BHZ.AV.--'	, 'value':  150 	}, # arrestor station 
 ]
@@ -19,6 +21,8 @@ min_sta   = 3    # minimum number of stations for detection
 taper_val = 5 	 # seconds to taper beginning and end of trace before filtering
 f1		  = 1.0  # minimum frequency for bandpass filter
 f2		  = 5.0  # maximum frequency for bandpass filter
+
+plot_duration = 1200 # duration of the spectrogram plot
 
 icinga_service_name = 'Korovin RSAM'
 # mattermost_channel_id = 'jewennqiq7rd5kdubg8t1j9b8a'

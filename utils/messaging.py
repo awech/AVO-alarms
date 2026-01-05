@@ -152,7 +152,7 @@ def send_alert(alarm_name, subject, body, attachment=None, test=False):
 
     return
 
-
+#TODO switch to mattermostdriver (https://pypi.org/project/mattermostdriver/)
 def post_mattermost(config, subject, body, attachment=None, send=False, test=False):
     """_summary_
 

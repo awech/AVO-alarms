@@ -9,8 +9,8 @@ SCNL=[
 {'scnl':'KOKL.BHZ.AV.--'	, 'value':   700	},
 {'scnl':'KOFP.BHZ.AV.--'	, 'value':   450	},
 {'scnl':'KOSE.BHZ.AV.--'	, 'value':   600	},
-{'scnl':'KONE.BDF.AV.--'	, 'value':  1e6 	}, # infrasound channel (for plotting only)
-{'scnl':'KONW.BDF.AV.--'	, 'value':  1e6 	}, # infrasound channel (for plotting only)
+{'scnl':'KONE.BDF.AV.--'	, 'value':  1e7 	}, # infrasound channel (for plotting only)
+{'scnl':'KONW.BDF.AV.--'	, 'value':  1e7 	}, # infrasound channel (for plotting only)
 {'scnl':'GSCK.BHZ.AV.--'	, 'value':   600 	}, # arrestor station 
 # {'scnl':'GSIG.BHZ.AV.--'	, 'value':  150 	}, # arrestor station 
 ]

@@ -13,7 +13,7 @@ SCNL=[
 
 duration  = 5*60 # duration value in seconds
 latency   = 10   # seconds between timestamps and end of data window
-min_sta   = 3    # minimum number of stations for detection
+min_sta   = 4    # minimum number of stations for detection
 taper_val = 5 	 # seconds to taper beginning and end of trace before filtering
 f1		  = 1.0  # minimum frequency for bandpass filter
 f2		  = 5.0  # maximum frequency for bandpass filter

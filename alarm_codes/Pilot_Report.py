@@ -151,11 +151,14 @@ def run_alarm(config,T0):
 				subject, message = create_message(df, i, A, UTC_time_text, height_text, pilot_remark)
 
 		        ### Post to Mattermost ###
-				utils.post_mattermost(config, subject, message, filename)
+				post_id = utils.post_mattermost(config, subject, message, filename)
 
 				### Send message to duty person ###
 				if config.send_email:
-					utils.send_alert(config.alarm_name, subject, message, filename)
+					mm_link = os.environ["MATTERMOST_SERVER_URL"].replace("https", "mattermost")
+					message = f"{message}\n\n{mm_link}/avo/pl/{post_id}"
+					utils.send_alert(config.alarm_name, subject, message)
+					# utils.send_alert(config.alarm_name, subject, message, filename)
 
 				# delete the file you just sent
 				if filename:

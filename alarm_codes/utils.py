@@ -342,7 +342,8 @@ def send_alert(alarm_name,subject,body,filename=None):
 		if filename:
 			name = filename.split('/')[-1]
 			attachment = open(filename, "rb")
-			part = MIMEBase('application', 'octet-stream')
+			# part = MIMEBase('application', 'octet-stream')
+			part = MIMEBase('image', 'jpeg')
 			part.set_payload((attachment).read())
 			encoders.encode_base64(part)
 			part.add_header('Content-Disposition', 'attachment; filename= {}'.format(name))
@@ -391,11 +392,15 @@ def post_mattermost(config,subject,body,filename=None):
 			message='#### **{}**\n\n{}'.format(subject,body)
 
 	try:
-		conn.post(message, file_paths=files)
+		post_id = conn.post(message, file_paths=files)
 	except:
-		conn.post(message, file_paths=files)
+		try:
+			post_id = conn.post(message, file_paths=files)
+		except:
+			post_id = None
 
-	return
+	return post_id
+
 
 def make_map(ax,lat0,lon0,main_dist=50,inset_dist=500,scale=15):
 	from mpl_toolkits.basemap import Basemap

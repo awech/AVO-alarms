@@ -147,10 +147,14 @@ def run_alarm(config,T0):
 						print(err_message)
 						attachment = None
 
-					print('Sending message...')
-					utils.send_alert(config.alarm_name, subject, message, filename=attachment)
-					print('Posting message to Mattermost...')
-					utils.post_mattermost(config, subject, message, filename=attachment)
+					# print('Sending message...')
+					# utils.send_alert(config.alarm_name, subject, message, filename=attachment)
+					# print('Posting message to Mattermost...')
+					# utils.post_mattermost(config, subject, message, filename=attachment)
+					post_id = utils.post_mattermost(config, subject, message, filename=attachment)
+					mm_link = os.environ["MATTERMOST_SERVER_URL"].replace("https", "mattermost")
+					message = f"{message}\n\n{mm_link}/avo/pl/{post_id}"
+					utils.send_alert(config.alarm_name, subject, message)
 					if attachment:
 						os.remove(attachment)
 		

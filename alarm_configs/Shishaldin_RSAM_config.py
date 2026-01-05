@@ -16,7 +16,7 @@ SCNL=[
 {'scnl':'SSLS.BHZ.AV.--'	, 'value': 1 * 800		},
 {'scnl':'SSLN.BHZ.AV.--'	, 'value': 1 * 1100	*2	}, # adjusted 2024-04-15 to temporarily supress wind noise
 {'scnl':'SSBA.BHZ.AV.--'	, 'value': 1 * 600		},
-{'scnl':'ISNN.BHZ.AV.--'	, 'value': 1 * 290		},
+{'scnl':'ISNN.BHZ.AV.--'	, 'value': 1 * 390		},
 {'scnl':'BLDW.BHZ.AV.--'	, 'value': 250		}, # arrestor station
 ]
 

@@ -9,6 +9,7 @@ SCNL=[
 {'scnl':'VNKR.BHZ.AV.--'	, 'value': 350	},
 {'scnl':'VNSO.BHZ.AV.--'	, 'value': 400	},
 {'scnl':'VNSG.BHZ.AV.--'	, 'value': 300	},
+# {'scnl':'S12K.BHZ.AV.--'	, 'value': 200	}, # new station added 6-Jan-2026
 {'scnl':'BPPC.BHZ.AV.--'	, 'value': 200	}, # arrestor station
 ]
 

@@ -156,17 +156,20 @@ def make_figure(scnl,T0,config):
 	[tr.decimate(2,no_filter=True) for tr in st if tr.stats.sampling_rate==50]
 	[tr.resample(25) for tr in st if tr.stats.sampling_rate!=25]
 
-	colors=cm.jet(np.linspace(-1,1.2,256))
-	color_map = LinearSegmentedColormap.from_list('Upper Half', colors)
+	
+	
 	plt.figure(figsize=(4.5,4.5))
 	for i,tr in enumerate(st):
+		if "BDF" in tr.stats.channel:
+			ylabel_color = "red"
+			colors=cm.viridis(np.linspace(-1,1.2,256))
+		else:
+			ylabel_color = "black"
+			colors=cm.jet(np.linspace(-1,1.2,256))
+		color_map = LinearSegmentedColormap.from_list('Upper Half', colors)
 		ax=plt.subplot(len(st),1,i+1)
 		tr.spectrogram(title='',log=False,samp_rate=25,dbscale=True,per_lap=0.5,mult=25.0,wlen=6,cmap=color_map,axes=ax)
 		ax.set_yticks([3,6,9,12])
-		if "BDF" in tr.stats.channel:
-			ylabel_color = "red"
-		else:
-			ylabel_color = "black"
 		ax.set_ylabel(tr.stats.station+'\n'+tr.stats.channel,fontsize=5,
 															 color=ylabel_color,
 															 rotation='horizontal',

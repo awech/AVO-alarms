@@ -163,7 +163,12 @@ def make_figure(scnl,T0,config):
 		ax=plt.subplot(len(st),1,i+1)
 		tr.spectrogram(title='',log=False,samp_rate=25,dbscale=True,per_lap=0.5,mult=25.0,wlen=6,cmap=color_map,axes=ax)
 		ax.set_yticks([3,6,9,12])
+		if "BDF" in tr.stats.channel:
+			ylabel_color = "red"
+		else:
+			ylabel_color = "black"
 		ax.set_ylabel(tr.stats.station+'\n'+tr.stats.channel,fontsize=5,
+															 color=ylabel_color,
 															 rotation='horizontal',
 													         multialignment='center',
 													         horizontalalignment='right',

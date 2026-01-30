@@ -38,15 +38,15 @@ def run_alarm(config,T0):
 			attempt += 1						
 
 	try:
-		SIGMETS_FOUND = []
+		VAAS_FOUND = []
 		for t in tables:
 			if 'VAAC: ANCHORAGE' in t.contents[0]:
-				if 'weather.gov' in os.environ['SIGMET_URL']:
+				if 'weather.gov' in os.environ['VAA_URL']:
 					evt = process_vaa(t.getText().split('\n\n')) # if using NWS site
 				else:
 					evt = process_vaa(t.getText().split('\r\n\r\n')) # if using discovery news site
 				if UTCDateTime(evt['DTG']) > T0 - config.duration:
-					SIGMETS_FOUND.append(evt)
+					VAAS_FOUND.append(evt)
 	except:
 		print('Page error.')
 		state='WARNING'
@@ -55,30 +55,30 @@ def run_alarm(config,T0):
 		return	
 
 
-	if len(SIGMETS_FOUND)==0:
+	if len(VAAS_FOUND)==0:
 		state='OK'
-		state_message='{} (UTC) No new SIGMETs'.format(T0.strftime('%Y-%m-%d %H:%M'))
+		state_message='{} (UTC) No new VAAs'.format(T0.strftime('%Y-%m-%d %H:%M'))
 		utils.icinga2_state(config,state,state_message)	
 		return
 
 
-	OLD_SIGMETS = pd.read_csv(config.outfile)
-	SIGMETS_FOUND.reverse()
+	OLD_VAAS = pd.read_csv(config.outfile)
+	VAAS_FOUND.reverse()
 
-	for evt in SIGMETS_FOUND:
+	for evt in VAAS_FOUND:
 
-		if evt['SIGMET_ID'] in OLD_SIGMETS.ID.to_list():
-			print('Old SIGMET detected')
+		if evt['VAA_ID'] in OLD_VAAS.ID.to_list():
+			print('Old VAA detected')
 			state='WARNING'
-			state_message='{} (UTC) Old SIGMET detected'.format(T0.strftime('%Y-%m-%d %H:%M'))
+			state_message='{} (UTC) Old VAA detected'.format(T0.strftime('%Y-%m-%d %H:%M'))
 			utils.icinga2_state(config,state,state_message)	
 			continue
 
 		else:
-			print('New SIGMET detected')
+			print('New VAA detected')
 
-			OLD_SIGMETS = pd.concat([OLD_SIGMETS, pd.DataFrame({'ID':[evt['SIGMET_ID']]})], ignore_index=True)
-			OLD_SIGMETS.to_csv(config.outfile, index=False)
+			OLD_VAAS = pd.concat([OLD_VAAS, pd.DataFrame({'ID':[evt['VAA_ID']]})], ignore_index=True)
+			OLD_VAAS.to_csv(config.outfile, index=False)
 
 			lons_0, lats_0, level, time, direction = process_polygons(evt, 'OBS VA CLD')
 			lons_6, lats_6, level, time, direction = process_polygons(evt, 'FCST VA CLD +6HR')
@@ -119,12 +119,12 @@ def run_alarm(config,T0):
 
 def read_urls():
 
-	if 'weather.gov' in os.environ['SIGMET_URL']:
-		page = requests.get(os.environ['SIGMET_URL'], timeout=10, verify=False) # if using NWS site
-		page2 = requests.get(os.environ['SIGMET_URL'].replace('ak1','ak2'), timeout=10, verify=False) # if using NWS site
-		page3 = requests.get(os.environ['SIGMET_URL'].replace('ak1','ak3'), timeout=10, verify=False) # if using NWS site
-		page4 = requests.get(os.environ['SIGMET_URL'].replace('ak1','ak4'), timeout=10, verify=False) # if using NWS site
-		page5 = requests.get(os.environ['SIGMET_URL'].replace('ak1','ak5'), timeout=10, verify=False) # if using NWS site
+	if 'weather.gov' in os.environ['VAA_URL']:
+		page = requests.get(os.environ['VAA_URL'], timeout=10, verify=False) # if using NWS site
+		page2 = requests.get(os.environ['VAA_URL'].replace('ak1','ak2'), timeout=10, verify=False) # if using NWS site
+		page3 = requests.get(os.environ['VAA_URL'].replace('ak1','ak3'), timeout=10, verify=False) # if using NWS site
+		page4 = requests.get(os.environ['VAA_URL'].replace('ak1','ak4'), timeout=10, verify=False) # if using NWS site
+		page5 = requests.get(os.environ['VAA_URL'].replace('ak1','ak5'), timeout=10, verify=False) # if using NWS site
 
 		soup  = BeautifulSoup(page.content, 'html.parser')
 		soup2 = BeautifulSoup(page2.content, 'html.parser')
@@ -137,7 +137,7 @@ def read_urls():
 		soup.append(soup4)
 		soup.append(soup5)
 	else:
-		page = requests.get(os.environ['SIGMET_URL'], timeout=10) # if using discovery news site
+		page = requests.get(os.environ['VAA_URL'], timeout=10) # if using discovery news site
 		soup = BeautifulSoup(page.content, 'html.parser')
 
 	tables = soup.find_all('pre')
@@ -252,12 +252,12 @@ def text_to_latlon(latlon_txt):
 
 
 def process_vaa(evt):
-	sigmet = dict()
+	vaa = dict()
 
-	if 'weather.gov' in os.environ['SIGMET_URL']:
-		sigmet['header'] = evt[0].replace('\n', ' ') # if using NWS site
+	if 'weather.gov' in os.environ['VAA_URL']:
+		vaa['header'] = evt[0].replace('\n', ' ') # if using NWS site
 	else:
-		sigmet['header'] = evt[0] # if using discovery news site
+		vaa['header'] = evt[0] # if using discovery news site
 	rows = ['DTG',
 			'VAAC',
 			'VOLCANO',
@@ -276,16 +276,15 @@ def process_vaa(evt):
 			'RMK',
 			'NXT ADVISORY']
 	for row in rows:
-		if 'weather.gov' in os.environ['SIGMET_URL']:
+		if 'weather.gov' in os.environ['VAA_URL']:
 			for line in evt:
 				if row+':' in line and not 'VA ' + row+':' in line:
-					sigmet[row] = line.split(': ')[-1].replace('\n', ' ') # for NWS site
+					vaa[row] = line.split(': ')[-1].replace('\n', ' ') # for NWS site
 		else:
-			sigmet[row] = [line for line in evt if row+':' in line][0].split(': ')[-1] # volcano discovery site
+			vaa[row] = [line for line in evt if row+':' in line][0].split(': ')[-1] # volcano discovery site
 		
-	sigmet['SIGMET_ID']='{}_{}'.format(sigmet['DTG'],sigmet['VOLCANO'].split(' ')[0])
-
-	return sigmet
+	vaa['VAA_ID']='{}_{}'.format(vaa['DTG'], vaa['VOLCANO'].split(' ')[0])
+	return vaa
 
 
 def make_map(evt, LONS, LATS, config):
@@ -341,12 +340,12 @@ def make_map(evt, LONS, LATS, config):
 	ax1.legend(fontsize=6, loc='lower left')
 
 	volcano_name = ''.join(evt['VOLCANO'].split(' ')[:-1]).title()
-	sigmet_time = UTCDateTime(evt['DTG']).strftime('%Y-%m-%d %H:%M')
+	vaa_time = UTCDateTime(evt['DTG']).strftime('%Y-%m-%d %H:%M')
 
 	lvl_pattern = re.compile(r'/FL\S+')
-	sigmet_height = 100*float(lvl_pattern.findall(evt['OBS VA CLD'])[0].split('FL')[-1])
-	# ax1.set_title('{} SIGMET to {:,} ft\n{}'.format(, )
-	ax1.set_title(f'{volcano_name} SIGMET to {sigmet_height:,.0f} ft \n{sigmet_time}', fontsize=10)
+	vaa_height = 100*float(lvl_pattern.findall(evt['OBS VA CLD'])[0].split('FL')[-1])
+	# ax1.set_title('{} VAA to {:,} ft\n{}'.format(, )
+	ax1.set_title(f'{volcano_name} VAA to {vaa_height:,.0f} ft \n{vaa_time}', fontsize=10)
 	plt.tight_layout()
 
 	print('Saving figure...')
@@ -359,7 +358,7 @@ def make_map(evt, LONS, LATS, config):
 def create_message(evt):
 
 	volcano_name = ''.join(evt['VOLCANO'].split(' ')[:-1]).title()
-	subject = f'{volcano_name} SIGMET'
+	subject = f'{volcano_name} Volcanic Ash Advisory'
 
 	t=pd.Timestamp(UTCDateTime(evt['DTG']).datetime,tz='UTC')
 	t_local=t.tz_convert(os.environ['TIMEZONE'])
@@ -368,13 +367,13 @@ def create_message(evt):
 
 	try:
 		lvl_pattern = re.compile(r'/FL\S+')
-		sigmet_height = 100*float(lvl_pattern.findall(evt['OBS VA CLD'])[0].split('FL')[-1])
-		message = f'SIGMET to {sigmet_height:,.0f} ft\n{UTC_time_text}\n{Local_time_text}\n\n#### *Original Message*\n'
+		vaa_height = 100*float(lvl_pattern.findall(evt['OBS VA CLD'])[0].split('FL')[-1])
+		message = f'VAA to {vaa_height:,.0f} ft\n{UTC_time_text}\n{Local_time_text}\n\n#### *Original Message*\n'
 	except:
-		message = f'SIGMET\n{UTC_time_text}\n{Local_time_text}\n\n#### *Original Message*\n'
+		message = f'Volcanic Ash Advisory\n{UTC_time_text}\n{Local_time_text}\n\n#### *Original Message*\n'
 	
 	for key in evt.keys():
-		if key not in ['header', 'SIGMET_ID']:
+		if key not in ['header', 'VAA_ID']:
 			message+=f'**{key}:** {evt[key]}\n'
 
 	message = message.replace('\r\n', ' ')

@@ -1,7 +1,7 @@
-alarm_type = 'SIGMET'
+alarm_type = 'VAA'
 alarm_name = 'SIGMET' 
 
-outfile = 'alarm_aux_files/Recent_SIGMETs.txt'
+outfile = 'alarm_aux_files/Recent_VAAs.txt'
 
 duration = 4*3600
 

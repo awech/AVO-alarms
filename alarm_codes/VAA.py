@@ -44,14 +44,7 @@ def run_alarm(config,T0):
             vaa = process_vaa_id(vaa_id)
             if UTCDateTime(vaa['DTG']) > T0 - config.duration:
                 VAAS_FOUND.append(vaa)
-        # for t in tables:
-        #     if 'VAAC: ANCHORAGE' in t.contents[0]:
-        #         if 'weather.gov' in os.environ['VAA_URL']:
-        #             vaa = process_vaa(t.getText().split('\n\n')) # if using NWS site
-        #         else:
-        #             vaa = process_vaa(t.getText().split('\r\n\r\n')) # if using discovery news site
-        #         if UTCDateTime(vaa['DTG']) > T0 - config.duration:
-        #             VAAS_FOUND.append(vaa)
+
     except:
         print('Page error.')
         state='WARNING'
@@ -121,33 +114,6 @@ def run_alarm(config,T0):
             
             utils.icinga2_state(config, state, state_message)
 
-
-# def read_urls():
-
-#     if 'weather.gov' in os.environ['VAA_URL']:
-#         page = requests.get(os.environ['VAA_URL'], timeout=10, verify=False) # if using NWS site
-#         page2 = requests.get(os.environ['VAA_URL'].replace('ak1','ak2'), timeout=10, verify=False) # if using NWS site
-#         page3 = requests.get(os.environ['VAA_URL'].replace('ak1','ak3'), timeout=10, verify=False) # if using NWS site
-#         page4 = requests.get(os.environ['VAA_URL'].replace('ak1','ak4'), timeout=10, verify=False) # if using NWS site
-#         page5 = requests.get(os.environ['VAA_URL'].replace('ak1','ak5'), timeout=10, verify=False) # if using NWS site
-
-#         soup  = BeautifulSoup(page.content, 'html.parser')
-#         soup2 = BeautifulSoup(page2.content, 'html.parser')
-#         soup3 = BeautifulSoup(page3.content, 'html.parser')
-#         soup4 = BeautifulSoup(page4.content, 'html.parser')
-#         soup5 = BeautifulSoup(page5.content, 'html.parser')
-
-#         soup.append(soup2)
-#         soup.append(soup3)
-#         soup.append(soup4)
-#         soup.append(soup5)
-#     else:
-#         page = requests.get(os.environ['VAA_URL'], timeout=10) # if using discovery news site
-#         soup = BeautifulSoup(page.content, 'html.parser')
-
-#     tables = soup.find_all('pre')
-
-#     return tables
 
 def read_VAA_api():
     response = requests.get(os.environ["VAA_URL"], timeout=10, verify=False)
@@ -298,42 +264,6 @@ def process_vaa_id(vaa_id):
     vaa["VAA_ID"] = "{}_{}".format(vaa["DTG"], vaa["VOLCANO"].split(" ")[0])
 
     return vaa
-
-
-# def process_vaa(vaa):
-#     vaa = dict()
-
-#     if 'weather.gov' in os.environ['VAA_URL']:
-#         vaa['header'] = vaa[0].replace('\n', ' ') # if using NWS site
-#     else:
-#         vaa['header'] = vaa[0] # if using discovery news site
-#     rows = ['DTG',
-#             'VAAC',
-#             'VOLCANO',
-#             'PSN',
-#             'AREA',
-#             'SUMMIT ELEV',
-#             'ADVISORY NR',
-#             'INFO SOURCE',
-#             'AVIATION COLOR CODE',
-#             'ERUPTION DETAILS',
-#             'OBS VA DTG',
-#             'OBS VA CLD',
-#             'FCST VA CLD +6HR',
-#             'FCST VA CLD +12HR',
-#             'FCST VA CLD +18HR',
-#             'RMK',
-#             'NXT ADVISORY']
-#     for row in rows:
-#         if 'weather.gov' in os.environ['VAA_URL']:
-#             for line in vaa:
-#                 if row+':' in line and not 'VA ' + row+':' in line:
-#                     vaa[row] = line.split(': ')[-1].replace('\n', ' ') # for NWS site
-#         else:
-#             vaa[row] = [line for line in vaa if row+':' in line][0].split(': ')[-1] # volcano discovery site
-        
-#     vaa['VAA_ID']='{}_{}'.format(vaa['DTG'], vaa['VOLCANO'].split(' ')[0])
-#     return vaa
 
 
 def make_map(vaa, LONS, LATS, config):

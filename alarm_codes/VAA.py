@@ -163,10 +163,10 @@ def process_polygons(vaa, field):
     time = ''
     direction = ''
 
-    if field not in vaa.keys():
+    if field not in vaa:
         return lons, lats, level, time, direction
 
-    obs_text = vaa[field].replace('\r\n', ' ')
+    obs_text = vaa[field].replace('\n', ' ')
 
     if 'VA NOT IDENTIFIABLE ' in obs_text:
         return lons, lats, level, time, direction

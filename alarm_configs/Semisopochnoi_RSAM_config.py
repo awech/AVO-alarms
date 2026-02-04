@@ -3,8 +3,11 @@ alarm_name = 'Semisopochnoi RSAM'	# this is the alarm name sent to icinga and in
 
 # Stations list. Last station is arrestor.
 SCNL=[
-{'scnl':'CEAP.BHZ.AV.--'	, 'value':     600		},
-{'scnl':'CEPE.BHZ.AV.--'	, 'value':     750		},
+{'scnl':'CEAP.BHZ.AV.--'	, 'value':     650		},
+{'scnl':'CERA.BHZ.AV.--'	, 'value':     750		},
+{'scnl':'CETU.BHZ.AV.--'	, 'value':     650		},
+# {'scnl':'CEPE.BHZ.AV.--'    , 'value':     750      },
+# {'scnl':'CERB.BHZ.AV.--'	, 'value':     1450		},
 {'scnl':'CESW.BHZ.AV.--'	, 'value':     900		},
 {'scnl':'AMKA.BHZ.AV.--'	, 'value':     350		}, # arrestor station
 ]

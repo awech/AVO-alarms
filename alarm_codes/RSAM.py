@@ -232,6 +232,6 @@ def make_figure(scnl, T0, config):
 
     plt.subplots_adjust(left=0.08, right=0.94, top=0.92, bottom=0.1, hspace=0.1)
 
-    jpg_file = plotting.save_file(plt, config, dpi=250)
+    jpg_file = plotting.save_file(fig, config, dpi=250)
 
     return jpg_file

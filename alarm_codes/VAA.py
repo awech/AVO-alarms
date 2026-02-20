@@ -10,7 +10,7 @@ import cartopy
 from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 import matplotlib.pyplot as plt
 import matplotlib as m
-from matplotlib.path import Path
+from matplotlib.path import Path as mpath
 import traceback
 import warnings
 warnings.filterwarnings("ignore")
@@ -148,7 +148,7 @@ def get_extent(LONS, LATS):
 
 def make_path(extent):
     n = 20
-    aoi = Path(
+    aoi = mpath      (
         list(zip(np.linspace(extent[0],extent[1], n), np.full(n, extent[3]))) + \
         list(zip(np.full(n, extent[1]), np.linspace(extent[3], extent[2], n))) + \
         list(zip(np.linspace(extent[1], extent[0], n), np.full(n, extent[2]))) + \
@@ -330,7 +330,7 @@ def make_map(vaa, LONS, LATS, config):
     plt.tight_layout()
 
     print('Saving figure...')
-    jpg_file = utils.save_file(fig, config, dpi=250)
+    jpg_file = plotting.save_file(fig, config, dpi=250)
     plt.close(fig)
 
     return jpg_file

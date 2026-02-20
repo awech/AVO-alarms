@@ -1,17 +1,22 @@
 #!/home/rtem/.conda/envs/alarms/bin/python
 # -*- coding: utf-8 -*-
 
-import time
-start = time.time()
-
 import argparse
-from importlib import import_module
-from utils import messaging
-from obspy import UTCDateTime as utc
 import os
 import sys
+import time
 import traceback
+from importlib import import_module
 from pathlib import Path
+
+from dotenv import load_dotenv
+from obspy import UTCDateTime as utc
+
+from utils import messaging
+
+start = time.time()
+load_dotenv()
+sys.path.append(os.environ.get("CONFIGS_DIR"))
 
 parser = argparse.ArgumentParser(epilog="e.g.: python main.py Pavlof_RSAM 201701020205")
 parser.add_argument("config", type=str, help="Name of the config file")
@@ -21,6 +26,9 @@ parser.add_argument("--test", help="Run in test mode", action="store_true")
 parser.add_argument("--mm", help="Post to mattermost", action=argparse.BooleanOptionalAction, default=None)
 parser.add_argument("--icinga", help="Send hearbeat to icinga", action=argparse.BooleanOptionalAction, default=None)
 args = parser.parse_args()
+
+# TODO: add "force trigger" (or similar) argument to force an alert to trigger
+# e.g., it would set Nsta=0 for RSAM or relax all infrasound parameters
 
 if args.test and args.mm is None:
     args.mm = False
@@ -60,7 +68,11 @@ else:
 
 try:
     # import the config file for the alarm you're running
-    config = import_module(f"alarm_configs.{args.config}")
+    # TODO: currently locked into using CONFIG_DIR
+    # Probably this is too restrictive, and need to be able to point
+    # it directly at a file
+    # check if this is a file path or pointing to a file in CONFIG_DIR
+    config = import_module(args.config)
     ALARM = import_module(f"alarm_codes.{config.alarm_type}")
     ALARM.run_alarm(config, T0, test_flag=args.test, mm_flag=args.mm, icinga_flag=args.icinga)
 except:

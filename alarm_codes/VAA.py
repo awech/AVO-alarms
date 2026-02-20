@@ -269,7 +269,7 @@ def process_vaa_id(vaa_id):
 
 
 def make_map(vaa, LONS, LATS, config):
-
+    # FIX map from test on 2026-02-20 was terrible
     m.use('Agg')
     v_lat, v_lon = text_to_latlon(vaa['PSN'])
     LONS = np.append(LONS, v_lon)

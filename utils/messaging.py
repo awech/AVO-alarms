@@ -2,6 +2,7 @@ import json
 import os
 import re
 import smtplib
+import time
 from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
@@ -11,7 +12,7 @@ from pathlib import Path
 import requests
 import urllib3
 from pandas import read_excel
-from tomputils import mattermost as mm
+from mattermostdriver import Driver
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -82,6 +83,15 @@ def icinga(config, state, state_message, send=True):
     return
 
 
+def attachments_tolist(attachment):
+    if not attachment:
+        attachment = []
+    else:
+        if not isinstance(attachment, list):
+            attachment = [attachment]
+    return attachment
+
+
 def send_alert(alarm_name, subject, body, attachment=None, test=False):
     """_summary_
 
@@ -131,17 +141,15 @@ def send_alert(alarm_name, subject, body, attachment=None, test=False):
 
     msg.attach(MIMEText(body, "plain"))
 
-    if attachment:
-        name = attachment.name
-        attachment = open(attachment, "rb")
-        # part = MIMEBase("application", "octet-stream")
-        part = MIMEBase('image', 'jpeg')
-        part.set_payload((attachment).read())
-        encoders.encode_base64(part)
-        part.add_header(
-            "Content-Disposition", "attachment; filename= {}".format(name)
-        )
-        msg.attach(part)
+    attachment_list = attachments_tolist(attachment)
+
+    for file in attachment_list:
+        with open(file, "rb") as attachment:
+            part = MIMEBase("image", "jpeg")
+            part.set_payload(attachment.read())
+            encoders.encode_base64(part)
+            part.add_header("Content-Disposition", f"attachment; filename={file}")
+            msg.attach(part)
 
     server = smtplib.SMTP_SSL(
         host=os.environ["SMTP_IP"], port=os.environ["SMTP_PORT"]
@@ -152,7 +160,7 @@ def send_alert(alarm_name, subject, body, attachment=None, test=False):
 
     return
 
-#TODO switch to mattermostdriver (https://pypi.org/project/mattermostdriver/)
+
 def post_mattermost(config, subject, body, attachment=None, send=False, test=False):
     """_summary_
 
@@ -172,25 +180,43 @@ def post_mattermost(config, subject, body, attachment=None, send=False, test=Fal
 
     if not send:
         print("Not posting anything to Mattermost")
-        return
+        return ""
 
-    conn = mm.Mattermost(timeout=5, retries=4)
+    ## Connect to Mattermost
+    mm = Driver(
+        {
+            "url": os.environ["MATTERMOST_SERVER_URL"],
+            "login_id": os.environ["MATTERMOST_USER_ID"],
+            "password": os.environ["MATTERMOST_USER_PASS"],
+            "scheme": "https",
+            "port": 443,
+            "verify": os.environ["SSL_CA"],
+        }
+    )
+    mm.login();
 
+    channel_id = os.environ["MATTERMOST_DEFAULT_CHANNEL_ID"]
     if hasattr(config, "mattermost_channel_id"):
-        conn.channel_id = config.mattermost_channel_id
-    else:
-        conn.channel_id = os.environ["MATTERMOST_DEFAULT_CHANNEL_ID"]
+        channel_id = config.mattermost_channel_id      
 
     if test:
-        conn.channel_id = os.environ["MATTERMOST_TEST_CHANNEL_ID"]
+        channel_id = os.environ["MATTERMOST_TEST_CHANNEL_ID"]
+        subject = f"TEST: {subject}"
 
-    if not attachment:
-        files = []
-    else:
-        files = [attachment]
+    upload_files = attachments_tolist(attachment)
 
-    # TODO Fix SyntaxWarning: invalid escape sequence '\*'
-    p = re.compile("\\n(.*)\*(:.*)", re.MULTILINE)
+    ## Upload attachment(s)
+    file_ids = []
+    for file in upload_files:
+        with open(file, 'rb') as f:
+            file_info = mm.files.upload_file(
+                channel_id=channel_id,
+                files={'files': (file.name, f)}
+            )['file_infos'][0]
+            file_ids.append(file_info['id'])
+
+
+    p = re.compile(r"\\n(.*)\*(:.*)", re.MULTILINE)
     body = p.sub(r"\n- [x] __***\1\2***__", body)
     p = re.compile("\\n([A-Z,1-9]{3,4}:.*/.*)", re.MULTILINE)
     body = p.sub(r"\n- [ ] \1", body)
@@ -208,9 +234,18 @@ def post_mattermost(config, subject, body, attachment=None, send=False, test=Fal
         else:
             message = "#### **{}**\n\n{}".format(subject, body)
 
-    try:
-        conn.post(message, file_paths=files)
-    except:
-        conn.post(message, file_paths=files)
+    message_details = {
+        "channel_id": channel_id,
+        "message": message,
+        "file_ids": file_ids
+    }
 
-        return
+    try:
+        post = mm.posts.create_post(options=message_details)
+    except:
+        time.sleep(2)
+        post = mm.posts.create_post(options=message_details)
+
+    url = f"mattermost://{os.environ["MATTERMOST_SERVER_URL"]}/avo/pl/{post['id']}"
+    
+    return url

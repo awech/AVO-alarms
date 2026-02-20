@@ -140,8 +140,13 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
             subject, message = create_message(T0-config.duration,T0,config.alarm_name,duration_text)
 
             ### Send message ###
+            try:
+                mm_url = messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
+                message = f"{message}\n\n{mm_url}"
+            except:
+                print("problem posting to mattermost")
+                
             messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
-            messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
             # delete the file you just sent
             if filename:
                 os.remove(filename)

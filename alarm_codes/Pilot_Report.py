@@ -157,8 +157,12 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
                 ### Craft message text ####
                 subject, message = create_message(df, i, A, UTC_time_text, height_text, pilot_remark)
 
-                ### Post to Mattermost ###
-                messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
+                ### Send message ###
+                try:
+                    mm_url = messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
+                    message = f"{message}\n\n{mm_url}"
+                except:
+                    print("problem posting to mattermost")
 
                 ### Send message to duty person ###
                 if config.send_email:

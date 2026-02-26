@@ -355,7 +355,7 @@ def create_message(vaa):
     
     for key in vaa.keys():
         if key not in ['header', 'VAA_ID']:
-            message+=f'**{key}:** {vaa[key]}\n'
+            message+=f'**{key}:** {vaa[key].replace("\n", " ")}\n'
 
     message = message.replace('\r\n', ' ')
 

@@ -8,7 +8,7 @@ www/
 logs/*.out
 logs/*.log
 
-distribution.xlsx
+phonebook.yml
 .env
 
 .vscode/*

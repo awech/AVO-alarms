@@ -18,25 +18,29 @@ from mattermostdriver import Driver
 warnings.filterwarnings("ignore")
 
 def icinga(config, state, state_message, send=True):
-    """_summary_
+    """Send alarm state and message to Icinga monitoring system.
 
     Parameters
     ----------
-    config : _type_
-        _description_
-    state : _type_
-        _description_
-    state_message : _type_
-        _description_
-    test : bool, optional
-        _description_, by default False
+    config : object
+        Configuration object containing alarm settings and optional icinga_service_name
+    state : str
+        The state to report (OK, WARNING, CRITICAL, or UNKNOWN)
+    state_message : str
+        The message describing the current state
+    send : bool, optional
+        Whether to actually send the message to Icinga2, by default True
+
+    Returns
+    -------
+    None
     """
 
     if not send:
         print("Not attempting to send heartbeat to icinga.")
         return
 
-    print("Sending state and message to icinga2:")
+    print("Sending state and message to icinga:")
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
     states = {"OK": 0, "WARNING": 1, "CRITICAL": 2, "UNKNOWN": 3}
@@ -78,13 +82,24 @@ def icinga(config, state, state_message, send=True):
             print("Status code = {:g}".format(resp.status_code))
             print("Failed to send message to icinga2")
     except:
-
         print("requests error. Failed to send message to icinga2")
 
     return
 
 
 def attachments_tolist(attachment):
+    """Convert attachment(s) to a list format.
+
+    Parameters
+    ----------
+    attachment : str, list, or None
+        A single file path, list of file paths, or None
+
+    Returns
+    -------
+    list
+        A list of attachment file paths. Returns empty list if None provided.
+    """
     if not attachment:
         attachment = []
     else:
@@ -94,13 +109,19 @@ def attachments_tolist(attachment):
 
 
 def get_recipients_list(alarm_name, test=False):
-    """
+    """Retrieve recipient email addresses for a given alarm from distribution list.
+
     Parameters
     ----------
-    alarm_name : _type_
-        _description_
-    test : _type_, optional
-        _description_, by default test
+    alarm_name : str
+        Name of the alarm to look up recipients for
+    test : bool, optional
+        If True, returns error recipients for testing purposes, by default False
+
+    Returns
+    -------
+    list
+        List of recipient email addresses from distribution.yml and phonebook.yml
     """
 
     config_dif = Path(os.environ.get("CONFIGS_DIR"))
@@ -116,7 +137,6 @@ def get_recipients_list(alarm_name, test=False):
     if alarm_name not in distribution.keys():
         alarm_key = "All Alarms"
         print("Defaulting to \'All alarms\' list")
-        
     else:
         print(f"Sending to '{alarm_name}' recipients")
 
@@ -139,19 +159,24 @@ def get_recipients_list(alarm_name, test=False):
 
 
 def send_alert(alarm_name, subject, body, attachment=None, test=False):
-    """
+    """Send alarm alert via email with optional attachments.
+
     Parameters
     ----------
-    alarm_name : _type_
-        _description_
-    subject : _type_
-        _description_
-    body : _type_
-        _description_
-    attachment : _type_, optional
-        _description_, by default None
-    test : _type_, optional
-        _description_, by default test
+    alarm_name : str
+        Name of the alarm to include in the from address
+    subject : str
+        Email subject line
+    body : str
+        Email body content
+    attachment : str, list, or None, optional
+        File path(s) to attach to the email, by default None
+    test : bool, optional
+        If True, sends to error recipients list, by default False
+
+    Returns
+    -------
+    None
     """
 
     print("Sending alarm email and sms...")
@@ -185,7 +210,19 @@ def send_alert(alarm_name, subject, body, attachment=None, test=False):
 
 
 def connect_mattermost():
-    ## Connect to Mattermost
+    """Establish and authenticate connection to Mattermost server.
+
+    Uses environment variables:
+    - MATTERMOST_SERVER_URL
+    - MATTERMOST_USER_ID
+    - MATTERMOST_USER_PASS
+    - SSL_CA
+
+    Returns
+    -------
+    mattermostdriver.Driver
+        Authenticated Mattermost driver instance
+    """
     mm = Driver(
         {
             "url": os.environ["MATTERMOST_SERVER_URL"],
@@ -202,6 +239,22 @@ def connect_mattermost():
 
 
 def format_mm_message(subject, body, config):
+    """Format alarm message for Mattermost post with markdown formatting.
+
+    Parameters
+    ----------
+    subject : str
+        Message subject/title
+    body : str
+        Message body content with alarm data
+    config : object
+        Configuration object containing alarm_name
+
+    Returns
+    -------
+    str
+        Formatted message with Mattermost markdown syntax
+    """
     p = re.compile(r"\\n(.*)\*(:.*)", re.MULTILINE)
     body = p.sub(r"\n- [x] __***\1\2***__", body)
     p = re.compile("\\n([A-Z,1-9]{3,4}:.*/.*)", re.MULTILINE)
@@ -224,7 +277,22 @@ def format_mm_message(subject, body, config):
 
 
 def upload_mm_attachments(mm, channel_id, attachment):
-    
+    """Upload attachment files to a Mattermost channel.
+
+    Parameters
+    ----------
+    mm : mattermostdriver.Driver
+        Authenticated Mattermost driver instance
+    channel_id : str
+        ID of the target Mattermost channel
+    attachment : str, list, or None
+        File path(s) to upload
+
+    Returns
+    -------
+    list
+        List of uploaded file IDs from Mattermost
+    """
     upload_files = attachments_tolist(attachment)
 
     ## Upload attachment(s)
@@ -241,20 +309,27 @@ def upload_mm_attachments(mm, channel_id, attachment):
 
 
 def post_mattermost(config, subject, body, attachment=None, send=False, test=False):
-    """_summary_
+    """Post alarm message to Mattermost channel with optional attachments.
 
     Parameters
     ----------
-    config : _type_
-        _description_
-    subject : _type_
-        _description_
-    body : _type_
-        _description_
-    attachment : _type_, optional
-        _description_, by default None
+    config : object
+        Configuration object containing alarm_name and optional mattermost_channel_id
+    subject : str
+        Message subject/title
+    body : str
+        Message body content
+    attachment : str, list, or None, optional
+        File path(s) to attach to the post, by default None
+    send : bool, optional
+        Whether to actually post to Mattermost, by default False
     test : bool, optional
-        _description_, by default False
+        If True, posts to test channel and prefixes subject with "TEST:", by default False
+
+    Returns
+    -------
+    str
+        URL of the posted message, or empty string if send=False
     """
 
     if not send:

@@ -1,6 +1,3 @@
-#!/home/rtem/.conda/envs/alarms/bin/python
-# -*- coding: utf-8 -*-
-
 import argparse
 import os
 import sys
@@ -75,7 +72,7 @@ try:
     config = import_module(args.config)
     ALARM = import_module(f"alarm_codes.{config.alarm_type}")
     ALARM.run_alarm(config, T0, test_flag=args.test, mm_flag=args.mm, icinga_flag=args.icinga)
-except:
+except Exception:
     # if error, send message to designated recipients
     print("Error...")
     b = traceback.format_exc()

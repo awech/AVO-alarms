@@ -3,6 +3,7 @@ import os
 import re
 import smtplib
 import time
+import warnings
 from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
@@ -11,9 +12,9 @@ from pathlib import Path
 
 import requests
 import urllib3
-from pandas import read_excel
+import yaml
 from mattermostdriver import Driver
-import warnings
+
 warnings.filterwarnings("ignore")
 
 def icinga(config, state, state_message, send=True):
@@ -92,9 +93,53 @@ def attachments_tolist(attachment):
     return attachment
 
 
-def send_alert(alarm_name, subject, body, attachment=None, test=False):
-    """_summary_
+def get_recipients_list(alarm_name, test=False):
+    """
+    Parameters
+    ----------
+    alarm_name : _type_
+        _description_
+    test : _type_, optional
+        _description_, by default test
+    """
 
+    config_dif = Path(os.environ.get("CONFIGS_DIR"))
+    home_dir = Path(os.environ["HOME_DIR"])
+    # read & parse notification list
+    with open(config_dif / "distribution.yml", "r") as file:
+        distribution = yaml.safe_load(file)
+    # read & parse phonebook
+    with open(home_dir / "phonebook.yml", "r") as file:
+        users = yaml.safe_load(file) 
+
+    alarm_key = alarm_name
+    if alarm_name not in distribution.keys():
+        alarm_key = "All Alarms"
+        print("Defaulting to \'All alarms\' list")
+        
+    else:
+        print(f"Sending to '{alarm_name}' recipients")
+
+    if test:
+        alarm_key = "Error"
+        print("Test mode. Sending message to \'Error\' recipients")
+
+    recipients = []
+    for user in distribution[alarm_key]:
+        if user not in users:
+            print(f"\nERROR!! {user} not in phonebook! No message sent to {user}")
+            continue
+        recipients.append(users[user])
+        print(f"{user}: {users[user]}")      
+
+    if not recipients:
+        print(f"No recipient found. Check distribution list for {alarm_name}")
+
+    return recipients
+
+
+def send_alert(alarm_name, subject, body, attachment=None, test=False):
+    """
     Parameters
     ----------
     alarm_name : _type_
@@ -111,38 +156,16 @@ def send_alert(alarm_name, subject, body, attachment=None, test=False):
 
     print("Sending alarm email and sms...")
 
-    # read & parse notification list
-    home_dir = Path(os.environ["HOME_DIR"])
-    A = read_excel(home_dir / "distribution.xlsx")
-
-    if test:
-        recipients = A[A["Error"].notna()]["Email"].tolist()
-        print("Test mode. Sending message to \'Error\' recipients")
-    else:
-        if alarm_name in A.columns:
-            recipients = A[A[alarm_name].notna()]["Email"].tolist()
-            print(f"Sending to recipients in '{alarm_name}' column")
-        else:
-            recipients = A[A["All"].notna()]["Email"].tolist()
-            print("No specific alarm distribution")
-            print("Defaulting to \'All\' alarms list")
-
-    if not recipients:
-        print(f"No recipient found. Check distribution list for {alarm_name}")
-        return
-
-    print(recipients)
-    msg = MIMEMultipart()
-
+    recipients = get_recipients_list(alarm_name, test=test)
     fromaddr = alarm_name.replace(" ", "_") + "@usgs.gov"
+
+    msg = MIMEMultipart()
     msg["From"] = fromaddr
     msg["Subject"] = subject
     msg["To"] = ", ".join(recipients)
-
     msg.attach(MIMEText(body, "plain"))
 
     attachment_list = attachments_tolist(attachment)
-
     for file in attachment_list:
         with open(file, "rb") as attachment:
             part = MIMEBase("image", "jpeg")

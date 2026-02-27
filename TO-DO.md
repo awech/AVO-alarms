@@ -48,6 +48,7 @@
 ## Ops
 - [x] Move away from tomputils mattermost (unsupported)
 - [ ] Switch to mattermost token
+- [ ] implement new file lock strategy
 - [x] Spin up VM for back up and testing
 - [x] start fresh with miniforge for venv
 - [ ] change all instances of string filepaths to pathlib objects for OS agnostic alarm running. 

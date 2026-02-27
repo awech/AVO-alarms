@@ -184,6 +184,62 @@ def send_alert(alarm_name, subject, body, attachment=None, test=False):
     return
 
 
+def connect_mattermost():
+    ## Connect to Mattermost
+    mm = Driver(
+        {
+            "url": os.environ["MATTERMOST_SERVER_URL"],
+            "login_id": os.environ["MATTERMOST_USER_ID"],
+            "password": os.environ["MATTERMOST_USER_PASS"],
+            "scheme": "https",
+            "port": 443,
+            "verify": os.environ["SSL_CA"],
+        }
+    )
+    mm.login();
+
+    return mm
+
+
+def format_mm_message(subject, body, config):
+    p = re.compile(r"\\n(.*)\*(:.*)", re.MULTILINE)
+    body = p.sub(r"\n- [x] __***\1\2***__", body)
+    p = re.compile("\\n([A-Z,1-9]{3,4}:.*/.*)", re.MULTILINE)
+    body = p.sub(r"\n- [ ] \1", body)
+
+    body = body.replace("Start: ", "Start:  ")
+    body = body.replace("End: ", "End:    ")
+
+    if config.alarm_name != "PIREP":
+        subject = subject.replace("--- ", "")
+        subject = subject.replace(" ---", "")
+        message = "### **{}**\n\n{}".format(subject, body)
+    else:
+        if "URGENT" in subject:
+            message = "### **{}**\n\n{}".format(subject, body)
+        else:
+            message = "#### **{}**\n\n{}".format(subject, body)
+
+    return message
+
+
+def upload_mm_attachments(mm, channel_id, attachment):
+    
+    upload_files = attachments_tolist(attachment)
+
+    ## Upload attachment(s)
+    file_ids = []
+    for file in upload_files:
+        with open(file, 'rb') as f:
+            file_info = mm.files.upload_file(
+                channel_id=channel_id,
+                files={'files': (file.name, f)}
+            )['file_infos'][0]
+            file_ids.append(file_info['id'])
+
+    return file_ids
+
+
 def post_mattermost(config, subject, body, attachment=None, send=False, test=False):
     """_summary_
 
@@ -205,19 +261,6 @@ def post_mattermost(config, subject, body, attachment=None, send=False, test=Fal
         print("Not posting anything to Mattermost")
         return ""
 
-    ## Connect to Mattermost
-    mm = Driver(
-        {
-            "url": os.environ["MATTERMOST_SERVER_URL"],
-            "login_id": os.environ["MATTERMOST_USER_ID"],
-            "password": os.environ["MATTERMOST_USER_PASS"],
-            "scheme": "https",
-            "port": 443,
-            "verify": os.environ["SSL_CA"],
-        }
-    )
-    mm.login();
-
     channel_id = os.environ["MATTERMOST_DEFAULT_CHANNEL_ID"]
     if hasattr(config, "mattermost_channel_id"):
         channel_id = config.mattermost_channel_id      
@@ -226,36 +269,9 @@ def post_mattermost(config, subject, body, attachment=None, send=False, test=Fal
         channel_id = os.environ["MATTERMOST_TEST_CHANNEL_ID"]
         subject = f"TEST: {subject}"
 
-    upload_files = attachments_tolist(attachment)
-
-    ## Upload attachment(s)
-    file_ids = []
-    for file in upload_files:
-        with open(file, 'rb') as f:
-            file_info = mm.files.upload_file(
-                channel_id=channel_id,
-                files={'files': (file.name, f)}
-            )['file_infos'][0]
-            file_ids.append(file_info['id'])
-
-
-    p = re.compile(r"\\n(.*)\*(:.*)", re.MULTILINE)
-    body = p.sub(r"\n- [x] __***\1\2***__", body)
-    p = re.compile("\\n([A-Z,1-9]{3,4}:.*/.*)", re.MULTILINE)
-    body = p.sub(r"\n- [ ] \1", body)
-
-    body = body.replace("Start: ", "Start:  ")
-    body = body.replace("End: ", "End:    ")
-
-    if config.alarm_name != "PIREP":
-        subject = subject.replace("--- ", "")
-        subject = subject.replace(" ---", "")
-        message = "### **{}**\n\n{}".format(subject, body)
-    else:
-        if "URGENT" in subject:
-            message = "### **{}**\n\n{}".format(subject, body)
-        else:
-            message = "#### **{}**\n\n{}".format(subject, body)
+    mm = connect_mattermost()
+    file_ids = upload_mm_attachments(mm, channel_id, attachment)
+    message = format_mm_message(subject, body, config)
 
     message_details = {
         "channel_id": channel_id,
@@ -269,6 +285,6 @@ def post_mattermost(config, subject, body, attachment=None, send=False, test=Fal
         time.sleep(2)
         post = mm.posts.create_post(options=message_details)
 
-    url = f"mattermost://{os.environ["MATTERMOST_SERVER_URL"]}/avo/pl/{post['id']}"
+    url = f"mattermost://{os.environ["MATTERMOST_POST_URL"]}/{post['id']}"
     
     return url

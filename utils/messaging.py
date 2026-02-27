@@ -81,8 +81,9 @@ def icinga(config, state, state_message, send=True):
         else:
             print("Status code = {:g}".format(resp.status_code))
             print("Failed to send message to icinga2")
-    except:
-        print("requests error. Failed to send message to icinga2")
+    except Exception as e:
+        print("requests error. Failed to send message to icinga")
+        print(f"An unexpected error occurred: {e}")
 
     return
 
@@ -124,6 +125,7 @@ def get_recipients_list(alarm_name, test=False):
         List of recipient email addresses from distribution.yml and phonebook.yml
     """
 
+    # TODO - fix this hardcoded path stuff. 
     config_dif = Path(os.environ.get("CONFIGS_DIR"))
     home_dir = Path(os.environ["HOME_DIR"])
     # read & parse notification list
@@ -233,7 +235,7 @@ def connect_mattermost():
             "verify": os.environ["SSL_CA"],
         }
     )
-    mm.login();
+    mm.login();  # noqa: E703
 
     return mm
 
@@ -356,10 +358,12 @@ def post_mattermost(config, subject, body, attachment=None, send=False, test=Fal
 
     try:
         post = mm.posts.create_post(options=message_details)
-    except:
+    except Exception as e:
+        print("Error posting to Mattermost. Retrying once...")
+        print(f"An unexpected error occurred: {e}")
         time.sleep(2)
         post = mm.posts.create_post(options=message_details)
 
-    url = f"mattermost://{os.environ["MATTERMOST_POST_URL"]}/{post['id']}"
+    url = f"mattermost://{os.environ['MATTERMOST_POST_URL']}/{post['id']}"
     
     return url

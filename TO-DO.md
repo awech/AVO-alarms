@@ -13,9 +13,12 @@
 - [ ] make effort to use `subplot_mosaic` for panel plots 
 - [x] move configs to external repository
 - [x] implement default "all" message distribution
+- [ ] allow for distribution/phonebook to be environment variables
+- [ ] edit notifications html script to use yml files
 - [ ] move distribution file to configs repository as (maybe) .yml
 - [ ] implement Python logger
 - [ ] add defaults to infrasound parameters that then can be overwritten if need be (`vmin`, `vmax`, `min_pa`)
+- [ ] implement a 'kill' switch - probably from config file
 
 ## :test_tube: Tests
 - [ ] implement test flag

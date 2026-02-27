@@ -1,0 +1,36 @@
+# Default behavior is alerts are sent to "All Alarms" list below  unless another
+# alarm name is specified, which will override the default for just that alarm
+# NOTE: The alarm header must match `alarm_name` variable in corresponding config file
+#
+# CRITICAL: Recipient listed must match a user in the `USERS` phonebook at the bottom
+#           AND names in `USERS` must be defined in `phonebook.yml` file on alarms machine
+
+All Alarms:
+  - Fee
+  - Haney
+  - Duty Sci
+
+BAEI Infrasound:
+  - Haney
+  - Lyons
+  - Staley
+
+Error:
+  - Wech email
+
+############## Phonebook ###############
+########################################
+USERS:
+  - Searcy
+  - Fee
+  - Prejean
+  - Wellik
+  - Pesicek
+  - Nakai
+  - Wech
+  - Duty Sci
+  - Haney
+  - Lyons
+  - Staley
+  - Loewen 
+  - Wech email

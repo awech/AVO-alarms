@@ -12,3 +12,5 @@ phonebook.yml
 .env
 
 .vscode/*
+
+.gitlab-ci.yml

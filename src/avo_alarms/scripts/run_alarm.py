@@ -61,6 +61,7 @@ def main():
         # TODO: use logging module instead of redirecting stdout and stderr to a file
         # TODO: add log rotation to avoid filling up disk with logs
         # TODO: implement file locking to avoid multiple instances of the alarm running
+        # TODO: implement kill switch
         # if run from a cron, write output to 4-hourly file in the logs directory
         T0 = utc.now()
         d_hour = int(T0.strftime("%H")) % 4

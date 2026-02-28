@@ -1,0 +1,5 @@
+obspy
+pandas
+jinja2
+pyyaml
+cartopy

@@ -36,10 +36,12 @@ classifiers = [
 ]
 keywords = ["volcano", "geophysics", "monitoring"]
 
-# [project.scripts]
-# ipensive-backfill = "ipensive.scripts.back_populate:main"
-# ipensive-run = "ipensive.scripts.run_processing:main"
-# ipensive-metadata = "ipensive.scripts.update_metadata:main"
+[project.scripts]
+run-alarm = "avo_alarms.scripts.run_alarm:main"
+email-test = "avo_alarms.scripts.email_test:main"
+generic-alarm = "avo_alarms.scripts.generic_alarm:main"
+update-metadata = "avo_alarms.scripts.update_metadata:main"
+update-html = "avo_alarms.scripts.notification_html:main"
 
 [tool.setuptools.dynamic]
 version = {attr = "avo_alarms.__version__"}
@@ -47,10 +49,7 @@ version = {attr = "avo_alarms.__version__"}
 [tool.setuptools.packages.find]
 where = ["src"]
 
-[project.urls]
+[tool.setuptools.package-data]
+avo_alarms = ["utils/alarms.mplstyle"]
 
-# [tool.coverage.run]
-# omit = [
-#     "src/lts_array/*",
-#     "tests/*"
-# ]
+[project.urls]

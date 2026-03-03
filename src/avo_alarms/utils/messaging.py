@@ -125,7 +125,7 @@ def get_recipients_list(alarm_name, test=False):
         List of recipient email addresses from distribution.yml and phonebook.yml
     """
 
-    config_dif = Path(os.environ.get("CONFIGS_DIR"))
+    config_dif = Path(os.environ["CONFIGS_DIR"])
     home_dir = Path(os.environ["HOME_DIR"])
     # read & parse notification list
     with open(home_dir / "distribution.yml", "r") as file:

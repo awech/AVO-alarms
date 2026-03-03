@@ -3,81 +3,83 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import yaml
 from dotenv import load_dotenv
 
 load_dotenv()
 
-
 def main():
-
-    A = pd.read_excel(os.environ["HOME_DIR"] + "/distribution.xlsx")
-    del A["Error"]
-    A.rename(columns={"Name": "who", "Email": "address"}, inplace=True)
-
-    who = A["who"]
-    add = A["address"]
-    A = A.replace(r"\bx\b", 1.0, regex=True)
-    A = A.replace(r"\bo\b", 0.0, regex=True)
-    A = A.replace(np.nan, 0.0, regex=True)
-
-    af = A.copy()
-    del af["who"]
-    del af["address"]
-
-    sums = af.sum(axis="columns", numeric_only=True)
-    sums = sums[np.invert(sums > 0)]
-    A = A.drop(sums.index)
-    who = who.drop(sums.index)
-    add = add.drop(sums.index)
-    A["who"] = who
-    A["address"] = add
-    del A["address"]
-
-    A["who"] = A.who.str.capitalize()
-    A = A.sort_values(by="who")
-    A = A.reset_index(drop=True)
+    home_dir = Path(os.environ["HOME_DIR"])
+    with open(home_dir / "distribution.yml", "r") as file:
+        distribution = yaml.safe_load(file)
+    alarms = [alarm for alarm in distribution if alarm not in ["USERS", "Error"]]
+    users = []
+    for alarm in alarms:
+        users += distribution[alarm]
+    A = pd.DataFrame(index=alarms, columns=np.unique(users))
+    for alarm in alarms:
+        A.loc[alarm, distribution[alarm]] = "x"
 
     def highlight_vals(val):
         string = "font-family: Helvetica; "
         if val == "x":
-            string += "background-color: #8CDD81; text-align: center; color: #3B5323; font-weight: bold;"
-        elif val == "o":
-            string += "background-color: #FBEC5D; text-align: center; color: #8B7500; font-weight: bold;"
-        elif "cell" in val:
-            string += "text-align: left; font-weight: bold; color: red;"
-        elif "email" in val:
-            string += "text-align: left;"
+            string += "background-color: #8CDD81; text-align: center; color: #3B5323; font-weight: bold; border-radius: 5px;"
         return string
 
     A = A.replace(np.nan, " ", regex=True)
-    A = A.replace(0.0, "", regex=True)
-    A = A.replace(1.0, "x", regex=True)
-    A = A.replace("_", " ", regex=True)
-    A = A.replace("phone", "cell", regex=True)
-
     B = A.copy().T
+    B = B.style.set_table_styles([
+            {'selector': 'th', 'props': 
+                [
+                    ('font-weight', 'bold'),
+                    ('font-family', 'Helvetica'),
+                ]},
+            {'selector': 'thead tr th:not(:first-child)', 'props':
+                [
+                    ('background-color', 'whitesmoke'),
+                    ('vertical-align', 'middle'),
+                    ('padding-bottom', '5px'),
+                    ('padding-left', '10px'),
+                    ('padding-right', '10px')           
+                ]},
+            {'selector': 'td:first-child, th:first-child', 'props':
+                [
+                    ('text-align', 'right'),
+                    ('padding-left', '10px'),
+                    ('padding-right', '10px'),
+                    ('background-color', 'whitesmoke')
+                ]},
 
-    names = B.loc["who"]
-    B.columns = names
-    B = B.drop("who")
+        ])
+    B = B.map(highlight_vals)
 
-    try:
-        df1 = B.pop("Wech email")  # remove column b and store it in df1
-        B["Wech email"] = df1  # add b series as a 'new' column.
-    except:
-        pass
-    try:
-        df2 = B.pop("Lopez cell")  # remove column x and store it in df2
-        B["Lopez cell"] = df2  # add b series as a 'new' column.
-    except:
-        pass
+    html_output = B.to_html()
+    # Add a <style> block to the HTML string to center the table using CSS
+    centered_html = f"""
+    <html>
+    <head>
+    <style>
+        table {{
+            margin-left: auto;
+            margin-right: auto;
+            /* Optional: also center text within cells */
+            text-align: center;
+        }}
+        th {{
+            text-align: center;
+        }}
+    </style>
+    </head>
+    <body>
+    {html_output}
+    </body>
+    </html>
+    """
 
-    B.columns.name = ""
-
-    B = B.style.set_properties(**{"font-family": "Hevletica"})
-    B = B.applymap(highlight_vals)
+    # You can save this to an HTML file and open it in a browser
     out_file = Path(os.environ["HOME_DIR"]) / "www" / "index.html"
-    B.to_html(out_file)
+    with open(out_file, "w") as f:
+        f.write(centered_html)
 
 
 if __name__ == "__main__":

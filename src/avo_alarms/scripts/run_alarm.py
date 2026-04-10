@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 from obspy import UTCDateTime as utc
 
 from ..utils import messaging
-from ..utils.logging_config import get_logger, setup_root_logger, configure_third_party_loggers
+from ..utils.logging_config import get_logger, setup_root_logger
 
 
 def main():
@@ -21,9 +21,6 @@ def main():
     
     start = time.time()
     load_dotenv()
-    
-    # Configure third-party library loggers (obspy, urllib3, etc.)
-    configure_third_party_loggers()
     
     # Initialize logger
     logger = get_logger(__name__)

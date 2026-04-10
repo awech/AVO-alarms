@@ -6,19 +6,14 @@ from pathlib import Path
 from obspy import UTCDateTime
 
 from ..utils.messaging import send_alert
+from ..utils.logging_config import get_logger
 
 
 def main():
+    logger = get_logger(__name__)
+    
     if os.getenv("FROMCRON") == "yep":
-        file = (
-            os.environ["LOGS_DIR"]
-            + "/Email_test-"
-            + UTCDateTime.now().strftime("%Y%m%d")
-            + ".log"
-        )
-        os.system("touch {}".format(file))
-        f = open(file, "a")
-        sys.stdout = sys.stderr = f
+        logger = get_logger(__name__, log_dir=os.environ.get("LOGS_DIR"), config_name="Email_test")
 
     T0 = UTCDateTime.now() - 3600 * 9
     hostname = socket.gethostname()
@@ -27,7 +22,7 @@ def main():
 
     attachment = Path(os.environ["HOME_DIR"]) / "alarm_aux_files" / "oops.jpg"
     send_alert("Error", subject, message, attachment)
-    print("Finished")
+    logger.info("Finished")
 
 
 if __name__ == "__main__":

@@ -14,11 +14,14 @@ from pathlib import Path
 
 
 from ..utils import messaging, plotting, processing
+from ..utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     
-    print('Reading SACS SO2 webpage')
+    logger.info('Reading SACS SO2 webpage')
     attempt = 1
     max_tries = 3
     while attempt <= max_tries:
@@ -29,12 +32,12 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
             break
         except:
             if attempt == max_tries:
-                print('Page error.')
+                logger.warning('Page error.')
                 state = 'WARNING'
                 state_message = '{} (UTC) webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
                 messaging.icinga(config, state, state_message, send=icinga_flag)
                 return
-            print('Page error on attempt number {:g}'.format(attempt))
+            logger.warning('Page error on attempt number {:g}'.format(attempt))
             attempt += 1
 
     try:
@@ -67,7 +70,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         # SO2max = table[5].split(':')[-1].split('DU')[0].replace(' ','')
         # S02ht  = table[6].split(':')[-1].split('km')[0].replace(' ','')
     except:
-        print('Page error.')
+        logger.warning('Page error.')
         state = 'WARNING'
         state_message = '{} (UTC) webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
         messaging.icinga(config, state, state_message, send=icinga_flag)	
@@ -77,37 +80,37 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     new_time = time_check(date, time, config)
 
     if new_time and volcs.distance.min() < config.max_distance:
-        print('....New detection....')
+        logger.info('....New detection....')
         
-        print('Downloading image')
+        logger.info('Downloading image')
         try:
             get_so2_images(soup, config)
         except:
-            print('Problem downloading images.')
+            logger.warning('Problem downloading images.')
 
-        print('Trying to make figure attachment')
+        logger.info('Trying to make figure attachment')
         try:
             filename = plot_fig(config)
-            print('Figure generated successfully')
+            logger.info('Figure generated successfully')
         except:
             filename = []
-            print('Problem making figure. Continue anyway')
+            logger.error('Problem making figure. Continue anyway')
             b = traceback.format_exc()
             err_message = ''.join('{}\n'.format(a) for a in b.splitlines())
-            print(err_message)
+            logger.error(err_message)
             pass
 
         
-        print('Drafting alert')
+        logger.info('Drafting alert')
         subject, message = create_message(date,time, table, config,volcs)
         
-        # print('Sending direct alert')
+        # logger.info('Sending direct alert')
         # messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
         
-        print('Update timestamp to avoid resending same alert')
+        logger.info('Update timestamp to avoid resending same alert')
         update_timestamp(date, time, config)
         
-        print('Posting to Mattermost')
+        logger.info('Posting to Mattermost')
         messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
 
 

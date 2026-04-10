@@ -15,6 +15,9 @@ from pathlib import Path
 
 
 from ..utils import messaging, plotting, processing
+from ..utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
@@ -47,7 +50,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     try:
         if hasattr(config, "VOLCANO_NAME"):
             DR = np.array([processing.RSAM_to_DR(tr, config.VOLCANO_NAME) for tr in st])
-            print("Successfully calculated Reduced Displacement")
+            logger.info("Successfully calculated Reduced Displacement")
     except:
         pass
 
@@ -69,7 +72,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     if (rms[-1] < lvlv[-1]) & (sum(rms[:-1] > lvlv[:-1]) >= config.min_sta):
         #### RSAM Detection!! ####
         ##########################
-        print("********** DETECTION **********")
+        logger.info("********** DETECTION **********")
         state_message = f"{T0_str} (UTC) RSAM detection! {state_message}"
         state = "CRITICAL"
         #
@@ -112,7 +115,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
             mm_url = messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
             message = f"{message}\n\n{mm_url}"
         except:
-            print("problem posting to mattermost")
+            logger.error("problem posting to mattermost")
             
         messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
         # delete the file you just sent
@@ -173,7 +176,7 @@ def make_figure(scnl, T0, config):
     start = time.time()
     st = processing.grab_data(scnl, T0 - plot_duration, T0, fill_value="interpolate")
     end = time.time()
-    print("{:.2f} seconds to grab figure data.".format(end - start))
+    logger.info("{:.2f} seconds to grab figure data.".format(end - start))
 
     #### preprocess data ####
     st.detrend("demean")

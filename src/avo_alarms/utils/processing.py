@@ -15,7 +15,11 @@ from obspy.clients.fdsn import Client as FDSN_Client
 from obspy.geodetics import gps2dist_azimuth
 from obspy.io.quakeml.core import Unpickler
 
+from .logging_config import get_logger
+
 load_dotenv()
+
+logger = get_logger(__name__)
 
 
 
@@ -44,8 +48,8 @@ def grab_data(scnl, T1, T2, fill_value=0):
     #
     # returns stream of traces with gaps accounted for
     #
-    print('{} - {}'.format(T1.strftime('%Y.%m.%d %H:%M:%S'),T2.strftime('%Y.%m.%d %H:%M:%S')))
-    print('Grabbing data...')
+    logger.info('{} - {}'.format(T1.strftime('%Y.%m.%d %H:%M:%S'),T2.strftime('%Y.%m.%d %H:%M:%S')))
+    logger.info('Grabbing data...')
 
     st = Stream()
 
@@ -74,7 +78,7 @@ def grab_data(scnl, T1, T2, fill_value=0):
                 cleanup=True,
             )
             if len(tr) > 1:
-                print("{:.0f} traces for {}".format(len(tr), sta))
+                logger.info("{:.0f} traces for {}".format(len(tr), sta))
                 if fill_value == 0 or fill_value is None:
                     tr.detrend("demean")
                     tr.taper(max_percentage=0.01)
@@ -91,7 +95,7 @@ def grab_data(scnl, T1, T2, fill_value=0):
                         sub_trace.stats.sampling_rate = np.round(
                             sub_trace.stats.sampling_rate
                         )
-                print("Merging gappy data...")
+                logger.info("Merging gappy data...")
                 tr.merge(fill_value=fill_value)
         except Exception:
             tr = Stream()
@@ -108,9 +112,9 @@ def grab_data(scnl, T1, T2, fill_value=0):
                 int((T2 - T1) * tr.stats["sampling_rate"]), dtype="int32"
             )
         st += tr
-    print("{} seconds".format(UTCDateTime.now() - t_test1))
+    logger.info("{} seconds".format(UTCDateTime.now() - t_test1))
 
-    print("Detrending data...")
+    logger.info("Detrending data...")
     st.detrend("demean")
     st.trim(T1, T2, pad=True, fill_value=0)
     return st
@@ -134,7 +138,7 @@ def download_hypocenters(URL):
             body = res.content
             break
         except Exception as e:
-            print(f"Attempt {attempt} failed: {e}")
+            logger.warning(f"Attempt {attempt} failed: {e}")
             time.sleep(2)
             attempt += 1
             body = None
@@ -146,7 +150,7 @@ def download_hypocenters(URL):
         CAT = Unpickler().loads(body)
     except Exception:
         CAT = Catalog()
-        print("No events!")
+        logger.warning("No events!")
 
     return CAT
 
@@ -261,15 +265,15 @@ def update_stationXML():
         spec = importlib.util.spec_from_file_location(file_name, file_path)
         config = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(config)
-        print(config)
+        logger.info(config)
         for scnl in config.SCNL:
             SCNL.append(scnl["scnl"])
     SCNL = np.array(SCNL)
     SCNL = np.unique(SCNL)
 
-    print("______ Begin Updating Metadata ______")
+    logger.info("______ Begin Updating Metadata ______")
     for scnl in SCNL:
-        print(scnl)
+        logger.info(scnl)
         sta, chan, net, loc = scnl.split(".")
         if "inventory" not in locals():
             inventory = client.get_stations(
@@ -294,7 +298,7 @@ def update_stationXML():
     inventory.write(write_path, format="STATIONXML")
     # inventory.write(os.environ['HOME_DIR']+'/alarm_aux_files/stations.xml',format='STATIONXML')
 
-    print("^^^^^^ Finished Updating Metadata ^^^^^^")
+    logger.info("^^^^^^ Finished Updating Metadata ^^^^^^")
     return
 
 
@@ -366,7 +370,7 @@ def Dr_to_RSAM(config, DR, volcano_name, base=25):
 
         lvl = base * np.round(lvl / base)
 
-        print("{}: {:g}".format(scnl, lvl))
+        logger.info("{}: {:g}".format(scnl, lvl))
 
     return
 

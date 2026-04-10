@@ -18,12 +18,15 @@ import traceback
 from pathlib import Path
 
 from ..utils import messaging, plotting, processing
+from ..utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
     ### get alerts from volcview api
-    print('Reading in alerts from volcview api .json file')
+    logger.info('Reading in alerts from volcview api .json file')
     attempt = 1
     max_tries = 3
     while attempt <= max_tries:
@@ -33,7 +36,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
             A = pd.DataFrame(data['lightning'])
             break
         except:
-            print('Error getting data from Volcview-API on attempt {:g}'.format(attempt))
+            logger.warning('Error getting data from Volcview-API on attempt {:g}'.format(attempt))
             time.sleep(2)
             attempt+=1
             A = None
@@ -68,23 +71,23 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         A_recent = make_blank_df()
 
     if len(volcanoes) == 0:
-        print('****** No lightning detected ******')
+        logger.info('****** No lightning detected ******')
         state = 'OK'
         state_message = '{} (UTC) No new strokes detected'.format(T0.strftime('%Y-%m-%d %H:%M'))
         A_recent.to_csv(config.outfile, index=False)
     
     else:
-        print('Lightning detected at {:.0f} volcanoe(s)'.format(len(volcanoes)))
+        logger.info('Lightning detected at {:.0f} volcanoe(s)'.format(len(volcanoes)))
         for v in volcanoes:
             if not v:
-                print('Null volcano. Skipping...')
+                logger.warning('Null volcano. Skipping...')
                 continue
             
-            print('--- Processing detects at {} volcano ---'.format(v))
+            logger.info('--- Processing detects at {} volcano ---'.format(v))
             V_new = A_new[A_new['volcanoName']==v]
 
             if not V_new.iloc[0].send_alert:
-                print('Ignoring {} Lightning'.format(v))
+                logger.info('Ignoring {} Lightning'.format(v))
                 state = 'WARNING'
                 state_message = '{} (UTC) New strokes at {} (ignored)'.format(T0.strftime('%Y-%m-%d %H:%M'), v)
                 ignored_volcanoes.append(v)
@@ -104,7 +107,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
             n_ring1, n_ring2 = inner_outer(V_recent.latest_distance, config)
         
             if len(A_new) == 0:
-                print('********** OLD DETECTION **********')
+                logger.info('********** OLD DETECTION **********')
                 state = 'WARNING'
                 state_message = '{} (UTC) {} Lightning Detection!'.format(T0.strftime('%Y-%m-%d %H:%M'), V_recent.iloc[0].volcanoName)
                 state_message = '{} {} strokes < 20 km (20 km < {} < 100 km) in past {:.0f} minutes.'.format(state_message, 
@@ -114,11 +117,11 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
                 A_recent.to_csv(config.outfile, index=False)
 
             else:
-                print('********** NEW DETECTION **********')
+                logger.info('********** NEW DETECTION **********')
                 A_recent.to_csv(config.outfile, index=False)
             
                 if V_recent.iloc[-1].latest_distance > config.dist1:
-                    print('...distal detection 1st.')
+                    logger.info('...distal detection 1st.')
                     state = 'WARNING'
                     state_message = '{} (UTC) {} Distal Lightning Detection!'.format(T0.strftime('%Y-%m-%d %H:%M'), V_recent.iloc[0].volcanoName)
                     state_message = '{} {} strokes < 20 km (20 km < {} < 100 km) in past {:.0f} minutes.'.format(state_message,
@@ -127,7 +130,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
                                                                                                                  config.duration/60.0)
             
                 else:
-                    print('********** PROXIMAL DETECTION 1st **********')
+                    logger.info('********** PROXIMAL DETECTION 1st **********')
                     state = 'CRITICAL'
                     state_message = '{} (UTC) {} Lightning Detection!'.format(T0.strftime('%Y-%m-%d %H:%M'), V_recent.iloc[0].volcanoName)
                     state_message = '{} {} new strokes! {} strokes < 20 km (20 km < {} < 100 km) in past {:.0f} minutes.'.format(state_message,
@@ -137,15 +140,15 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
                                                                                                                                  config.duration/60.0)
                     
                     ### Send Email Notification ####
-                    print('Crafting message...')
+                    logger.info('Crafting message...')
                     subject, message = create_message(V_recent, V_new, config)
                     try:
                         filename = plot_fig(V_recent, config, T0)
                     except:
-                        print('Error generating figure...')
+                        logger.error('Error generating figure...')
                         b = traceback.format_exc()
                         err_message = ''.join('{}\n'.format(a) for a in b.splitlines())
-                        print(err_message)
+                        logger.error(err_message)
                         filename = None
 
                     ### Send message ###
@@ -153,7 +156,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
                         mm_url = messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
                         message = f"{message}\n\n{mm_url}"
                     except:
-                        print("problem posting to mattermost")
+                        logger.error("problem posting to mattermost")
                         
                     messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
                     # delete the file you just sent
@@ -161,7 +164,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
                         os.remove(filename)
         
 
-    print('Ignored: {}'.format(ignored_volcanoes))
+    logger.info('Ignored: {}'.format(ignored_volcanoes))
     messaging.icinga(config, state, state_message, send=icinga_flag)
 
 

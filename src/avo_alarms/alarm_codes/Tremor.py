@@ -11,6 +11,9 @@ from pathlib import Path
 
 
 from ..utils import messaging, processing
+from ..utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
@@ -118,20 +121,20 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     else:
         # elevated seismicity but no new events
         if len(loc.events)==0:
-            print('elevated seismicity but no new events')
+            logger.warning('elevated seismicity but no new events')
             state_message='{} Tremor/Swarm detection! {} {}'.format(state_message,duration_text,recency_text)
             state='WARNING'
         # elevated seismicity + new events
         else:
-            print('Elevated Seismicity. New event(s) detected!')
+            logger.info('Elevated Seismicity. New event(s) detected!')
             state_message='{} Tremor/Swarm detection! {} {}'.format(state_message,duration_text,recency_text)
             state='CRITICAL'
             #### Generate Figure ####
             try:
-                print('Making figure')
+                logger.info('Making figure')
                 filename=RSAM.make_figure(SCNL['scnl'].tolist(),T0,config)
             except:
-                print('Figure failed. Continue...')
+                logger.error('Figure failed. Continue...')
                 filename=[]
 
             ### Craft message text ####
@@ -142,7 +145,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
                 mm_url = messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
                 message = f"{message}\n\n{mm_url}"
             except:
-                print("problem posting to mattermost")
+                logger.error("problem posting to mattermost")
                 
             messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
             # delete the file you just sent
@@ -160,17 +163,17 @@ def test_traveltime(st,config):
     npzfile = np.load(config.grid_file)
     new_grd = config.grid
     if not np.array_equal(new_grd['lats'],npzfile['lats']):
-        print('Latitude grid nodes do not match. Calculate new travel times')
+        logger.warning('Latitude grid nodes do not match. Calculate new travel times')
         return False
     elif not np.array_equal(new_grd['lons'],npzfile['lons']):
-        print('Longitude grid nodes do not match. Calculate new travel times')
+        logger.warning('Longitude grid nodes do not match. Calculate new travel times')
         return False
     elif not np.array_equal(new_grd['deps'],npzfile['deps']):	
-        print('Depth grid nodes do not match. Calculate new travel times')
+        logger.warning('Depth grid nodes do not match. Calculate new travel times')
         return False
     for tr in st:
         if tr.id.replace('.','_') not in npzfile.keys():
-            print('No travel times for {}! Calculate new travel times'.format(tr.id))
+            logger.warning('No travel times for {}! Calculate new travel times'.format(tr.id))
             return False
 
     return True

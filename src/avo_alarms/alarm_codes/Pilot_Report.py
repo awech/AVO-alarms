@@ -19,6 +19,9 @@ from pathlib import Path
 
 
 from ..utils import messaging, plotting, processing
+from ..utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 urllib3.disable_warnings()
@@ -53,7 +56,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
             resp = requests.get(new_url, verify=False, timeout=10)
             f.write(resp.content)
     except:
-        print('Request error')
+        logger.warning('Request error')
         state = 'WARNING'
         state_message = '{} (UTC) PIREP webpage error. Cannot retrieve shape file'.format(T0.strftime('%Y-%m-%d %H:%M'))
         messaging.icinga(config, state, state_message, send=icinga_flag)
@@ -61,7 +64,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     try:
         archive = ZipFile(config.zipfilename, 'r')
     except:
-        print('No new pilot reports')
+        logger.warning('No new pilot reports')
         os.remove(config.zipfilename)
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
@@ -146,10 +149,10 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
                 try:
                     filename = plot_fig(config, df, i, A, UTC_time_text, height_text, pilot_remark)
                 except:
-                    print('Error generating figure...')
+                    logger.error('Error generating figure...')
                     b = traceback.format_exc()
                     err_message = ''.join('{}\n'.format(a) for a in b.splitlines())
-                    print(err_message)
+                    logger.error(err_message)
                     filename = []
 
                 ### Craft message text ####
@@ -160,7 +163,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
                     mm_url = messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
                     message = f"{message}\n\n{mm_url}"
                 except:
-                    print("problem posting to mattermost")
+                    logger.error("problem posting to mattermost")
 
                 ### Send message to duty person ###
                 if config.send_email:
@@ -291,7 +294,7 @@ def create_message(df, i, A, UTC_time_text, height_text, pilot_remark):
     v_text = v_text.replace('_', ' ')
     message = '{}Nearest volcanoes: {}\n'.format(message, v_text[:-2])
     message = '{}\n--Original Report--\n{}'.format(message, df.loc[i].REPORT)
-    print(message)
+    logger.info(message)
 
     if df.loc[i].URGENT == 'T':
         subject = 'URGENT! Activity possible at: {}'.format(v_text[:-2])

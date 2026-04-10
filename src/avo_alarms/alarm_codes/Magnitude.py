@@ -13,6 +13,9 @@ import time
 from pathlib import Path
 
 from ..utils import messaging, plotting, processing
+from ..utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 plt.style.use(Path("utils") / "alarms.mplstyle")
 warnings.filterwarnings("ignore")
@@ -31,7 +34,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
     # Download the event data
     T0_str = T0.strftime('%Y-%m-%d %H:%M')
-    print(f"{T0_str}\nDownloading events...")
+    logger.info(f"{T0_str}\nDownloading events...")
     T2 = T0
     T1 = T2 - config.DURATION
     
@@ -65,7 +68,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
     # New events, but not close enough to volcanoes
     if len(CAT_DF) == 0:
-        print("Earthquakes detected, but not near any volcanoes")
+        logger.warning("Earthquakes detected, but not near any volcanoes")
         state = "OK"
         state_message = f"{T0_str} (UTC) No new earthquakes"
         messaging.icinga(config, state, state_message, send=icinga_flag)
@@ -79,13 +82,13 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
     # No new events to process
     if len(NEW_EVENTS) == 0:
-        print("Earthquakes detected, but already processed in previous run")
+        logger.warning("Earthquakes detected, but already processed in previous run")
         state = "WARNING"
         state_message = f"{T0_str} (UTC) Old event detected"
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 
-    print(f"{len(NEW_EVENTS)} new events found. Looping through events...")
+    logger.info(f"{len(NEW_EVENTS)} new events found. Looping through events...")
     # Filter Obspy catalog to new events near volcanoes
     CAT_NEW = Catalog()
     for i, row in NEW_EVENTS.iterrows():
@@ -98,10 +101,10 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     try:
         CAT_NEW = processing.addPhaseHint(CAT_NEW)
     except:
-        print("Could not add phase type...")
+        logger.warning("Could not add phase type...")
 
     for eq in CAT_NEW:
-        print(f"Processing {eq.short_str()}, {eq.resource_id.id}")
+        logger.info(f"Processing {eq.short_str()}, {eq.resource_id.id}")
         volcs = processing.volcano_distance(
             eq.preferred_origin().longitude, eq.preferred_origin().latitude, VOLCS
         )
@@ -119,17 +122,17 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
             filename = new_filename
         except:
             filename = []
-            print("Problem making figure. Continue anyway")
+            logger.error("Problem making figure. Continue anyway")
             b = traceback.format_exc()
             err_message = "".join(f"{a}\n" for a in b.splitlines())
-            print(err_message)
+            logger.error(err_message)
 
         # craft and send the message
         subject, message = create_message(eq, volcs)
 
-        print("Sending message...")
+        logger.info("Sending message...")
         # messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
-        print("Posting to mattermost...")
+        logger.info("Posting to mattermost...")
         messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
 
         # Post to dedicated response channels for volcnoes listed in config file
@@ -199,7 +202,7 @@ def get_channels(eq):
         net, sta, loc, chan = wid.id.split(".")
         ns = ".".join([net, sta])
         if ns not in NS:
-            print(f"Getting lat/lon info for {wid.id}")
+            logger.info(f"Getting lat/lon info for {wid.id}")
             inventory = client.get_stations(
                 network=net, station=sta, location=loc, channel=chan
             )
@@ -284,7 +287,7 @@ def plot_event(eq, volcs, config):
     except:
         velocity = False
 
-    print("Plotting traces...")
+    logger.info("Plotting traces...")
     st.trim(st[0].stats.starttime + 5, st[0].stats.endtime - 5)
     st.detrend()
 
@@ -399,7 +402,7 @@ def plot_event(eq, volcs, config):
         ax_inset, extent, facecolor="none", edgecolor="red", linewidth=0.35
     )
 
-    print('Saving figure...')
+    logger.info('Saving figure...')
     jpg_file = plotting.save_file(fig, config, dpi=200)
     plt.close(fig)
 

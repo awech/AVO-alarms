@@ -21,6 +21,9 @@ from pathlib import Path
 
 
 from ..utils import messaging, plotting, processing
+from ..utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
@@ -107,17 +110,17 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
                 volcano=config.VOLCANO[v_ind]
                 d_Azimuth=d_Azimuth[v_ind]
                 
-                print('Airwave Detection!!!')
+                logger.info('Airwave Detection!!!')
                 state_message='{} - {} detection! {:.1f} Pa peak pressure'.format(state_message,volcano['volcano'],mx_pressure)
                 state='CRITICAL'
 
             else:
-                print('Non-volcano detect!!!')
+                logger.info('Non-volcano detect!!!')
                 state_message='{} - Detection with wrong velocity ({:.1f} km/s) or maximum pressure ({:.1f} Pa)'.format(state_message,velocity,mx_pressure)
                 state='WARNING'
         else:
             #### trigger, but not from volcano ####
-            print('Non-volcano detect!!!')
+            logger.info('Non-volcano detect!!!')
             state_message='{} - Detection with wrong backazimuth ({:.0f} from N)'.format(state_message,azimuth)
             state='WARNING'
 
@@ -137,7 +140,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
             mm_url = messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
             message = f"{message}\n\n{mm_url}"
         except:
-            print("problem posting to mattermost")
+            logger.error("problem posting to mattermost")
             
         messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
         # delete the file you just sent
@@ -331,7 +334,7 @@ def make_figure(st,volcano,T0,config,mx_pressure):
     infra_scnl = ['{}.{}.{}.{}'.format(tr.stats.station,tr.stats.channel,tr.stats.network,tr.stats.location) for tr in st]
     infra = processing.grab_data(infra_scnl,T0-infrasound_plot_duration, T0,fill_value='interpolate')
     end = time.time()
-    print('{:.2f} seconds to grab figure data.'.format(end - start))
+    logger.info('{:.2f} seconds to grab figure data.'.format(end - start))
 
 
     ###################################################
@@ -346,7 +349,7 @@ def make_figure(st,volcano,T0,config,mx_pressure):
     [tr.resample(25) for tr in infra if tr.stats.sampling_rate!=25]
 
     ##### stack infrasound data #####
-    print('stacking infrasound data')
+    logger.info('stacking infrasound data')
     stack=xcorr_align_stream(infra,config)
 
     ##### plot stack spectrogram #####
@@ -356,7 +359,7 @@ def make_figure(st,volcano,T0,config,mx_pressure):
 
     ax=plt.subplot(len(seis)+3,1,1)
     ax.set_title(config.alarm_name+' Alarm: '+volcano['volcano']+ ' detection!')
-    print(np.max(stack.data))
+    logger.info(np.max(stack.data))
     stack.spectrogram(title='',log=False,samp_rate=25,dbscale=True,per_lap=0.7,mult=25.0,wlen=3,cmap=color_map,axes=ax)
     ax.set_yticks([3,6,9,12])
     ax.set_ylim(0,12.5)

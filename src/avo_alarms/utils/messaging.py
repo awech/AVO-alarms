@@ -15,6 +15,10 @@ import urllib3
 import yaml
 from mattermostdriver import Driver
 
+from .logging_config import get_logger
+
+logger = get_logger(__name__)
+
 warnings.filterwarnings("ignore")
 
 def icinga(config, state, state_message, send=True):
@@ -37,10 +41,10 @@ def icinga(config, state, state_message, send=True):
     """
 
     if not send:
-        print("Not attempting to send heartbeat to icinga.")
+        logger.info("Not attempting to send heartbeat to icinga.")
         return
 
-    print("Sending state and message to icinga:")
+    logger.info("Sending state and message to icinga:")
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
     states = {"OK": 0, "WARNING": 1, "CRITICAL": 2, "UNKNOWN": 3}
@@ -76,14 +80,14 @@ def icinga(config, state, state_message, send=True):
             timeout=10,
         )
         if resp.status_code == 200:
-            print(resp.json()["results"][0]["status"])
-            print("Success. Message sent to icinga2")
+            logger.info(resp.json()["results"][0]["status"])
+            logger.info("Success. Message sent to icinga2")
         else:
-            print("Status code = {:g}".format(resp.status_code))
-            print("Failed to send message to icinga2")
+            logger.info("Status code = {:g}".format(resp.status_code))
+            logger.error("Failed to send message to icinga2")
     except Exception as e:
-        print("requests error. Failed to send message to icinga")
-        print(f"An unexpected error occurred: {e}")
+        logger.error("requests error. Failed to send message to icinga")
+        logger.error(f"An unexpected error occurred: {e}")
 
     return
 
@@ -137,24 +141,24 @@ def get_recipients_list(alarm_name, test=False):
     alarm_key = alarm_name
     if alarm_name not in distribution.keys():
         alarm_key = "All Alarms"
-        print("Defaulting to \'All alarms\' list")
+        logger.info("Defaulting to \'All alarms\' list")
     else:
-        print(f"Sending to '{alarm_name}' recipients")
+        logger.info(f"Sending to '{alarm_name}' recipients")
 
     if test:
         alarm_key = "Error"
-        print("Test mode. Sending message to \'Error\' recipients")
+        logger.info("Test mode. Sending message to \'Error\' recipients")
 
     recipients = []
     for user in distribution[alarm_key]:
         if user not in users:
-            print(f"\nERROR!! {user} not in phonebook! No message sent to {user}")
+            logger.error(f"\nERROR!! {user} not in phonebook! No message sent to {user}")
             continue
         recipients.append(users[user])
-        print(f"{user}: {users[user]}")      
+        logger.info(f"{user}: {users[user]}")      
 
     if not recipients:
-        print(f"No recipient found. Check distribution list for {alarm_name}")
+        logger.warning(f"No recipient found. Check distribution list for {alarm_name}")
 
     return recipients
 
@@ -180,7 +184,7 @@ def send_alert(alarm_name, subject, body, attachment=None, test=False):
     None
     """
 
-    print("Sending alarm email and sms...")
+    logger.info("Sending alarm email and sms...")
 
     recipients = get_recipients_list(alarm_name, test=test)
     fromaddr = alarm_name.replace(" ", "_") + "@usgs.gov"
@@ -334,7 +338,7 @@ def post_mattermost(config, subject, body, attachment=None, send=False, test=Fal
     """
 
     if not send:
-        print("Not posting anything to Mattermost")
+        logger.info("Not posting anything to Mattermost")
         return ""
 
     channel_id = os.environ["MATTERMOST_DEFAULT_CHANNEL_ID"]
@@ -358,8 +362,8 @@ def post_mattermost(config, subject, body, attachment=None, send=False, test=Fal
     try:
         post = mm.posts.create_post(options=message_details)
     except Exception as e:
-        print("Error posting to Mattermost. Retrying once...")
-        print(f"An unexpected error occurred: {e}")
+        logger.error("Error posting to Mattermost. Retrying once...")
+        logger.error(f"An unexpected error occurred: {e}")
         time.sleep(2)
         post = mm.posts.create_post(options=message_details)
 

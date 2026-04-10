@@ -22,6 +22,9 @@ from pathlib import Path
 
 
 from ..utils import messaging, plotting, processing
+from ..utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 attempt = 1
@@ -38,8 +41,8 @@ while attempt <= 3:
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
     # Download the event data
-    print(T0.strftime('%Y-%m-%d %H:%M'))
-    print('Downloading events...')
+    logger.info(T0.strftime('%Y-%m-%d %H:%M'))
+    logger.info('Downloading events...')
     config.DURATION = np.array([swm['MAX_EVT_TIME'] for swm in config.swarm_parameters]).max()
     T2 = T0
     T1 = T2 - config.DURATION
@@ -64,7 +67,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         return
 
     # filter out regional VTs
-    print('Filtering out regional VTs')
+    logger.info('Filtering out regional VTs')
     VOLCS = pd.read_excel(config.volc_file)
     VOLCS = VOLCS[VOLCS['Holocene']=='Y']
     CAT_DF = catalog_to_dataframe(CAT, VOLCS)
@@ -73,7 +76,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
     # New events, but not close enough to volcanoes
     if len(CAT_DF) == 0:
-        print('Earthquakes detected, but not near any volcanoes')
+        logger.warning('Earthquakes detected, but not near any volcanoes')
         state = 'OK'
         state_message = '{} (UTC) No new swarm activity'.format(T0.strftime('%Y-%m-%d %H:%M'))
         messaging.icinga(config, state, state_message, send=icinga_flag)
@@ -91,7 +94,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         return
 
     # Check for swarms
-    print('Clustering...')
+    logger.info('Clustering...')
     SWARMS = get_swarms(NEW_EVENTS.copy(), T0, config)
 
     # New events, but not swarm-y
@@ -102,7 +105,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         SWARM_CONTINUE = [swarm for swarm in SWARM_CONTINUE if len(swarm)>0]
 
         if len(SWARM_CONTINUE) > 0:
-            print('Earthquakes detected. Continuation of swarm actvity')
+            logger.info('Earthquakes detected. Continuation of swarm actvity')
             state = 'WARNING'
             v_list = [swarm.iloc[0].VOLCANO for swarm in SWARM_CONTINUE]
             state_message = '{} (UTC) Ongoing swarm actvity at: {}'.format(T0.strftime('%Y-%m-%d %H:%M'), ', '.join(np.unique(v_list)))
@@ -113,7 +116,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
             ALL_EVENTS = ALL_EVENTS.sort_values('Time')
             ALL_EVENTS[['ID','Time','Latitude','Longitude','VOLCANO']].to_csv(config.outfile, index=False, sep='\t', float_format='%.3f')
         else:
-            print('Earthquakes detected, but no new swarm actvity')
+            logger.warning('Earthquakes detected, but no new swarm actvity')
             state = 'OK'
             state_message = '{} (UTC) No new swarm actvity'.format(T0.strftime('%Y-%m-%d %H:%M'))
 
@@ -140,8 +143,8 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         state_message = '{} (UTC) Swarm actvity at: {}'.format(T0.strftime('%Y-%m-%d %H:%M'), swarm.iloc[0].VOLCANO)
 
         subject, message = create_message(swarm)
-        print(subject)
-        print(message)
+        logger.info(subject)
+        logger.info(message)
 
         #### Generate Figure ####
         try:
@@ -155,14 +158,14 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
             filename = new_filename
         except:
             filename = []
-            print('Problem making figure. Continue anyway')
+            logger.error('Problem making figure. Continue anyway')
             b = traceback.format_exc()
             err_message = ''.join('{}\n'.format(a) for a in b.splitlines())
-            print(err_message)
+            logger.error(err_message)
 
         # print('Sending message...')
         # messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
-        print('Posting message to Mattermost...')
+        logger.info('Posting message to Mattermost...')
         messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
 
         # Post to dedicated response channels for volcnoes listed in config file
@@ -237,7 +240,7 @@ def plot_event(swarm, T0, config, VOLCS, CAT):
     volcs = volcs.sort_values('distance')
 
     # grid = plt.GridSpec(1, 1, wspace=0.05, hspace=0.6)
-    print('Plotting main map...')
+    logger.info('Plotting main map...')
     extent = get_extent(volcs.iloc[0].Latitude, volcs.iloc[0].Longitude, dist=15)
     ax['map'].set_extent(extent)
     ax['map'].add_image(ShadedReliefESRI(), 11)
@@ -285,7 +288,7 @@ def plot_event(swarm, T0, config, VOLCS, CAT):
 
 
     ################### Add inset map ###################
-    print('Plotting inset map...')
+    logger.info('Plotting inset map...')
     extent2 = get_extent(volcs.iloc[0].Latitude, volcs.iloc[0].Longitude, dist=150)
     CRS2 = cartopy.crs.AlbersEqualArea(central_longitude=np.mean(extent2[:2]), central_latitude=np.mean(extent[2:]), globe=None)
     glb_ax = fig.add_axes([0.75, 0.84, 0.17, 0.17], projection=CRS2)
@@ -380,7 +383,7 @@ def get_swarm_stations(swarm, CAT):
         SWM_CAT = addPhaseHint(SWM_CAT)
         flag = True
     except:
-        print('Could not add phase type...')
+        logger.warning('Could not add phase type...')
         flag = False
 
     if flag:
@@ -397,7 +400,7 @@ def get_swarm_stations(swarm, CAT):
                 ns = '.'.join([net,sta])
                 NS_COUNT.append(ns)
                 if (ns not in NS):
-                    print('Getting lat/lon info for {}'.format(wid.id))
+                    logger.info('Getting lat/lon info for {}'.format(wid.id))
                     inventory = client.get_stations(network=net,
                                                     station=sta,
                                                     location=loc,
@@ -465,7 +468,7 @@ def compare_swarms(SWARMS):
             for ind_combo in SWARM_COMBOS:
                 # check for duplicate swarm detections
                 if TEST_SWARMS[ind_combo[0]].equals(TEST_SWARMS[ind_combo[1]]):
-                    print('found equals')
+                    logger.info('found equals')
                     flag_list.append(True)
                     remove_swarm_ind.append(ind_combo[0])			
                     continue
@@ -473,13 +476,13 @@ def compare_swarms(SWARMS):
                 # check for overlap, and keep the shortest duration event
                 int_df = pd.merge(TEST_SWARMS[ind_combo[0]], TEST_SWARMS[ind_combo[1]], how ='inner', on =['ID', 'ID'])
                 if len(int_df) > 0:
-                    print('overlap')
+                    logger.info('overlap')
                     dt0 = TEST_SWARMS[ind_combo[0]].Time.max() - TEST_SWARMS[ind_combo[0]].Time.min()
                     dt1 = TEST_SWARMS[ind_combo[1]].Time.max() - TEST_SWARMS[ind_combo[1]].Time.min()
                     remove_swarm_ind.append( ind_combo[np.argmax([dt0,dt1])] )
                     flag_list.append(True)
                 else:
-                    print('no overlap')
+                    logger.info('no overlap')
                     flag_list.append(False)
 
             # update swarms list with duplicate/overlapping swarms removed

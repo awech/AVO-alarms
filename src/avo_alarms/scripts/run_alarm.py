@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from obspy import UTCDateTime as utc
 
 from ..utils import messaging
+from ..utils.logging_config import get_logger
 
 
 def main():
@@ -20,6 +21,9 @@ def main():
     
     start = time.time()
     load_dotenv()
+    
+    # Initialize logger
+    logger = get_logger(__name__)
     
     parser = argparse.ArgumentParser(
         prog="run-alarm",
@@ -55,27 +59,18 @@ def main():
         args.icinga = True
 
     if args.test:
-        print("Running alarm in test mode")
+        logger.info("Running alarm in test mode")
 
+    # TODO: implement file locking to avoid multiple instances of the alarm running
+    # TODO: implement kill switch
     if os.getenv("FROMCRON") == "yep":
-        # TODO: use logging module instead of redirecting stdout and stderr to a file
-        # TODO: add log rotation to avoid filling up disk with logs
-        # TODO: implement file locking to avoid multiple instances of the alarm running
-        # TODO: implement kill switch
-        # if run from a cron, write output to 4-hourly file in the logs directory
-        T0 = utc.now()
-        d_hour = int(T0.strftime("%H")) % 4
-        f_time = utc(T0.strftime("%Y%m%d")) + (int(T0.strftime("%H")) - d_hour) * 3600
-        file = Path(os.environ["LOGS_DIR"]) / f"{args.config}-{f_time.strftime('%Y%m%d-%H')}.log"
-        os.system(f"touch {file}")
-        f = open(file, "a")
-        sys.stdout = sys.stderr = f
-
+        # create a logger with config name for file logging
+        logger = get_logger(__name__, log_dir=os.environ.get("LOGS_DIR"), config_name=args.config)
         # keep .keep file from getting pruned by other cron deleting old log-files
         keep_file = Path(os.environ["LOGS_DIR"]) / ".keep"
         os.system(f"touch {keep_file}")
 
-    print("\n-----------------------------------------")
+    logger.info("\n-----------------------------------------")
 
     if args.time is None:
         T0 = utc.utcnow()  # no time given, use current timestamp
@@ -101,7 +96,7 @@ def main():
         )
     except Exception:
         # if error, send message to designated recipients
-        print("Error...")
+        logger.error("Error...")
         b = traceback.format_exc()
         message = "".join(f"{a}\n" for a in b.splitlines())
         message = f"{str(T0)}\n\n{message}"
@@ -109,13 +104,9 @@ def main():
         filename = Path("alarm_aux_files") / "oops.jpg"
         messaging.send_alert("Error", subject, message, attachment=filename)
 
-    print(utc.utcnow().strftime("%Y.%m.%d %H:%M:%S"))
     end = time.time()
-    print(f"[{end - start:.2f} seconds to complete alarm]")
-    print("-----------------------------------------\n")
-
-    if os.getenv("FROMCRON") == "yep":
-        f.close()
+    logger.info(f"[{end - start:.2f} seconds to complete alarm]")
+    logger.info("-----------------------------------------\n")
 
 
 if __name__ == "__main__":

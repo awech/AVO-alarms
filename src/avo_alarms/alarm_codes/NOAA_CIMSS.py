@@ -19,13 +19,16 @@ warnings.filterwarnings("ignore")
 
 
 from ..utils import messaging, plotting, processing
+from ..utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
     ### get alerts from volcview api ###
     ####################################
-    print("Reading in alerts from volcview api .json file")
+    logger.info("Reading in alerts from volcview api .json file")
     attempt = 1
     max_tries = 3
     while attempt <= max_tries:
@@ -40,7 +43,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
             A = pd.read_json(result)
             break
         except:
-            print(
+            logger.warning(
                 "Error getting data from Volcview-API on attempt {:g}".format(attempt)
             )
             time.sleep(2)
@@ -93,7 +96,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         )
 
     recent_alerts.loc[:, "aid"] = np.nan
-    print("Looping through alerts...")
+    logger.info("Looping through alerts...")
 
     recent_alerts = recent_alerts.sort_values("object_date_time")
     default_mm_id = config.mattermost_channel_id
@@ -121,19 +124,19 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
         else:
 
-            print("Found alert <{:g} km from volcanoes.".format(config.max_distance))
+            logger.info("Found alert <{:g} km from volcanoes.".format(config.max_distance))
             if alert.NOAA_id in old_alerts.NOAA_id.values:
-                print("....just kidding! Old alert.")
+                logger.info("....just kidding! Old alert.")
                 state = "OK"
                 state_message = "{} (UTC) No new NOAA CIMSS alerts".format(
                     T0.strftime("%Y-%m-%d %H:%M")
                 )
                 continue
             else:
-                print(
+                logger.info(
                     "New Alert! Getting images and additional info from NOAA CIMSS webpage...\n\n"
                 )
-                print(alert)
+                logger.info(alert)
 
                 attempt = 1
                 max_tries = 3
@@ -143,7 +146,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
                         break
                     except:
                         if attempt == max_tries:
-                            print("Error reading NOAA CIMSS page")
+                            logger.error("Error reading NOAA CIMSS page")
                             state = "WARNING"
                             state_message = "{} (UTC) NOAA/CIMSS webpage error".format(
                                 T0.strftime("%Y-%m-%d %H:%M")
@@ -192,29 +195,29 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
                             break
 
-                print("\n\nDone.")
+                logger.info("\n\nDone.")
 
-                print("Trying to make figure attachment")
+                logger.info("Trying to make figure attachment")
                 try:
                     filename = plot_fig(alert, volcs, config)
-                    print("Figure generated successfully")
+                    logger.info("Figure generated successfully")
                 except:
                     filename = []
-                    print("Problem making figure. Continue anyway")
+                    logger.error("Problem making figure. Continue anyway")
                     b = traceback.format_exc()
                     err_message = "".join("{}\n".format(a) for a in b.splitlines())
-                    print(err_message)
+                    logger.error(err_message)
                     pass
 
                 # craft and send the message
-                print("Crafting message...")
+                logger.info("Crafting message...")
                 subject, message = create_message(
                     alert, instrument, height_txt, volcs, status_txt, type_txt
                 )
 
-                # print('Sending message...')
+                # logger.info('Sending message...')
                 # messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
-                print("Posting to mattermost...")
+                logger.info("Posting to mattermost...")
                 messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
 
                 ##################################################################

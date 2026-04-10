@@ -18,11 +18,14 @@ from pathlib import Path
 
 
 from ..utils import messaging, plotting, processing
+from ..utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
-    print(T0)
+    logger.info(T0)
     attempt = 1
     max_tries = 3
     while attempt <= max_tries:
@@ -31,12 +34,12 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
             break
         except:		
             if attempt == max_tries:
-                print('Whoops.')
+                logger.warning('Whoops.')
                 state='WARNING'
                 state_message='{} (UTC) webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
                 messaging.icinga(config, state, state_message, send=icinga_flag)
                 return
-            print('Page error on attempt number {:g}'.format(attempt))
+            logger.warning('Page error on attempt number {:g}'.format(attempt))
             attempt += 1						
 
     try:
@@ -46,7 +49,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
             if UTCDateTime(vaa['DTG']) > T0 - config.duration:
                 VAAS_FOUND.append(vaa)
     except:
-        print('Page error.')
+        logger.warning('Page error.')
         state='WARNING'
         state_message='{} (UTC) webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
         messaging.icinga(config, state, state_message, send=icinga_flag)	
@@ -66,14 +69,14 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     for vaa in VAAS_FOUND:
 
         if vaa['VAA_ID'] in OLD_VAAS.ID.to_list():
-            print('Old VAA detected')
+            logger.info('Old VAA detected')
             state='WARNING'
             state_message='{} (UTC) Old VAA detected'.format(T0.strftime('%Y-%m-%d %H:%M'))
             utils.icinga2_state(config,state,state_message)	
             continue
 
         else:
-            print('New VAA detected')
+            logger.info('New VAA detected')
 
             OLD_VAAS = pd.concat([OLD_VAAS, pd.DataFrame({'ID':[vaa['VAA_ID']]})], ignore_index=True)
             OLD_VAAS.to_csv(config.outfile, index=False)
@@ -92,17 +95,17 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
                     filename = make_map(vaa, LONS, LATS, config)
                 except:
                     filename = []
-                    print('Problem making figure. Continue anyway')
+                    logger.error('Problem making figure. Continue anyway')
                     b = traceback.format_exc()
                     err_message = ''.join('{}\n'.format(a) for a in b.splitlines())
-                    print(err_message)
+                    logger.error(err_message)
             else:
                 filename = []
                 
             subject, message = create_message(vaa)
-            # print('Sending message...')
+            # logger.info('Sending message...')
             # messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
-            print('Posting to mattermost...')
+            logger.info('Posting to mattermost...')
             messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
 
             # delete the file you just sent
@@ -327,7 +330,7 @@ def make_map(vaa, LONS, LATS, config):
     ax1.set_title(f'{volcano_name} VAA to {vaa_height:,.0f} ft \n{vaa_time}', fontsize=10)
     plt.tight_layout()
 
-    print('Saving figure...')
+    logger.info('Saving figure...')
     jpg_file = plotting.save_file(fig, config, dpi=250)
     plt.close(fig)
 

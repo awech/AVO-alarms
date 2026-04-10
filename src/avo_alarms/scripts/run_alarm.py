@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 from obspy import UTCDateTime as utc
 
 from ..utils import messaging
-from ..utils.logging_config import get_logger, setup_root_logger
+from ..utils.logging_config import get_logger, setup_root_logger, configure_third_party_loggers
 
 
 def main():
@@ -21,6 +21,9 @@ def main():
     
     start = time.time()
     load_dotenv()
+    
+    # Configure third-party library loggers (obspy, urllib3, etc.)
+    configure_third_party_loggers()
     
     # Initialize logger
     logger = get_logger(__name__)
@@ -70,13 +73,14 @@ def main():
         keep_file = Path(os.environ["LOGS_DIR"]) / ".keep"
         os.system(f"touch {keep_file}")
 
-    logger.info("\n-----------------------------------------")
 
     if args.time is None:
         T0 = utc.utcnow()  # no time given, use current timestamp
         T0 = utc(T0.strftime("%Y-%m-%d %H:%M"))  # round down to the nearest minute
     else:
         T0 = utc(args.time)
+
+    logger.info(f"---- Running {args.config} at {T0} ----")
 
     try:
         # Load config directly from CONFIGS_DIR
@@ -106,8 +110,9 @@ def main():
 
     end = time.time()
     logger.info(f"[{end - start:.2f} seconds to complete alarm]")
-    logger.info("-----------------------------------------\n")
-
+    sep_string = "\n-----------------------------------------\n"
+    sep_string+= "\n-----------------------------------------"
+    logger.info(sep_string)
 
 if __name__ == "__main__":
     main()

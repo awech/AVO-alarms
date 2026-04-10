@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 from obspy import UTCDateTime as utc
 
 from ..utils import messaging
-from ..utils.logging_config import get_logger
+from ..utils.logging_config import get_logger, setup_root_logger
 
 
 def main():
@@ -64,8 +64,8 @@ def main():
     # TODO: implement file locking to avoid multiple instances of the alarm running
     # TODO: implement kill switch
     if os.getenv("FROMCRON") == "yep":
-        # create a logger with config name for file logging
-        logger = get_logger(__name__, log_dir=os.environ.get("LOGS_DIR"), config_name=args.config)
+        # Set up root logger with file handler for this alarm configuration
+        setup_root_logger(log_dir=os.environ.get("LOGS_DIR"), config_name=args.config)
         # keep .keep file from getting pruned by other cron deleting old log-files
         keep_file = Path(os.environ["LOGS_DIR"]) / ".keep"
         os.system(f"touch {keep_file}")

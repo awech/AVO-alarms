@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from obspy import UTCDateTime
 
 from ..utils.processing import update_stationXML
-from ..utils.logging_config import get_logger
+from ..utils.logging_config import get_logger, setup_root_logger
 
 load_dotenv()
 
@@ -15,7 +15,7 @@ def main():
     
     # log info if run from cron
     if os.getenv("FROMCRON") == "yep":
-        logger = get_logger(__name__, log_dir=os.environ.get("LOGS_DIR"), config_name="Metadata")
+        setup_root_logger(log_dir=os.environ.get("LOGS_DIR"), config_name="Metadata")
 
     update_stationXML()
 

@@ -11,41 +11,44 @@ files (4-hour intervals, 2-week retention). Otherwise, logs go to console.
 import logging
 import logging.handlers
 import os
+import time
 from pathlib import Path
 
 
-def setup_logger(
-    name,
+def setup_root_logger(
     log_dir=None,
     config_name=None,
     log_level=logging.INFO,
 ):
     """
-    Configure and return a logger with appropriate handlers.
+    Configure the root logger with appropriate handler.
+
+    This should be called once from the main script (run_alarm.py) to set up
+    the root logger with either a file handler (when FROMCRON) or console handler.
+    All module loggers will propagate to this root logger.
 
     Parameters
     ----------
-    name : str
-        Logger name (typically module name or script name).
     log_dir : str, optional
         Directory for log files (required if running from cron).
-        If None, will attempt to read from LOGS_DIR environment variable.
+        If None during cron mode, attempts to read from LOGS_DIR environment variable.
     config_name : str, optional
         Name of the alarm configuration (used in log filename).
-        If None, uses the logger name.
+        Required when running from cron.
     log_level : int, optional
         Logging level (default: logging.INFO).
 
     Returns
     -------
     logging.Logger
-        Configured logger instance.
+        Configured root logger instance.
     """
-    logger = logging.getLogger(name)
-    logger.setLevel(log_level)
+    root_logger = logging.getLogger()
+    root_logger.setLevel(log_level)
 
     # Clear any existing handlers to avoid duplicates
-    logger.handlers.clear()
+    if root_logger.handlers:
+        root_logger.handlers.clear()
 
     # Format string with millisecond precision
     format_string = "%(asctime)s.%(msecs)03d - %(levelname)s - %(message)s"
@@ -66,12 +69,19 @@ def setup_logger(
                     "log_dir must be provided or LOGS_DIR environment variable must be set"
                 )
 
+        if config_name is None:
+            raise ValueError("config_name must be provided when running from cron")
+
         # Create log directory if it doesn't exist
         Path(log_dir).mkdir(parents=True, exist_ok=True)
 
-        # Use config_name in filename if provided, otherwise use logger name
-        filename = config_name or name.replace(".", "_")
-        log_file = os.path.join(log_dir, f"{filename}-%(date)s.log")
+        # Generate filename with current time rounded to nearest 4-hour mark
+        # Time format: YYYYMMDD-HH where HH is 00, 04, 08, 12, 16, or 20
+        current_time = time.localtime()
+        hour = current_time.tm_hour
+        rounded_hour = (hour // 4) * 4
+        current_time_str = f"{time.strftime('%Y%m%d', current_time)}-{rounded_hour:02d}"
+        log_file = os.path.join(log_dir, f"{config_name}-{current_time_str}.log")
 
         # TimedRotatingFileHandler
         # when='H', interval=4 -> rotate every 4 hours
@@ -84,39 +94,52 @@ def setup_logger(
             encoding="utf-8",
         )
 
-        # Use strftime for date format in filename
-        handler.namer = lambda name: name.replace("%(date)s", time.strftime("%Y%m%d-%H"))
+        # Custom namer: when file rotates, rename with timestamp rounded to 4-hour mark
+        def namer(default_name):
+            # Rotate timestamp rounded to nearest 4-hour mark (00, 04, 08, 12, 16, 20)
+            rotation_time = time.localtime()
+            rotation_hour = rotation_time.tm_hour
+            rounded_hour = (rotation_hour // 4) * 4
+            rotation_time_str = f"{time.strftime('%Y%m%d', rotation_time)}-{rounded_hour:02d}"
+            return os.path.join(log_dir, f"{config_name}-{rotation_time_str}.log")
+
+        handler.namer = namer
 
         handler.setFormatter(formatter)
-        logger.addHandler(handler)
+        root_logger.addHandler(handler)
     else:
-        # Setup console handler for interactive mode
-        handler = logging.StreamHandler()
-        handler.setLevel(log_level)
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
+        # Interactive mode: log to console
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(log_level)
+        console_handler.setFormatter(formatter)
+        root_logger.addHandler(console_handler)
 
-    return logger
+    return root_logger
 
 
 def get_logger(name, log_dir=None, config_name=None):
     """
-    Get or create a logger with standard configuration.
+    Get or create a module logger.
 
-    Convenience function that calls setup_logger with default parameters.
+    Returns a logger with the given name that propagates to the root logger.
+    Module-level loggers should call this function to get their logger instance.
+    The root logger will be configured separately (e.g., by run_alarm.py).
 
     Parameters
     ----------
     name : str
-        Logger name.
+        Logger name (typically __name__).
     log_dir : str, optional
-        Directory for log files (when running from cron).
+        Ignored. Kept for backward compatibility.
     config_name : str, optional
-        Configuration name for log filename.
+        Ignored. Kept for backward compatibility.
 
     Returns
     -------
     logging.Logger
-        Configured logger instance.
+        Configured logger instance that propagates to root.
     """
-    return setup_logger(name, log_dir=log_dir, config_name=config_name)
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.INFO)
+    logger.propagate = True
+    return logger

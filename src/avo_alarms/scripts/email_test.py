@@ -5,14 +5,18 @@ from pathlib import Path
 from obspy import UTCDateTime
 
 from ..utils.messaging import send_alert
-from ..utils.logging_config import get_logger, setup_root_logger
+from ..utils.setup_utils import get_logger, setup_root_logger
 
 
 def main():
-    logger = get_logger(__name__)
 
     if os.getenv("FROMCRON") == "yep":
         setup_root_logger(log_dir=os.environ.get("LOGS_DIR"), config_name="Email_test")
+    else:
+        setup_root_logger()
+    logger = get_logger(__name__)
+
+    logger.info("Sending email test alert")
 
     T0 = UTCDateTime.now() - 3600 * 9
     hostname = socket.gethostname()

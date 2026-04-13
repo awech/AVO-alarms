@@ -1,19 +1,21 @@
 """Command-line entry point for running volcano monitoring alarms."""
 
 import argparse
-import importlib.util
 import os
-import sys
 import time
 import traceback
 from importlib import import_module
 from pathlib import Path
 
 from dotenv import load_dotenv
-from obspy import UTCDateTime as utc
 
 from ..utils import messaging
-from ..utils.logging_config import get_logger, setup_root_logger
+from ..utils.setup_utils import (
+    get_logger,
+    load_config,
+    setup_root_logger,
+    update_arguments,
+)
 
 
 def main():
@@ -21,10 +23,7 @@ def main():
     
     start = time.time()
     load_dotenv()
-    
-    # Initialize logger
-    logger = get_logger(__name__)
-    
+
     parser = argparse.ArgumentParser(
         prog="run-alarm",
         epilog="e.g.: run-alarm Pavlof_RSAM --test or run-alarm Pavlof_RSAM 201701020205"
@@ -44,53 +43,38 @@ def main():
         action=argparse.BooleanOptionalAction, default=None
     )
     args = parser.parse_args()
-
-    # TODO: add "force trigger" (or similar) argument to force an alert to trigger
-    # e.g., it would set Nsta=0 for RSAM or relax all infrasound parameters
-
-    if args.test and args.mm is None:
-        args.mm = False
-    if args.test and args.icinga is None:
-        args.icinga = False
-
-    if args.mm is None:
-        args.mm = True
-    if args.icinga is None:
-        args.icinga = True
-
-    if args.test:
-        logger.info("Running alarm in test mode")
+    
 
     # TODO: implement file locking to avoid multiple instances of the alarm running
     # TODO: implement kill switch
+    # TODO: add "force trigger" (or similar) argument to force an alert to trigger
+
     if os.getenv("FROMCRON") == "yep":
         # Set up root logger with file handler for this alarm configuration
         setup_root_logger(log_dir=os.environ.get("LOGS_DIR"), config_name=args.config)
         # keep .keep file from getting pruned by other cron deleting old log-files
         keep_file = Path(os.environ["LOGS_DIR"]) / ".keep"
-        os.system(f"touch {keep_file}")
-
-
-    if args.time is None:
-        T0 = utc.utcnow()  # no time given, use current timestamp
-        T0 = utc(T0.strftime("%Y-%m-%d %H:%M"))  # round down to the nearest minute
+        keep_file.touch(exist_ok=True)
     else:
-        T0 = utc(args.time)
+        setup_root_logger()
 
-    logger.info(f"---- Running {args.config} at {T0} ----")
+    logger = get_logger(__name__)
+
+    args = update_arguments(args)
+    if args.test:
+        # e.g., it would set Nsta=0 for RSAM or relax all infrasound parameters
+        logger.info("Running alarm in test mode")
+
+    logger.info(f"---- Running {args.config} at {args.time} ----")
 
     try:
-        # Load config directly from CONFIGS_DIR
-        config_path = Path(os.environ.get("CONFIGS_DIR")) / f"{args.config}.py"
-        spec = importlib.util.spec_from_file_location(args.config, config_path)
-        config = importlib.util.module_from_spec(spec)
-        sys.modules[args.config] = config
-        spec.loader.exec_module(config)
+        # load the config file from args
+        config = load_config(args.config)
         
         # Import and run the alarm
         ALARM = import_module(f"avo_alarms.alarm_codes.{config.alarm_type}")
         ALARM.run_alarm(
-            config, T0,
+            config, args.time,
             test_flag=args.test,
             mm_flag=args.mm,
             icinga_flag=args.icinga
@@ -100,7 +84,7 @@ def main():
         logger.error("Error...")
         b = traceback.format_exc()
         message = "".join(f"{a}\n" for a in b.splitlines())
-        message = f"{str(T0)}\n\n{message}"
+        message = f"{str(args.time)}\n\n{message}"
         subject = config.alarm_name + " error"
         filename = Path("alarm_aux_files") / "oops.jpg"
         messaging.send_alert("Error", subject, message, attachment=filename)

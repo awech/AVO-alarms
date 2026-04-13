@@ -15,7 +15,7 @@ import urllib3
 import yaml
 from mattermostdriver import Driver
 
-from .logging_config import get_logger
+from .setup_utils import get_logger
 
 logger = get_logger(__name__)
 

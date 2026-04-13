@@ -19,7 +19,7 @@ warnings.filterwarnings("ignore")
 
 
 from ..utils import messaging, plotting, processing
-from ..utils.logging_config import get_logger
+from ..utils.setup_utils import get_logger
 
 logger = get_logger(__name__)
 

@@ -15,7 +15,7 @@ from obspy.clients.fdsn import Client as FDSN_Client
 from obspy.geodetics import gps2dist_azimuth
 from obspy.io.quakeml.core import Unpickler
 
-from .logging_config import get_logger
+from .setup_utils import get_logger
 
 load_dotenv()
 

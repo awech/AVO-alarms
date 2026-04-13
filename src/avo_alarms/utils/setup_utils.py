@@ -8,11 +8,64 @@ When FROMCRON environment variable is set, logs are written to rotating
 files (4-hour intervals, 2-week retention). Otherwise, logs go to console.
 """
 
+import importlib.util
 import logging
 import logging.handlers
 import os
+import sys
 import time
 from pathlib import Path
+
+from obspy import UTCDateTime as utc
+
+
+def load_config(config_name):
+    """
+    Load logging configuration from environment variables.
+
+    This function can be extended in the future to load more complex configurations
+    from a file or other source if needed. For now, it simply reads the relevant
+    environment variables and returns them in a dictionary.
+
+    Returns
+    -------
+    dict
+        Dictionary containing logging configuration parameters.
+    """
+    config = {
+        "log_dir": os.environ.get("LOGS_DIR"),
+        "config_name": os.environ.get("CONFIG_NAME"),
+        "log_level": logging.INFO,
+    }
+
+    config_path = Path(os.environ.get("CONFIGS_DIR")) / f"{config_name}.py"
+    spec = importlib.util.spec_from_file_location(config_name, config_path)
+    config = importlib.util.module_from_spec(spec)
+    sys.modules[config_name] = config
+    spec.loader.exec_module(config)
+    
+    return config
+
+
+def update_arguments(args):
+
+    if args.test and args.mm is None:
+        args.mm = False
+    if args.test and args.icinga is None:
+        args.icinga = False
+
+    if args.mm is None:
+        args.mm = True
+    if args.icinga is None:
+        args.icinga = True
+
+    if args.time is None:
+        T0 = utc.utcnow()  # no time given, use current timestamp
+        args.time = utc(T0.strftime("%Y-%m-%d %H:%M"))  # round down to the nearest minute
+    else:
+        args.time = utc(args.time)
+
+    return args
 
 
 def setup_root_logger(
@@ -109,7 +162,7 @@ def setup_root_logger(
         root_logger.addHandler(handler)
     else:
         # Interactive mode: log to console
-        console_handler = logging.StreamHandler()
+        console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(log_level)
         console_handler.setFormatter(formatter)
         root_logger.addHandler(console_handler)
@@ -117,7 +170,7 @@ def setup_root_logger(
     return root_logger
 
 
-def get_logger(name, log_dir=None, config_name=None):
+def get_logger(name):
     """
     Get or create a module logger.
 
@@ -129,10 +182,6 @@ def get_logger(name, log_dir=None, config_name=None):
     ----------
     name : str
         Logger name (typically __name__).
-    log_dir : str, optional
-        Ignored. Kept for backward compatibility.
-    config_name : str, optional
-        Ignored. Kept for backward compatibility.
 
     Returns
     -------

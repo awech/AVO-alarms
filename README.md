@@ -1,5 +1,5 @@
 # AVO-alarms
-Python codes used for geophysical alarms at AVO. Currently (2023-Sep-06) running on Python 3.8.17
+Python codes used for geophysical alarms at AVO. Currently (2026-Apr-13) running on Python 3.12.9
 
 ## Python Dependencies
 - pandas<br>
@@ -11,11 +11,11 @@ Python codes used for geophysical alarms at AVO. Currently (2023-Sep-06) running
 - dotenv<br>
 - shapely<br>
 - utm<br>
+- cmcrameri<br>
 - scikit-learn<br>
 - enveloc (only for Tremor module)<br>
 - shapefile (for Pilot_Report module)<br>
-- beautifulsoup4 (for SO2, NOAA_CIMSS, & SIGMET modules)<br>
-- tomputils (optional for Mattermost)<br>
+- beautifulsoup4 (for SO2, NOAA_CIMSS, & VAA modules)<br>
 
 ## Running it...
 You'll need to edit .env_example with the relevant system parameters and rename the file .env<br>

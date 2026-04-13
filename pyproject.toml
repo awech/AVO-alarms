@@ -18,7 +18,8 @@ dependencies = [
     "pandas",
     "jinja2",
     "pyyaml",
-    "cartopy"
+    "cartopy",
+    "cmcrameri"
 ]
 classifiers = [
     # How mature is this project? Common values are

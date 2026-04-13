@@ -47,11 +47,12 @@ def main():
     
     # Set up root logger first (before locking, for error messages)
     if os.getenv("FROMCRON") == "yep":
-        setup_root_logger(log_dir=os.environ.get("LOGS_DIR"), config_name=args.config)
+        setup_root_logger(log_dir=os.getenv("LOGS_DIR"), config_name=args.config)
         # keep .keep file from getting pruned by other cron deleting old log-files
-        keep_file = Path(os.environ["LOGS_DIR"]) / ".keep"
+        keep_file = Path(os.getenv("LOGS_DIR")) / ".keep"
         keep_file.touch(exist_ok=True)
-        lock_dir = os.environ.get("LOGS_DIR")
+        # TODO: add default lock & logs directories. Set even if not in .env file
+        lock_dir = os.getenv("LOGS_DIR")
     else:
         setup_root_logger()
         lock_dir = Path.home() / ".tmp" / "alarms"

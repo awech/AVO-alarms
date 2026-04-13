@@ -1,9 +1,6 @@
 import os
-import sys
-from pathlib import Path
 
 from dotenv import load_dotenv
-from obspy import UTCDateTime
 
 from ..utils.processing import update_stationXML
 from ..utils.setup_utils import setup_root_logger

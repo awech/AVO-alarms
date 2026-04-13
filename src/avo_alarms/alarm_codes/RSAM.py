@@ -3,16 +3,12 @@
 #
 # Wech 2017-06-08
 
-import os, sys
-import numpy as np
-from pandas import DataFrame, Timestamp
+import os
 import time
-import matplotlib as m
-import matplotlib.pyplot as plt
-import matplotlib.cm as cm
-from matplotlib.colors import LinearSegmentedColormap
-from pathlib import Path
 
+import matplotlib.pyplot as plt
+import numpy as np
+from pandas import DataFrame
 
 from ..utils import messaging, plotting, processing
 from ..utils.setup_utils import get_logger
@@ -129,20 +125,10 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 def create_message(t1, t2, stations, rms, lvlv, DR, alarm_name):
 
     # create the subject line
-    subject=f'--- {alarm_name} ---'
+    subject=f"--- {alarm_name} ---"
 
     # create the text for the message you want to send
-    t1_str = t1.strftime("%Y-%m-%d %H:%M")
-    t2_str = t2.strftime("%Y-%m-%d %H:%M")
-    message = f"Start: {t1_str} (UTC)\nEnd: {t2_str} (UTC)\n\n"
-    t1_local = Timestamp(t1.datetime, tz="UTC")
-    t2_local = Timestamp(t2.datetime, tz="UTC")
-    t1_local = t1_local.tz_convert(os.environ["TIMEZONE"])
-    t2_local = t2_local.tz_convert(os.environ["TIMEZONE"])
-    t1_local_str = t1_local.strftime("%Y-%m-%d %H:%M")
-    t2_local_str = t2_local.strftime("%Y-%m-%d %H:%M")
-    message = f"{message}Start: {t1_local_str} ({t1_local.tzname()})"
-    message = f"{message}\nEnd: {t2_local_str} ({t2_local.tzname()})\n\n"
+    message = f"{messaging.format_timestring(t1, t2)}\n\n"
 
     a = np.array([""] * len(rms[:-1]))
     a[np.where(rms > lvlv)] = "*"
@@ -166,17 +152,13 @@ def create_message(t1, t2, stations, rms, lvlv, DR, alarm_name):
 
 
 def make_figure(scnl, T0, config):
-    m.use("Agg")
-
-    plot_duration = 3600
-    if hasattr(config, "plot_duration"):
-        plot_duration = config.plot_duration
 
     #### grab data ####
     start = time.time()
-    st = processing.grab_data(scnl, T0 - plot_duration, T0, fill_value="interpolate")
+    t_win = config.plot_duration if hasattr(config, "plot_duration") else 3600
+    st = processing.grab_data(scnl, T0 - t_win, T0, fill_value="interpolate")
     end = time.time()
-    logger.info("{:.2f} seconds to grab figure data.".format(end - start))
+    logger.info(f"{end - start:.2f} seconds to grab figure data.")
 
     #### preprocess data ####
     st.detrend("demean")
@@ -184,57 +166,14 @@ def make_figure(scnl, T0, config):
     [tr.decimate(2, no_filter=True) for tr in st if tr.stats.sampling_rate == 50]
     [tr.resample(25) for tr in st if tr.stats.sampling_rate != 25]
 
-    colors = cm.jet(np.linspace(-1, 1.2, 256))
-    color_map = LinearSegmentedColormap.from_list("Upper Half", colors)
-
-    axes_list = np.array(
-        [f"{tr.stats.station}.{tr.stats.channel}" for tr in st]
-    ).reshape(len(st), 1)
+    #### generate the figure ####
+    axes_list = [[f"{tr.stats.station}.{tr.stats.channel}"] for tr in st]
     fig, ax = plt.subplot_mosaic(axes_list, figsize=(4.5, 4.5))
 
     for i, tr in enumerate(st):
         name = f"{tr.stats.station}.{tr.stats.channel}"
-        tr.spectrogram(
-            title="",
-            log=False,
-            samp_rate=25,
-            dbscale=True,
-            per_lap=0.5,
-            mult=25.0,
-            wlen=6,
-            cmap=color_map,
-            axes=ax[name],
-        )
-        ax[name].set_yticks([3, 6, 9, 12])
-        ax[name].set_ylabel(
-            tr.stats.station + "\n" + tr.stats.channel,
-            fontsize=5,
-            rotation="horizontal",
-            multialignment="center",
-            horizontalalignment="right",
-            verticalalignment="center",
-        )
-        ax[name].yaxis.set_ticks_position("right")
-        ax[name].tick_params("y", labelsize=4)
-        if i == 0:
-            ax[name].set_title(config.alarm_name + " Alarm")
-        if i < len(st) - 1:
-            ax[name].set_xticks([])
-        else:
-            seis_tick_fmt = "%H:%M"
-            if plot_duration in [1800, 3600, 5400, 7200]:
-                n_seis_ticks = 7
-            elif plot_duration in np.arange(300, 3600, 300):
-                n_seis_ticks = 6
-            else:
-                n_seis_ticks = 6
-                seis_tick_fmt = "%H:%M:%S"
-            d_sec = np.linspace(0, plot_duration, n_seis_ticks)
-            ax[name].set_xticks(d_sec)
-            T = [tr.stats.starttime + dt for dt in d_sec]
-            ax[name].set_xticklabels([t.strftime(seis_tick_fmt) for t in T])
-            ax[name].tick_params("x", labelsize=5)
-            ax[name].set_xlabel(tr.stats.starttime.strftime("%Y-%m-%d") + " UTC")
+        plotting.plot_spectrogram(ax[name], tr)
+        plotting.format_spec_xaxis(ax[name], tr, st, i, config)
 
     plt.subplots_adjust(left=0.08, right=0.94, top=0.92, bottom=0.1, hspace=0.1)
 

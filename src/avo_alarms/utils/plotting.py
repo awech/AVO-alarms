@@ -1,4 +1,5 @@
 import os
+import importlib
 from pathlib import Path
 
 import cartopy.crs as ccrs
@@ -13,8 +14,13 @@ from cartopy.io.img_tiles import GoogleTiles
 from cartopy.mpl.gridliner import LongitudeFormatter, LatitudeFormatter
 from matplotlib.dates import date2num, num2date
 from matplotlib.path import Path as mpath
+from matplotlib.colors import LinearSegmentedColormap
 from obspy import UTCDateTime as utc
 
+
+import matplotlib as m
+
+m.use("Agg")
 
 class ShadedReliefESRI(GoogleTiles):
     """
@@ -466,3 +472,73 @@ def time_ticks(
         axes.set_yticklabels(tick_labels, rotation=rotation, ha=ha, **kwargs)
         axes.set_yticks(ticks)
         axes.set_yticklabels(tick_labels, rotation=rotation, ha=ha, **kwargs)
+
+
+def default_colormap(infrasound=False):
+    if importlib.util.find_spec("cmcrameri") is not None:
+        from cmcrameri import cm
+        colors = cm.roma_r(np.linspace(-1, 1.2, 256))
+    else:
+        import matplotlib.cm as cm
+        colors = cm.jet(np.linspace(-1, 1.2, 256))
+    if infrasound:
+        import matplotlib.cm as cm_infra
+        colors = cm_infra.viridis(np.linspace(-1,1.2,256))
+        
+    color_map = LinearSegmentedColormap.from_list("Upper Half", colors)
+    return color_map
+
+
+def plot_spectrogram(ax, tr, sr=25, colormap=default_colormap(), infrasound=False):
+
+    if infrasound:
+        colormap = default_colormap(infrasound=True)
+
+    tr.spectrogram(
+        title="",
+        log=False,
+        samp_rate=sr,
+        dbscale=True,
+        per_lap=0.5,
+        mult=25.0,
+        wlen=6,
+        cmap=colormap,
+        axes=ax,
+    )
+    ax.set_yticks([3, 6, 9, 12])
+    ax.set_ylabel(
+        tr.stats.station + "\n" + tr.stats.channel,
+        fontsize=5,
+        rotation="horizontal",
+        multialignment="center",
+        horizontalalignment="right",
+        verticalalignment="center",
+    )
+    ax.yaxis.set_ticks_position("right")
+    ax.tick_params("y", labelsize=4)
+
+
+def format_spec_xaxis(ax, tr, st, i, config, duration=None):
+
+    if duration is None:
+        duration = config.plot_duration if hasattr(config, "plot_duration") else 3600
+
+    if i == 0:
+        ax.set_title(config.alarm_name + " Alarm")
+    if i < len(st) - 1:
+        ax.set_xticks([])
+    else:
+        tick_fmt = "%H:%M"
+        if duration in [1800, 3600, 5400, 7200]:
+            n_ticks = 7
+        elif duration in np.arange(300, 3600, 300):
+            n_ticks = 6
+        else:
+            n_ticks = 6
+            tick_fmt = "%H:%M:%S"
+        d_sec = np.linspace(0, duration, n_ticks)
+        ax.set_xticks(d_sec)
+        T = [tr.stats.starttime + dt for dt in d_sec]
+        ax.set_xticklabels([t.strftime(tick_fmt) for t in T])
+        ax.tick_params("x", labelsize=5)
+        ax.set_xlabel(tr.stats.starttime.strftime("%Y-%b-%d"))

@@ -4,22 +4,15 @@
 # Wech 2017-06-08
 
 import os
-import sys
 import time
 from itertools import combinations
-from pathlib import Path
 
-import matplotlib as m
-import matplotlib.cm as cm
-import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.colors import LinearSegmentedColormap
 from obspy import Stream, UTCDateTime
-from obspy.core.util import AttribDict
 from obspy.geodetics.base import gps2dist_azimuth
 from obspy.signal.cross_correlation import correlate, xcorr_max
-from pandas import DataFrame, Timestamp
+from pandas import DataFrame
 
 from ..utils import messaging, plotting, processing
 from ..utils.setup_utils import get_logger
@@ -80,7 +73,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     #### check amplitude threshold ####
     min_pa = np.array([v["min_pa"] for v in config.VOLCANO]).min()
     st = Stream([tr for tr in st if np.any(np.abs(tr.data * config.digouti) > min_pa)])
-    if len(st) < config.min_chan:
+    if len(st) < config.min_chan and not test_flag:
         state_message = f"{state_message} - not enough channels exceeding amplitude threshold!"
         logger.info(state_message)
         state = "OK"
@@ -92,7 +85,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     config = get_volcano_backazimuth(st, config)
     yx, intsd, ints_az = setup_coordinate_system(st)
     #### Cross correlate ####
-    lags, lags_inds1, lags_inds2 = calc_triggers(st, config, intsd)
+    lags, lags_inds1, lags_inds2 = calc_triggers(st, config, intsd, test=test_flag)
     cmbm2, cmbm2n, counter, mpk = associator(lags_inds1, lags_inds2, st, config)
 
     if counter == 0:
@@ -106,13 +99,13 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         d_Azimuth = azimuth - np.array([t["back_azimuth"] for t in config.VOLCANO])
         az_tolerance = np.array([t["Azimuth_tolerance"] for t in config.VOLCANO])
         #### check if this is airwave velocity from a volcano in config file list ####
-        if np.any(np.abs(d_Azimuth) < az_tolerance):
+        if np.any(np.abs(d_Azimuth) < az_tolerance) or test_flag:
             v_ind = np.argmin(np.abs(d_Azimuth))
             mx_pressure = np.max(np.array([np.max(np.abs(tr.data)) for tr in st])) * config.digouti
             if (
                 config.VOLCANO[v_ind]["vmin"] < velocity < config.VOLCANO[v_ind]["vmax"]
                 and mx_pressure > config.VOLCANO[v_ind]["min_pa"]
-            ):
+            ) or test_flag:
                 #### DETECTION ####
                 volcano = config.VOLCANO[v_ind]
                 d_Azimuth = d_Azimuth[v_ind]
@@ -186,6 +179,7 @@ def add_coordinate_info(st, SCNL):
         }
     return st
 
+
 def get_volcano_backazimuth(st, config):
     lon0 = np.mean([tr.stats.coordinates.longitude for tr in st])
     lat0 = np.mean([tr.stats.coordinates.latitude for tr in st])
@@ -215,7 +209,8 @@ def setup_coordinate_system(st):
 
     return yx, intsd, ints_az
 
-def calc_triggers(st, config, intsd):
+
+def calc_triggers(st, config, intsd, test=False):
     lags = np.array([])
     lags_inds1 = np.array([])
     lags_inds2 = np.array([])
@@ -232,13 +227,14 @@ def calc_triggers(st, config, intsd):
             #### check that the best lag is at least the vmin value
             #### and check for minimum cross correlation value
             all_vmin = np.array([v["vmin"] for v in config.VOLCANO]).min()
-            if np.abs(dt) < intsd[ii, jj] / all_vmin and value > config.min_cc:
+            if (np.abs(dt) < intsd[ii, jj] / all_vmin and value > config.min_cc) or test:
                 lags = np.append(lags, dt)
                 lags_inds1 = np.append(lags_inds1, ii)
                 lags_inds2 = np.append(lags_inds2, jj)
 
     #### return lag times, and
     return lags, lags_inds1, lags_inds2
+
 
 def associator(lags_inds1, lags_inds2, st, config):
     #### successively try to associate, starting with all stations
@@ -281,6 +277,7 @@ def associator(lags_inds1, lags_inds2, st, config):
     cmbm2n = cmbm2n.astype("int")
 
     return cmbm2, cmbm2n, counter, mpk
+
 
 def inversion(cmbm2n,cmbm2,intsd,ints_az,lags_inds1,lags_inds2,lags,mpk):
     # for jj in range(counter):
@@ -335,189 +332,6 @@ def inversion(cmbm2n,cmbm2,intsd,ints_az,lags_inds1,lags_inds2,lags,mpk):
 
     return velocity, azimuth, rms
 
-def make_figure(st,volcano,T0,config,mx_pressure):
-    m.use("Agg")
-
-    infrasound_plot_duration = 600
-    seismic_plot_duration = 3600
-    if hasattr(config, "infrasound_plot_duration"):
-        infrasound_plot_duration = config.infrasound_plot_duration
-    if hasattr(config, "seismic_plot_duration"):
-        seismic_plot_duration = config.seismic_plot_duration
-
-    start = time.time()
-    ##### get seismic data #####
-    seis = processing.grab_data(
-        volcano["seismic_scnl"],
-        T0 - seismic_plot_duration,
-        T0,
-        fill_value="interpolate",
-    )
-    ##### get infrasound data #####
-    infra_scnl = [tr.id for tr in st]
-    infra = processing.grab_data(
-        infra_scnl, T0 - infrasound_plot_duration, T0, fill_value="interpolate"
-    )
-    end = time.time()
-    logger.info(f"{end - start:.2f} seconds to grab figure data.")
-
-
-    ###################################################
-    ################# plot infrasound #################
-
-    #### preprocess data ####
-    infra.detrend("demean")
-    infra.taper(max_percentage=None, max_length=config.taper_val)
-    infra.filter("bandpass", freqmin=config.f1, freqmax=config.f2)
-    [tr.decimate(2, no_filter=True) for tr in infra if tr.stats.sampling_rate == 100]
-    [tr.decimate(2, no_filter=True) for tr in infra if tr.stats.sampling_rate == 50]
-    [tr.resample(25) for tr in infra if tr.stats.sampling_rate != 25]
-
-    ##### stack infrasound data #####
-    logger.info("stacking infrasound data")
-    stack = xcorr_align_stream(infra, config)
-
-    ##### plot stack spectrogram #####
-    plt.figure(figsize=(4.5, 4.5))
-    colors = cm.jet(np.linspace(-1, 1.2, 256))
-    color_map = LinearSegmentedColormap.from_list("Upper Half", colors)
-
-    ax = plt.subplot(len(seis) + 3, 1, 1)
-    ax.set_title(config.alarm_name + " Alarm: " + volcano["volcano"] + " detection!")
-    logger.info(np.max(stack.data))
-    stack.spectrogram(
-        title="",
-        log=False,
-        samp_rate=25,
-        dbscale=True,
-        per_lap=0.7,
-        mult=25.0,
-        wlen=3,
-        cmap=color_map,
-        axes=ax,
-    )
-    ax.set_yticks([3, 6, 9, 12])
-    ax.set_ylim(0, 12.5)
-    ax.set_ylabel(
-        stack.stats.station + "\nstack",
-        fontsize=5,
-        rotation="horizontal",
-        multialignment="center",
-        horizontalalignment="right",
-        verticalalignment="center",
-    )
-    ax.yaxis.set_ticks_position("right")
-    ax.tick_params("y", labelsize=4)
-    ax.set_xticks([])
-
-    ##### plot stack trace #####
-    ax = plt.subplot(len(seis) + 3, 1, 2)
-    t1 = mdates.date2num(infra[0].stats.starttime.datetime)
-    # round to nearest minute
-    t1 = round(t1 * 24 * 60) / (24 * 60)
-    t2 = mdates.date2num(infra[0].stats.endtime.datetime)
-    # round to nearest minute
-    t2 = round(t2 * 24 * 60) / (24 * 60)
-    t_vector = np.linspace(t1, t2, stack.stats.npts)
-    plt.plot(t_vector, stack.data, color="k", linewidth=0.2)
-    ax.set_ylabel(
-        stack.stats.station + "\nstack",
-        fontsize=5,
-        rotation="horizontal",
-        multialignment="center",
-        horizontalalignment="right",
-        verticalalignment="center",
-    )
-    ax.yaxis.set_ticks_position("right")
-    ax.tick_params("y", labelsize=4)
-    ax.set_xlim(t1, t2)
-    infra_tick_fmt = "%H:%M"
-    if infrasound_plot_duration in [1800, 3600, 5400, 7200]:
-        n_infra_ticks = 7
-    elif infrasound_plot_duration in [
-        300, 600, 900, 1200, 1500, 2100, 2400, 2700, 3000, 3300
-    ]:
-        n_infra_ticks = 6
-    else:
-        n_infra_ticks = 6
-        infra_tick_fmt = "%H:%M:%S"
-
-    t_ticks=np.linspace(t1,t2,n_infra_ticks)
-    ax.set_xticks(t_ticks)
-    ax.set_xticklabels([mdates.num2date(t).strftime(infra_tick_fmt) for t in t_ticks])
-    ax.tick_params('x',labelsize=5)
-    min_stamp = round((t2-t1)*24*60)
-    t_stamp = infra[0].stats.starttime.strftime("%Y-%b-%d")
-    ax.set_xlabel(
-        f"{min_stamp:.0f} Minute Infrasound Stack\n{t_stamp} UTC,   Peak Pressure: {mx_pressure:.1f} Pa"
-    )
-    ###################################################
-    ###################################################
-
-
-    ###################################################
-    ################## plot seismic ###################
-
-    #### preprocess data ####
-    seis.detrend("demean")
-    [tr.decimate(2, no_filter=True) for tr in seis if tr.stats.sampling_rate == 100]
-    [tr.decimate(2, no_filter=True) for tr in seis if tr.stats.sampling_rate == 50]
-    [tr.resample(25) for tr in seis if tr.stats.sampling_rate != 25]
-
-    seis_tick_fmt = "%H:%M"
-    if seismic_plot_duration in [1800, 3600, 5400, 7200]:
-        n_seis_ticks = 7
-    elif seismic_plot_duration in [
-        300, 600, 900, 1200, 1500, 2100, 2400, 2700, 3000, 3300
-    ]:
-        n_seis_ticks = 6
-    else:
-        n_seis_ticks = 6
-        seis_tick_fmt = "%H:%M:%S"
-
-    for i, tr in enumerate(seis):
-        ax = plt.subplot(len(seis) + 3, 1, i + 1 + 3)
-        tr.spectrogram(
-            title="",
-            log=False,
-            samp_rate=25,
-            dbscale=True,
-            per_lap=0.5,
-            mult=25.0,
-            wlen=6,
-            cmap=color_map,
-            axes=ax,
-        )
-        ax.set_yticks([3, 6, 9, 12])
-        ax.set_ylabel(
-            tr.stats.station + "\n" + tr.stats.channel,
-            fontsize=5,
-            rotation="horizontal",
-            multialignment="center",
-            horizontalalignment="right",
-            verticalalignment="center",
-        )
-        ax.yaxis.set_ticks_position("right")
-        ax.tick_params("y", labelsize=4)
-
-        if i != len(seis) - 1:
-            ax.set_xticks([])
-        else:
-            d_sec = np.linspace(0, seismic_plot_duration, n_seis_ticks)
-            ax.set_xticks(d_sec)
-            T = [tr.stats.starttime + dt for dt in d_sec]
-            ax.set_xticklabels([t.strftime(seis_tick_fmt) for t in T])
-            ax.tick_params("x", labelsize=5)
-            seis_min_stamp = round(tr.stats.endtime - tr.stats.starttime) / 60
-            ax.set_xlabel(f"{seis_min_stamp:.0f} Minute Local Seismic Data")
-    ###################################################
-    ###################################################
-
-    plt.subplots_adjust(left=0.08, right=0.94, top=0.92, bottom=0.1, hspace=0.1)
-
-    jpg_file = plotting.save_file(plt, config, dpi=250)
-
-    return jpg_file
 
 def xcorr_align_stream(st, config):
 
@@ -552,22 +366,105 @@ def xcorr_align_stream(st, config):
     return ST
 
 
+def make_figure(st, volcano, T0, config, mx_pressure):
+
+    start = time.time()
+    
+    ##### get seismic data #####
+    t_seis_win = config.seismic_plot_duration if hasattr(config, "seismic_plot_duration") else 3600
+    seis = processing.grab_data(volcano["seismic_scnl"], T0 - t_seis_win, T0, fill_value="interpolate")
+    ##### get infrasound data #####
+    infra_scnl = ['{}.{}.{}.{}'.format(tr.stats.station,tr.stats.channel,tr.stats.network,tr.stats.location) for tr in st]
+    t_infra_win = config.infrasound_plot_duration if hasattr(config, "infrasound_plot_duration") else 600
+    infra = processing.grab_data(infra_scnl, T0 - t_infra_win, T0, fill_value="interpolate")
+
+    logger.info(f"{time.time() - start:.2f} seconds to grab figure data.")
+
+
+    #### preprocess data ####
+    infra.detrend("demean")
+    infra.taper(max_percentage=None, max_length=config.taper_val)
+    infra.filter("bandpass", freqmin=config.f1, freqmax=config.f2)
+    [tr.decimate(2, no_filter=True) for tr in infra if tr.stats.sampling_rate == 100]
+    [tr.decimate(2, no_filter=True) for tr in infra if tr.stats.sampling_rate == 50]
+    [tr.resample(25) for tr in infra if tr.stats.sampling_rate != 25]
+
+    seis.detrend("demean")
+    [tr.decimate(2, no_filter=True) for tr in seis if tr.stats.sampling_rate == 100]
+    [tr.decimate(2, no_filter=True) for tr in seis if tr.stats.sampling_rate == 50]
+    [tr.resample(25) for tr in seis if tr.stats.sampling_rate != 25]
+
+    ##### stack infrasound data #####
+    logger.info("stacking infrasound data")
+    stack = xcorr_align_stream(infra, config)
+
+
+    ##### set up figure #####
+    seis_list = [[f"{tr.stats.station}.{tr.stats.channel}"] for tr in seis]
+    axes_list = [["stack_spec"], ["stack_trace"], ["blank"]] + seis_list
+    fig, ax = plt.subplot_mosaic(axes_list, figsize=(4.5, 4.5))
+    ax["blank"].axis("off")
+
+
+    ################# plot infrasound #################
+    
+    ##### plot stack spectrogram #####
+    plotting.plot_spectrogram(ax["stack_spec"], stack, infrasound=True)
+    ax["stack_spec"].set_title(config.alarm_name + " Alarm: " + volcano["volcano"] + " detection!")
+    ax["stack_spec"].set_xticks([])
+
+    ##### plot stack trace #####
+    ax["stack_trace"].plot(stack.times(), stack.data, color="k", linewidth=0.2)
+    ax["stack_trace"].set_yticks([])
+    ax["stack_trace"].set_xlim(stack.times()[0], stack.times()[-1])
+    stack_st = Stream(stack)
+    plotting.format_spec_xaxis(ax["stack_trace"], stack, stack_st, len(stack_st), config, duration=t_infra_win)
+    for ax_lab in ["stack_trace", "stack_spec"]:
+        ax[ax_lab].set_ylabel(
+            stack.stats.station + "\nstack",
+            fontsize=5,
+            rotation="horizontal",
+            multialignment="center",
+            horizontalalignment="right",
+            verticalalignment="center",
+        )
+
+    min_stamp = round(t_infra_win / 60)
+    t_stamp = infra[0].stats.starttime.strftime("%Y-%b-%d")
+    ax["stack_trace"].set_xlabel(
+        f"{min_stamp:.0f} Minute Infrasound Stack\n{t_stamp} UTC,   Peak Pressure: {mx_pressure:.1f} Pa",
+        fontsize=6,
+    )
+    ###################################################
+
+
+    ################## plot seismic ###################
+    for i, tr in enumerate(seis):
+        name = f"{tr.stats.station}.{tr.stats.channel}"
+        plotting.plot_spectrogram(ax[name], tr)
+        plotting.format_spec_xaxis(ax[name], tr, seis, i, config)
+        ax[name].set_title("")
+
+    min_stamp = round(t_seis_win / 60)
+    ax[name].set_xlabel(
+        f"{min_stamp:.0f} Minute Seismic Local Seismic Data",
+        fontsize=6,
+    )
+    ###################################################
+
+    plt.subplots_adjust(left=0.08, right=0.94, top=0.92, bottom=0.1, hspace=0.1)
+
+    jpg_file = plotting.save_file(plt, config, dpi=250)
+
+    return jpg_file
+
+
 def create_message(t1, t2, config, volcano, azimuth, d_Azimuth, velocity, mx_pressure):
     # create the subject line
     subject = f"{volcano['volcano']} Airwave Detection"
 
-    # create the test for the message you want to send
-    message = f"{config.alarm_name} alarm:\n"
-    message = f"{message}{volcano['volcano']} detection!\n\n"
-    message = f"{message}Start: {t1.strftime('%Y-%m-%d %H:%M')} (UTC)\nEnd: {t2.strftime('%Y-%m-%d %H:%M')} (UTC)\n\n"
-    t1_local = Timestamp(t1.datetime, tz="UTC")
-    t2_local = Timestamp(t2.datetime, tz="UTC")
-    t1_local = t1_local.tz_convert(os.environ["TIMEZONE"])
-    t2_local = t2_local.tz_convert(os.environ["TIMEZONE"])
-    message = (
-        f"{message}Start: {t1_local.strftime('%Y-%m-%d %H:%M')} ({t1_local.tzname()})"
-    )
-    message = f"{message}\nEnd: {t2_local.strftime('%Y-%m-%d %H:%M')} ({t2_local.tzname()})\n\n"
+    # create the text for the message you want to send
+    message = f"{messaging.format_timestring(t1, t2)}\n\n"
 
     message = f"{message}Azimuth: {azimuth:+.1f} degrees\n"
     message = f"{message}d_Azimuth: {d_Azimuth:+.1f} degrees\n"

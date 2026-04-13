@@ -15,6 +15,8 @@ from ..utils.setup_utils import (
     load_config,
     setup_root_logger,
     update_arguments,
+    configure_third_party_loggers,
+    LockFile,
 )
 
 
@@ -23,6 +25,9 @@ def main():
     
     start = time.time()
     load_dotenv()
+    
+    # Configure third-party library loggers (obspy, urllib3, etc.)
+    configure_third_party_loggers()
 
     parser = argparse.ArgumentParser(
         prog="run-alarm",
@@ -44,21 +49,29 @@ def main():
     )
     args = parser.parse_args()
     
-
-    # TODO: implement file locking to avoid multiple instances of the alarm running
-    # TODO: implement kill switch
-    # TODO: add "force trigger" (or similar) argument to force an alert to trigger
-
+    # Set up root logger first (before locking, for error messages)
     if os.getenv("FROMCRON") == "yep":
-        # Set up root logger with file handler for this alarm configuration
         setup_root_logger(log_dir=os.environ.get("LOGS_DIR"), config_name=args.config)
         # keep .keep file from getting pruned by other cron deleting old log-files
         keep_file = Path(os.environ["LOGS_DIR"]) / ".keep"
         keep_file.touch(exist_ok=True)
+        lock_dir = os.environ.get("LOGS_DIR")
     else:
         setup_root_logger()
+        lock_dir = Path.home() / ".tmp" / "alarms"
 
     logger = get_logger(__name__)
+
+    # Implement file locking to avoid multiple instances of the same alarm running
+    try:
+        lock = LockFile(lock_dir, args.config)
+        lock.acquire()
+    except RuntimeError as e:
+        logger.warning(str(e))
+        return
+
+    # TODO: implement kill switch
+    # TODO: add "force trigger" (or similar) argument to force an alert to trigger
 
     args = update_arguments(args)
     if args.test:
@@ -88,6 +101,9 @@ def main():
         subject = config.alarm_name + " error"
         filename = Path("alarm_aux_files") / "oops.jpg"
         messaging.send_alert("Error", subject, message, attachment=filename)
+    finally:
+        # Always release the lock
+        lock.release()
 
     end = time.time()
     logger.info(f"[{end - start:.2f} seconds to complete alarm]")

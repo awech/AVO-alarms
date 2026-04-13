@@ -98,9 +98,11 @@ def grab_data(scnl, T1, T2, fill_value=0):
                 logger.info("Merging gappy data...")
                 tr.merge(fill_value=fill_value)
         except Exception:
+            logger.warning("Error grabbing data for {}, filling with zeros".format(sta))
             tr = Stream()
         # if no data, create a blank trace for that channel
         if not tr:
+            logger.warning("No data for {}. Filling with zeros".format(sta))
             tr = Trace()
             tr.stats["station"] = sta.split(".")[0]
             tr.stats["channel"] = sta.split(".")[1]

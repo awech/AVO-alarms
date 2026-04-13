@@ -9,6 +9,7 @@ files (4-hour intervals, 2-week retention). Otherwise, logs go to console.
 """
 
 import importlib.util
+import io
 import logging
 import logging.handlers
 import os
@@ -17,6 +18,35 @@ import time
 from pathlib import Path
 
 from obspy import UTCDateTime as utc
+
+
+class StderrToLogger(io.TextIOBase):
+    """
+    Redirect stderr output to a logger.
+    
+    This captures output from C/FORTRAN libraries (like earthworm) that print 
+    directly to stderr, routing it through Python's logging system.
+    """
+    def __init__(self, logger, log_level=logging.WARNING):
+        self.logger = logger
+        self.log_level = log_level
+        self.linebuf = ""
+
+    def write(self, buf):
+        """Write buffer to logger."""
+        for line in buf.rstrip().splitlines():
+            line = line.rstrip()
+            if line:
+                self.logger.log(self.log_level, line)
+        return len(buf)
+
+    def flush(self):
+        """Flush (no-op for logger)."""
+        pass
+
+    def isatty(self):
+        """Return False since we're not a terminal."""
+        return False
 
 
 def load_config(config_name):
@@ -192,3 +222,109 @@ def get_logger(name):
     logger.setLevel(logging.INFO)
     logger.propagate = True
     return logger
+
+
+def configure_third_party_loggers(log_level=logging.INFO):
+    """
+    Configure third-party library output to be captured by the logger.
+
+    Redirects stderr to capture output from C/FORTRAN libraries (like earthworm)
+    that print directly to stderr, routing it through Python's logging system.
+
+    Parameters
+    ----------
+    log_level : int, optional
+        Logging level for stderr output (default: logging.INFO).
+    """
+    # Redirect stderr to logger to capture C/FORTRAN library output
+    # (e.g., earthworm client messages)
+    logger = logging.getLogger("stderr")
+    sys.stderr = StderrToLogger(logger, log_level=logging.WARNING)
+
+
+class LockFile:
+    """
+    Context manager for file-based locking.
+    
+    Prevents multiple instances of the same alarm from running simultaneously
+    by using a lock file directory. The lock file contains the PID of the
+    running process.
+    """
+    def __init__(self, lock_dir, config_name, timeout=300):
+        """
+        Initialize the lock file manager.
+        
+        Parameters
+        ----------
+        lock_dir : str
+            Directory where lock files are stored.
+        config_name : str
+            Name of the configuration (used in lock filename).
+        timeout : int, optional
+            Seconds to wait before considering a lock stale (default: 300).
+        """
+        self.lock_dir = Path(lock_dir)
+        self.config_name = config_name
+        self.timeout = timeout
+        self.lock_file = self.lock_dir / f"{config_name}.lock"
+        self.acquired = False
+
+    def __enter__(self):
+        """Acquire the lock."""
+        self.acquire()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Release the lock."""
+        self.release()
+
+    def acquire(self):
+        """
+        Acquire the lock, blocking if necessary.
+        
+        Raises
+        ------
+        RuntimeError
+            If the lock cannot be acquired (another instance is running).
+        """
+        self.lock_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Check if lock file exists
+        if self.lock_file.exists():
+            try:
+                with open(self.lock_file, 'r') as f:
+                    old_pid = int(f.read().strip())
+            except (ValueError, IOError):
+                # Lock file is corrupted, remove it
+                self.lock_file.unlink()
+                old_pid = None
+            
+            if old_pid is not None:
+                # Check if the process is still running
+                try:
+                    os.kill(old_pid, 0)  # Signal 0 doesn't kill, just checks if process exists
+                    raise RuntimeError(
+                        f"Configuration '{self.config_name}' is already running (PID: {old_pid})"
+                    )
+                except ProcessLookupError:
+                    # Process is not running, remove stale lock
+                    self.lock_file.unlink()
+        
+        # Write current PID to lock file
+        with open(self.lock_file, 'w') as f:
+            f.write(str(os.getpid()))
+        
+        self.acquired = True
+
+    def release(self):
+        """Release the lock."""
+        if self.acquired and self.lock_file.exists():
+            try:
+                with open(self.lock_file, 'r') as f:
+                    lock_pid = int(f.read().strip())
+                # Only remove if it's our lock
+                if lock_pid == os.getpid():
+                    self.lock_file.unlink()
+            except (ValueError, IOError):
+                pass
+            self.acquired = False

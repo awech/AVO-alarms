@@ -48,8 +48,10 @@ def grab_data(scnl, T1, T2, fill_value=0):
     #
     # returns stream of traces with gaps accounted for
     #
-    logger.info('{} - {}'.format(T1.strftime('%Y.%m.%d %H:%M:%S'),T2.strftime('%Y.%m.%d %H:%M:%S')))
-    logger.info('Grabbing data...')
+    T1_str = T1.strftime("%Y.%m.%d %H:%M:%S")
+    T2_str = T2.strftime("%Y.%m.%d %H:%M:%S")
+    logger.info(f"{T1_str} - {T2_str}")
+    logger.info("Grabbing data...")
 
     st = Stream()
 
@@ -98,11 +100,11 @@ def grab_data(scnl, T1, T2, fill_value=0):
                 logger.info("Merging gappy data...")
                 tr.merge(fill_value=fill_value)
         except Exception:
-            logger.warning("Error grabbing data for {}, filling with zeros".format(sta))
+            logger.warning(f"Error grabbing data for {sta}, filling with zeros")
             tr = Stream()
         # if no data, create a blank trace for that channel
         if not tr:
-            logger.warning("No data for {}. Filling with zeros".format(sta))
+            logger.warning(f"No data for {sta}. Filling with zeros")
             tr = Trace()
             tr.stats["station"] = sta.split(".")[0]
             tr.stats["channel"] = sta.split(".")[1]
@@ -413,7 +415,6 @@ def RSAM_to_DR(tr, volcano_name, VELOCITY=1.5, FREQ=2, Q=200):
     volcs = VOLCS[VOLCS["Volcano"] == volcano_name].copy()
 
     tr.id = tr.id.replace("--", "")
-    # inventory = read_inventory(os.environ['HOME_DIR']+'/alarm_aux_files/stations.xml')
     inventory = read_inventory(home_dir / "alarm_aux_files" / "stations.xml")
 
     coords = inventory.get_coordinates(tr.id)

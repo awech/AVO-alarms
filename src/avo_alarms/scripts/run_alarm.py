@@ -15,7 +15,6 @@ from ..utils.setup_utils import (
     load_config,
     setup_root_logger,
     update_arguments,
-    configure_third_party_loggers,
     LockFile,
 )
 
@@ -25,9 +24,6 @@ def main():
     
     start = time.time()
     load_dotenv()
-    
-    # Configure third-party library loggers (obspy, urllib3, etc.)
-    configure_third_party_loggers()
 
     parser = argparse.ArgumentParser(
         prog="run-alarm",

@@ -140,6 +140,11 @@ def setup_root_logger(
     # Create formatter
     formatter = logging.Formatter(format_string, datefmt=date_format)
 
+    # Redirect stderr to logger to capture C/FORTRAN library output
+    # (e.g., earthworm client messages)
+    stderr_logger = logging.getLogger("stderr")
+    sys.stderr = StderrToLogger(stderr_logger, log_level=logging.WARNING)
+
     # Check if running from cron
     from_cron = os.environ.get("FROMCRON", "").lower() == "yep"
 
@@ -222,24 +227,6 @@ def get_logger(name):
     logger.setLevel(logging.INFO)
     logger.propagate = True
     return logger
-
-
-def configure_third_party_loggers(log_level=logging.INFO):
-    """
-    Configure third-party library output to be captured by the logger.
-
-    Redirects stderr to capture output from C/FORTRAN libraries (like earthworm)
-    that print directly to stderr, routing it through Python's logging system.
-
-    Parameters
-    ----------
-    log_level : int, optional
-        Logging level for stderr output (default: logging.INFO).
-    """
-    # Redirect stderr to logger to capture C/FORTRAN library output
-    # (e.g., earthworm client messages)
-    logger = logging.getLogger("stderr")
-    sys.stderr = StderrToLogger(logger, log_level=logging.WARNING)
 
 
 class LockFile:

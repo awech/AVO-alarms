@@ -157,8 +157,7 @@ def make_figure(scnl, T0, config):
     start = time.time()
     t_win = config.plot_duration if hasattr(config, "plot_duration") else 3600
     st = processing.grab_data(scnl, T0 - t_win, T0, fill_value="interpolate")
-    end = time.time()
-    logger.info(f"{end - start:.2f} seconds to grab figure data.")
+    logger.info(f"{time.time() - start:.2f} seconds to grab figure data.")
 
     #### preprocess data ####
     st.detrend("demean")

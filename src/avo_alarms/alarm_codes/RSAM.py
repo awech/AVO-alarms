@@ -5,6 +5,7 @@
 
 import os
 import time
+import traceback
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -47,7 +48,9 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         if hasattr(config, "VOLCANO_NAME"):
             DR = np.array([processing.RSAM_to_DR(tr, config.VOLCANO_NAME) for tr in st])
             logger.info("Successfully calculated Reduced Displacement")
-    except:
+    except Exception as e:
+        logger.warning(e)
+        logger.error(traceback.format_exc())
         pass
 
     ############################# Icinga message #############################
@@ -100,7 +103,10 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         #### Generate Figure ####
         try:
             filename = make_figure(scnl, T0, config)
-        except:
+        except Exception as e:
+            logger.error("Problem making figure for RSAM alarm")
+            logger.error(e)
+            logger.error(traceback.format_exc())
             filename = None
 
         ### Craft message text ####
@@ -110,9 +116,11 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         try:
             mm_url = messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
             message = f"{message}\n\n{mm_url}"
-        except:
+        except Exception as e:
             logger.error("problem posting to mattermost")
-            
+            logger.error(e)
+            logger.error(traceback.format_exc())
+
         messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
         # delete the file you just sent
         if filename:

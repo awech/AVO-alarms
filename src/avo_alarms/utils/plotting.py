@@ -45,9 +45,30 @@ class ShadedReliefESRI(GoogleTiles):
 
 
 def get_extent(lat0, lon0, xdist=25, ydist=25):
+    """Get a cartopy extent using x & y distance from a lat,lon point
 
-    dlat = ydist / 111.1
-    dlon = (xdist / 111.1) / np.cos(lat0 * np.pi / 180)
+    Parameters
+    ----------
+    lat0 : float
+        center point latitude
+    lon0 : float
+        center point longitude
+    xdist : float, optional
+        longitude width (in km) of desired resulting map bounds, by default 25
+    ydist : float, optional
+        latitude width (in km) of desired resulting map bounds, by default 25
+
+    Returns
+    -------
+    list
+        [lonmin, lonmax, latmin, latmax] list of bounds for cartopy map
+    """
+    
+    dx = xdist / 2
+    dy = ydist / 2
+    
+    dlat = dy / 111.1
+    dlon = (dx / 111.1) / np.cos(lat0 * np.pi / 180)
 
     latmin = lat0 - dlat
     latmax = lat0 + dlat
@@ -93,14 +114,15 @@ def make_path(extent):
 
 
 def make_map(
+    ax,
     volc_lat,
     volc_lon,
-    ax,
     xdist=25.0,
     ydist=25.0,
     basemap="hillshade",
     projection="mercator",
-    land_color="#80808050",
+    land_color="#CBCBCBFF",
+    water_color="#B8F1FF",
 ):
     """
     make the basemap for all AVO alarms that require maps.
@@ -185,7 +207,7 @@ def make_map(
 
     basemap = basemap.upper()
 
-    possible_basemaps = ["BORING", "HILLSHADE", "LAND"]
+    possible_basemaps = ["BORING", "HILLSHADE", "LAND", "HIGHRES"]
     assert (
         basemap in possible_basemaps
     ), f"{basemap} not in possible basemaps. please choose boring or hillshade"
@@ -237,6 +259,7 @@ def make_map(
     fig = plt.gcf()
     ax.remove()
     ax = fig.add_axes(rect=ax_position, projection=crs, label=ax_label)
+    ax.set_extent(extent, crs=ccrs.Geodetic())  # defaults to geodetic version of crs
 
     # add the basemap
     if basemap == "HILLSHADE":
@@ -253,13 +276,59 @@ def make_map(
     elif basemap == "LAND":
         ax.add_feature(cfeature.LAND, facecolor=land_color)
 
+    elif basemap == "HIGHRES":
+        coast = cfeature.GSHHSFeature(scale="full")
+        ax.add_feature(coast, facecolor=land_color, linewidth=0.2, alpha=1)
+        ax.patch.set_facecolor(water_color)
+
     # cant use set_boundary on mercator for some reason.
     if projection != "MERCATOR":
         ax.set_boundary(make_path(extent), transform=ccrs.Geodetic())
 
-    ax.set_extent(extent, crs=ccrs.Geodetic())  # defaults to geodetic version of crs
+    return ax, extent
 
-    return ax
+
+def add_volcanoes_to_map(ax, extent, config, c1="forestgreen", c2="darkseagreen", s1=25, s2=20, ec1="k", ec2="k", **kwargs):
+
+    # add volcanoes
+    volcs = pd.read_excel(config.volc_file)
+    volcs = volcs[
+        (volcs.Latitude >= extent[2]) & (volcs.Latitude <= extent[3]) & (volcs.Longitude >= extent[0]) & (volcs.Longitude <= extent[1])
+    ]
+    volcs["distance"] = np.sqrt(
+        (volcs.Latitude - (extent[2] + extent[3]) / 2) ** 2
+        + (volcs.Longitude - (extent[0] + extent[1]) / 2) ** 2
+    )
+    volcs = volcs.sort_values("distance")
+    N = len(volcs)
+    ax.scatter(volcs.Longitude.values, volcs.Latitude.values,
+            c=[c1] + [c2]*(N-1),
+            s=np.array([s1] + [s2]*(N-1)),
+            marker="^",
+            edgecolors=[ec1] + [ec2]*(N-1),
+            transform=ccrs.Geodetic(),
+            zorder=1e2,
+            linewidths=kwargs.pop("linewidths", 0.5),
+            **kwargs)
+
+
+def add_scale_bar(ax, length_km, location=(0.1, 0.05), txt_yoffset=0.02):
+    # 1. Get current map extent to find positioning
+    lon0, lon1, lat0, lat1 = ax.get_extent(ccrs.PlateCarree())
+    sb_lon = lon0 + (lon1 - lon0) * location[0]
+    sb_lat = lat0 + (lat1 - lat0) * location[1]
+
+    # 2. Calculate degrees of longitude for exactly 'length_km'
+    # 111.32 km is approx 1 degree at the equator
+    delta_lon = length_km / (111.32 * np.cos(np.radians(sb_lat)))
+
+    # 3. Plot the bar using PlateCarree transform (lat/lon)
+    ax.plot([sb_lon, sb_lon + delta_lon], [sb_lat, sb_lat], 
+            transform=ccrs.PlateCarree(), color='black', linewidth=1, zorder=5)
+    
+    # 4. Add the label
+    ax.text(sb_lon + (delta_lon/2), sb_lat + txt_yoffset, f'{length_km} km', 
+            transform=ccrs.PlateCarree(), ha='center', va='bottom', fontsize=5)
 
 
 def add_inset_polygon(ax, extent, **kwargs):
@@ -269,6 +338,20 @@ def add_inset_polygon(ax, extent, **kwargs):
         ccrs.PlateCarree(),
         **kwargs,
     )
+
+
+def default_grid_params(**kwargs):
+    grid_kwargs = {
+        "ls": "--",
+        "color": "gray",
+        "alpha": 0.5,
+        "linewidth": 0.25,
+        "draw_labels": {"top": False, "bottom": True, "left": False, "right": True},
+        "xlabel_style": {"size": 6},
+        "ylabel_style": {"size": 6},
+    }
+    grid_kwargs.update(kwargs)
+    return grid_kwargs
 
 
 def map_ticks(ax, extent, nticks_x=2, nticks_y=2, grid_kwargs=None, lon_fmt_kwargs=None, lat_fmt_kwargs=None, y_rotate=None, ticks_right=True):
@@ -320,12 +403,18 @@ def map_ticks(ax, extent, nticks_x=2, nticks_y=2, grid_kwargs=None, lon_fmt_kwar
         if l < -180:
             xlocs[i] = l + 360 
 
+    if grid_kwargs == "default":
+        grid_kwargs = default_grid_params()
+
     if grid_kwargs is not None:
         grid_kwargs["xformatter"] = lon_formatter
         grid_kwargs["yformatter"] = lat_formatter
         gl = ax.gridlines(xlocs=xlocs, ylocs=ylocs, **grid_kwargs)
-        if "draw_labels" in grid_kwargs and grid_kwargs["draw_labels"]:
-            return gl
+        if "xlabel_style" in grid_kwargs:
+            gl.xlabel_style = grid_kwargs["xlabel_style"]
+        if "ylabel_style" in grid_kwargs:
+            gl.ylabel_style = grid_kwargs["ylabel_style"]
+        return gl
 
     ax.set_xticks(xlocs, crs=ccrs.PlateCarree())
     ax.set_yticks(ylocs, crs=ccrs.PlateCarree())

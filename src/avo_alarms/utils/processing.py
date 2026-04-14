@@ -143,8 +143,9 @@ def download_lightning():
             )
             A = pd.DataFrame(data["lightning"])
             break
-        except:
+        except Exception as e:
             logger.warning(f"Error getting data from Volcview-API on attempt {attempt:g}")
+            logger.warning(e)
             time.sleep(2)
             attempt += 1
             A = None

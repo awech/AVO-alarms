@@ -5,6 +5,7 @@
 
 import os
 import time
+import traceback
 from itertools import combinations
 
 import matplotlib.pyplot as plt
@@ -148,8 +149,11 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
                 test=test_flag,
             )
             message = f"{message}\n\n{mm_url}"
-        except:
+        except Exception as e:
             logger.error("problem posting to mattermost")
+            logger.error(e)
+            logger.error(traceback.format_exc())
+            
 
         messaging.send_alert(
             config.alarm_name, subject, message, attachment=filename, test=test_flag

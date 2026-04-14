@@ -1,6 +1,7 @@
 import importlib
 import os
 import time
+import json
 from glob import glob
 from pathlib import Path
 
@@ -122,6 +123,33 @@ def grab_data(scnl, T1, T2, fill_value=0):
     st.detrend("demean")
     st.trim(T1, T2, pad=True, fill_value=0)
     return st
+
+
+def download_lightning():
+
+    logger.info("Reading in alerts from volcview api .json file")
+    attempt = 1
+    max_tries = 3
+    while attempt <= max_tries:
+        try:
+            data = json.load(
+                os.popen(
+                    'curl --connect-timeout 5 -H "username:{}" -H "password:{}" -X GET {}'.format(
+                        os.environ["API_USERNAME"],
+                        os.environ["API_PASSWORD"],
+                        os.environ["LIGHTNING_URL"],
+                    )
+                )
+            )
+            A = pd.DataFrame(data["lightning"])
+            break
+        except:
+            logger.warning(f"Error getting data from Volcview-API on attempt {attempt:g}")
+            time.sleep(2)
+            attempt += 1
+            A = None
+
+    return A
 
 
 def download_hypocenters(URL):

@@ -2,23 +2,18 @@
 #
 # Wech 2020-04-09
 
-import json
 import os
-import time
+import traceback
 import warnings
 
-import matplotlib as m
+import cartopy.crs as ccrs
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.dates import date2num
-import cartopy.crs as ccrs
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from obspy import UTCDateTime as utc
 from obspy.geodetics.base import gps2dist_azimuth
-
-import traceback
-from pathlib import Path
 
 from ..utils import messaging, plotting, processing
 from ..utils.setup_utils import get_logger
@@ -123,19 +118,20 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
                     subject, message = create_message(V_recent, V_new, config)
                     try:
                         filename = plot_fig(V_recent, config, T0)
-                    except:
+                    except Exception as e:
                         logger.error("Error generating figure...")
-                        b = traceback.format_exc()
-                        err_message = "".join("{}\n".format(a) for a in b.splitlines())
-                        logger.error(err_message)
+                        logger.error(e)
+                        logger.error(traceback.format_exc())
                         filename = None
 
                     ### Send message ###
                     try:
                         mm_url = messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
                         message = f"{message}\n\n{mm_url}"
-                    except:
+                    except Exception as e:
                         logger.error("problem posting to mattermost")
+                        logger.error(e)
+                        logger.error(traceback.format_exc())
                         
                     messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
                     # delete the file you just sent

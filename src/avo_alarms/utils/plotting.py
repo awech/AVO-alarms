@@ -6,7 +6,6 @@ import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import shapely.geometry as sgeom
 import matplotlib.pyplot as plt
-import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
 
@@ -399,9 +398,9 @@ def map_ticks(ax, extent, nticks_x=2, nticks_y=2, grid_kwargs=None, lon_fmt_kwar
     xlocs = np.linspace(extent[0], extent[1], nticks_x+2)[1:-1]
     ylocs = np.linspace(extent[2], extent[3], nticks_y+2)[1:-1]
 
-    for i, l in enumerate(xlocs):
-        if l < -180:
-            xlocs[i] = l + 360 
+    for i, xloc in enumerate(xlocs):
+        if xloc < -180:
+            xlocs[i] = xloc + 360
 
     if grid_kwargs == "default":
         grid_kwargs = default_grid_params()

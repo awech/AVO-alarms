@@ -1,5 +1,7 @@
 import importlib
 import os
+import io
+import requests
 import time
 import json
 from glob import glob
@@ -21,6 +23,76 @@ from .setup_utils import get_logger
 load_dotenv()
 
 logger = get_logger(__name__)
+
+
+def IRIS_client():
+    attempt = 1
+    while attempt <= 3:
+        try:
+            client = FDSN_Client("IRIS")
+            break
+        except:
+            time.sleep(2)
+            attempt += 1
+            client = None
+    return client
+
+
+def download_hypocenters_csv(URL):
+    attempt = 1
+    success = False
+    max_attempts = 3
+    while attempt <= max_attempts:
+        try:
+            body = requests.get(URL, verify=False).content
+            catalog_df = pd.read_csv(io.StringIO(body.decode('utf-8')), parse_dates=["time"])
+            # catalog_df["id"] = catalog_df.apply(lambda x: x.net.lower() + str(x.id), axis=1)
+            success = True
+            break
+        except Exception as e:
+            logger.warning(f"Error downloading earthquake data on attempt {attempt}: {e}")
+            time.sleep(2)
+            attempt+=1
+    if not success:
+        logger.error(f"Failed to download earthquake data after {max_attempts} attempts.")
+        catalog_df = None
+    else:
+        return catalog_df
+
+
+def download_hypocenter_xml(URL):
+    """_summary_
+
+    Returns
+    -------
+    _type_
+        _description_
+    """
+
+    urllib3.disable_warnings()
+
+    attempt = 1
+    while attempt <= 3:
+        try:
+            res = requests.get(URL, verify=False, timeout=10)
+            body = res.content
+            break
+        except Exception as e:
+            logger.warning(f"Attempt {attempt} failed: {e}")
+            time.sleep(2)
+            attempt += 1
+            body = None
+
+    if not body:
+        return None
+
+    try:
+        CAT = Unpickler().loads(body)
+    except Exception:
+        CAT = Catalog()
+        logger.warning("No events!")
+
+    return CAT
 
 
 
@@ -270,12 +342,9 @@ def catalog_to_dataframe(CAT, VOLCS):
 
 
 def addPhaseHint(cat):
-    for eq in cat:
-        # Loop over catalog
-        for pick in eq.picks:
-            # Loop over picks
-            # Go get phase hint
-            nowPickID = pick.resource_id
+    for eq in cat: # Loop over catalog
+        for pick in eq.picks: # Loop over picks
+            nowPickID = pick.resource_id # Go get phase hint
             for arrival in eq.preferred_origin().arrivals:
                 nowArrID = arrival.pick_id
                 if nowPickID == nowArrID:

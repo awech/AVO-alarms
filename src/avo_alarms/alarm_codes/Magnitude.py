@@ -1,16 +1,13 @@
-import os, sys
-import pandas as pd
-import numpy as np
-from obspy import Catalog
-from obspy.geodetics.base import gps2dist_azimuth
-from obspy.clients.fdsn import Client
-import cartopy
-import matplotlib as m
-import matplotlib.pyplot as plt
-import warnings
+import os
 import traceback
-import time
+import warnings
 from pathlib import Path
+
+import cartopy.crs as ccrs
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from obspy.geodetics.base import gps2dist_azimuth
 
 from ..utils import messaging, plotting, processing
 from ..utils.setup_utils import get_logger
@@ -20,15 +17,7 @@ logger = get_logger(__name__)
 plt.style.use(Path("utils") / "alarms.mplstyle")
 warnings.filterwarnings("ignore")
 
-attempt = 1
-while attempt <= 3:
-    try:
-        client = Client("IRIS")
-        break
-    except:
-        time.sleep(2)
-        attempt += 1
-        client = None
+client = processing.IRIS_client()
 
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
@@ -37,37 +26,37 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     logger.info(f"{T0_str}\nDownloading events...")
     T2 = T0
     T1 = T2 - config.DURATION
-    
-    URL = "{}starttime={}&endtime={}&minmagnitude={}&maxdepth={}&includearrivals=true&format=xml".format(
-        os.environ["GUGUAN_URL"],
-        T1.strftime("%Y-%m-%dT%H:%M:%S"),
-        T2.strftime("%Y-%m-%dT%H:%M:%S"),
-        config.MAGMIN,
-        config.MAXDEP,
-    )
-    CAT = processing.download_hypocenters(URL)
 
-    # Error pulling events
-    if CAT is None:
+    URL = (
+        f"{os.environ['FDSN_URL']}"
+        f"starttime={T1.strftime('%Y-%m-%dT%H:%M:%S')}"
+        f"&endtime={T2.strftime('%Y-%m-%dT%H:%M:%S')}"
+        f"&minmagnitude={config.MAGMIN}"
+        f"&maxdepth={config.MAXDEP}"
+        f"&format=csv"
+    )
+    catalog_df = processing.download_hypocenters_csv(URL)
+
+    if catalog_df is None: # Error pulling events
         state = "WARNING"
         state_message = f"{T0_str} (UTC) FDSN connection error"
+        logger.warning(state_message)
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 
-    # No events
-    if len(CAT) == 0:
+    if len(catalog_df) == 0: # No events
         state = "OK"
         state_message = f"{T0_str} (UTC) No new earthquakes"
+        logger.info(state_message)
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 
     # Compare new event distance with volcanoes
-    VOLCS = pd.read_excel(config.volc_file)
-    CAT_DF = processing.catalog_to_dataframe(CAT, VOLCS)
-    CAT_DF = CAT_DF[CAT_DF["V_DIST"] < config.DISTANCE]
+    catalog_df = update_catalog_dataframe(catalog_df, config)
+    catalog_df = catalog_df[catalog_df["V_DIST"] < config.DISTANCE]
 
     # New events, but not close enough to volcanoes
-    if len(CAT_DF) == 0:
+    if len(catalog_df) == 0:
         logger.warning("Earthquakes detected, but not near any volcanoes")
         state = "OK"
         state_message = f"{T0_str} (UTC) No new earthquakes"
@@ -76,64 +65,29 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
     # Read in old events. Write all recent events. Filter to new events
     OLD_EVENTS = pd.read_csv(config.outfile) 
-    CAT_DF[["ID"]].to_csv(config.outfile, index=False)
-    NEW_EVENTS=CAT_DF[~CAT_DF["ID"].isin(OLD_EVENTS.ID)]
-    NEW_EVENTS = NEW_EVENTS.sort_values("Time")
+    catalog_df[["ID"]].to_csv(config.outfile, index=False)
+    new_events_df = catalog_df[~catalog_df["ID"].isin(OLD_EVENTS.ID)]
+    new_events_df = new_events_df.sort_values("Time")
 
     # No new events to process
-    if len(NEW_EVENTS) == 0:
+    if len(new_events_df) == 0:
         logger.warning("Earthquakes detected, but already processed in previous run")
         state = "WARNING"
         state_message = f"{T0_str} (UTC) Old event detected"
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 
-    logger.info(f"{len(NEW_EVENTS)} new events found. Looping through events...")
-    # Filter Obspy catalog to new events near volcanoes
-    CAT_NEW = Catalog()
-    for i, row in NEW_EVENTS.iterrows():
-        t0_str = row.Time.strftime("%Y-%m-%dT%H:%M:%S.%f")
-        filter1 = f"time >= {t0_str}"
-        filter2 = f"time <= {t0_str}"
-        CAT_NEW.append(CAT.filter(filter1, filter2)[0])
-
-    # Add phase info to new events
-    try:
-        CAT_NEW = processing.addPhaseHint(CAT_NEW)
-    except:
-        logger.warning("Could not add phase type...")
-
-    for eq in CAT_NEW:
-        logger.info(f"Processing {eq.short_str()}, {eq.resource_id.id}")
-        volcs = processing.volcano_distance(
-            eq.preferred_origin().longitude, eq.preferred_origin().latitude, VOLCS
-        )
-        volcs = volcs.sort_values("distance")
-
-        #### Generate Figure ####
-        try:
-            filename = plot_event(eq, volcs, config)
-            fig_dir = Path(os.environ["TMP_FIGURE_DIR"])
-            eq_time = eq.preferred_origin().time.strftime("%Y%m%dT%H%M%S")
-            eq_mag = eq.preferred_magnitude().mag
-            eq_id = "".join(eq.resource_id.id.split("/")[-2:]).lower()
-            new_filename = fig_dir / f"{eq_time}_M{eq_mag:.1f}_{eq_id}{filename.suffix}"
-            os.rename(filename, new_filename)
-            filename = new_filename
-        except:
-            filename = []
-            logger.error("Problem making figure. Continue anyway")
-            b = traceback.format_exc()
-            err_message = "".join(f"{a}\n" for a in b.splitlines())
-            logger.error(err_message)
-
-        # craft and send the message
-        subject, message = create_message(eq, volcs)
+    logger.info(f"{len(new_events_df)} new events found. Looping through events...")
+    for i, row in new_events_df.iterrows():
+        logger.info(f"Processing event {row.ID}")
+        evt_url = "{}eventid={}".format(os.environ['FDSN_URL'], row.ID)
+        logger.info(f"Downloading\n{evt_url}")
+        subject, message, attachment, eq = process_eq(evt_url, config)
 
         logger.info("Sending message...")
-        # messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
+        messaging.send_alert(config.alarm_name, subject, message, attachment=attachment, test=test_flag)
         logger.info("Posting to mattermost...")
-        messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
+        messaging.post_mattermost(config, subject, message, attachment=attachment, send=mm_flag, test=test_flag)
 
         # Post to dedicated response channels for volcnoes listed in config file
         # if "mm_response_channels" in dir(config):
@@ -142,8 +96,8 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         #         messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
 
         # delete the file you just sent
-        if filename:
-            os.remove(filename)
+        if attachment:
+            os.remove(attachment)
 
         state = "CRITICAL"
         eq_str = eq.preferred_origin().time.strftime("%Y-%m-%d %H:%M:%S")
@@ -151,7 +105,60 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
     messaging.icinga(config, state, state_message, send=icinga_flag)
 
-    return
+
+def process_event(evt_url, config):
+
+    cat = processing.download_hypocenter_xml(evt_url)
+    try:
+        cat = processing.addPhaseHint(cat)
+    except Exception as e:
+        logger.warning('Could not add phase type...')
+        logger.error(e)
+
+    # Find nearby volcanoes
+    eq = cat[0]
+    volcs = pd.read_excel(config.volc_file)
+    volcs = processing.volcano_distance(eq.preferred_origin().longitude, eq.preferred_origin().latitude, volcs)
+    volcs = volcs.sort_values('distance')
+
+    try:
+        filename = plot_event(eq, volcs, config)
+        fig_dir = Path(os.environ["TMP_FIGURE_DIR"])
+        eq_time = eq.preferred_origin().time.strftime("%Y%m%dT%H%M%S")
+        eq_mag = eq.preferred_magnitude().mag
+        eq_id = "".join(eq.resource_id.id.split("/")[-2:]).lower()
+        new_filename = fig_dir / f"{eq_time}_M{eq_mag:.1f}_{eq_id}{filename.suffix}"
+        os.rename(filename, new_filename)
+        filename = new_filename
+    except Exception as e:
+        filename = []
+        logger.error("Problem making figure. Continue anyway")
+        logger.error(e)
+        logger.error(traceback.format_exc())
+
+    subject, message = create_message(eq, volcs)
+
+    return subject, message, filename, eq
+
+
+def update_catalog_dataframe(cat_df, config):
+
+    VOLCS = pd.read_excel(config.volc_file)
+    V_DIST = []
+
+    for _, eq in cat_df.iterrows():
+        volcs = processing.volcano_distance(eq.longitude, eq.latitude, VOLCS)
+        volcs = volcs.sort_values("distance")
+        V_DIST.append(volcs.iloc[0].distance)
+
+    cat_df.columns = cat_df.columns.str.capitalize()
+    cat_df.rename(columns={"Mag": "Magnitude",
+                            "Id": "ID"},
+                inplace=True)
+    cat_df["V_DIST"] = V_DIST
+    cat_df['Time'] = pd.to_datetime(cat_df['Time'])
+
+    return cat_df
 
 
 def create_message(eq, volcs):
@@ -246,139 +253,47 @@ def get_channels(eq):
     return STAS
 
 
-def get_axes_and_ratios(st):
-    axes_list = np.array([tr.stats.station for tr in st])
-    h_ratios = np.full(axes_list.shape, 1 / len(axes_list))
-    axes_list = np.insert(axes_list, 0, ".")
-    axes_list = np.insert(axes_list, 0, "map")
-    h_ratios = np.insert(h_ratios, 0, 0)
-    h_ratios = np.insert(h_ratios, 0, h_ratios.sum() * 0.5)
-    axes_list = axes_list.reshape(axes_list.shape[0], 1)
-
-    return axes_list, h_ratios
-
-
-def get_xticks(st, fmt="15s"):
-    trace_t1 = pd.to_datetime(st[0].stats.starttime.datetime)
-    trace_t2 = pd.to_datetime(st[0].stats.endtime.datetime)
-    tick_df = pd.DataFrame({"datetime": pd.date_range(trace_t1, trace_t2, freq="15s")})
-    x_tick_labels = tick_df["datetime"].dt.ceil(fmt)
-    x_ticks = [(xt - trace_t1).total_seconds() for xt in x_tick_labels]
-    x_tick_labels = [xt.strftime("%H:%M:%S") for xt in x_tick_labels]
-    if x_ticks[-1] > st[0].times()[-1]:
-        x_ticks = x_ticks[:-1]
-        x_tick_labels = x_tick_labels[:-1]
-    return x_ticks, x_tick_labels
-
-
-def plot_event(eq, volcs, config):
-    m.use('Agg')
+def plot_event(eq, volcs, config, n_stations=8):
 
     ################### Download data ###################
     channels = get_channels(eq)
-    plot_chans = channels[:8]
+    plot_chans = channels[:n_stations]
     st = processing.grab_data(list(plot_chans.SCNL.values), 
                         eq.preferred_origin().time-20, 
                         eq.preferred_origin().time+50)
-    try:
-        client._attach_responses(st)
-        st.remove_response()
-        velocity = True
-    except:
-        velocity = False
 
     logger.info("Plotting traces...")
-    st.trim(st[0].stats.starttime + 5, st[0].stats.endtime - 5)
-    st.detrend()
-
-    axes_list, h_ratios = get_axes_and_ratios(st)
-
+    axes_list, h_ratios = plotting.get_axes_and_ratios(st)
     fig, ax = plt.subplot_mosaic(
         axes_list,
         figsize=(4, 9),
         height_ratios=h_ratios,
     )
 
-    x_ticks, x_tick_labels = get_xticks(st)
-
-    for i, tr in enumerate(st):
-        sta = tr.stats.station
-        ax[sta].plot(tr.times("relative"), tr.data, lw=0.5, c="0.2")
-        ax[sta].text(
-            0.01,
-            0.7,
-            tr.id,
-            fontsize=6,
-            transform=ax[sta].transAxes,
-            bbox=dict(boxstyle="round", fc="w", ec="w", alpha=0.8, linewidth=0),
-        )
-        trace_t1 = tr.stats.starttime.datetime
-        try:
-            p_time = (plot_chans.iloc[i].P.datetime - trace_t1).total_seconds()
-            ax[sta].axvline(p_time, ymin=0.25, ymax=0.75, color="r", linewidth=1)
-        except:
-            pass
-        try:
-            s_time = (plot_chans.iloc[i].S.datetime - trace_t1).total_seconds()
-            ax[sta].axvline(s_time, ymin=0.25, ymax=0.75, color="dodgerblue", linewidth=1)
-        except:
-            pass
-        if i == 4:
-            tr.data = tr.data * 1e3
-        if velocity:
-            label_color = "black"
-            fw = "normal"
-            peak_num = np.abs(tr.data).max()
-            if np.log10(peak_num) < -6:
-                tmp_str = f"{peak_num*1e9:.1f}\n$nm/s$"
-            elif np.log10(peak_num) < -3:
-                tmp_str = f"{peak_num*1e6:.1f}\n$\mu$$m/s$"
-            elif np.log10(peak_num) < 0:
-                tmp_str = f"{peak_num*1e3:.2f}\n$mm/s$"
-                label_color = "firebrick"
-                fw = "bold"
-            ax[sta].text(
-                ax[sta].get_xlim()[0] - 1 / 86400,
-                tr.data[0],
-                tmp_str,
-                fontsize=6,
-                horizontalalignment="center",
-                verticalalignment="bottom",
-                rotation_mode="anchor",
-                rotation=90,
-                color=label_color,
-                fontweight=fw,
-            )
-        ax[sta].set_yticks([])
-        ax[sta].set_xticks(x_ticks)
-        ax[sta].set_xticklabels([])
-        ax[sta].grid(axis="x", linewidth=0.2, linestyle="--")
-        ax[sta].tick_params("x", length=0)
-        for spine in ["top", "bottom", "left", "right"]:
-            ax[sta].spines[spine].set_visible(False)
-    ax[sta].set_xticklabels(x_tick_labels, fontsize=6)
+    plotting.plot_station_traces(ax, st, plot_chans)
 
     vlat = volcs.iloc[0]["Latitude"]
     vlon = volcs.iloc[0]["Longitude"]
-    dist = 25
-    ax["map"] = plotting.make_map(
+    ax["map"], extent = plotting.make_map(
+        ax["map"],
         vlat,
         vlon,
-        ax=ax["map"],
         basemap="hillshade",
-        xdist=dist,
-        ydist=dist
+        xdist=getattr(config, "map_distance", 50),
+        ydist=getattr(config, "map_distance", 50)
     )
-    extent = plotting.get_extent(vlat, vlon, xdist=dist, ydist=dist)
-    plotting.map_ticks(ax["map"], extent, nticks_x=2, nticks_y=2, grid_kwargs={"lw": 0.2, "ls": "--"},lon_fmt_kwargs=None, lat_fmt_kwargs=None, y_rotate=90, ticks_right=True)
+
+    plotting.map_ticks(ax["map"], extent, grid_kwargs="default", y_rotate=90)
     ax["map"].tick_params(length=0)
-    ax["map"].plot(volcs[:10].Longitude, volcs[:10].Latitude, '^', markerfacecolor='g', markersize=8, markeredgecolor='k', markeredgewidth=0.5, transform=cartopy.crs.PlateCarree())
-    ax["map"].plot(channels.Longitude, channels.Latitude, 's', markerfacecolor='orange', markersize=5, markeredgecolor='k', markeredgewidth=0.4, transform=cartopy.crs.PlateCarree())
-    ax["map"].plot(eq.preferred_origin().longitude, eq.preferred_origin().latitude, 'o', markerfacecolor='firebrick', markersize=8, markeredgecolor='k', markeredgewidth=0.7, transform=cartopy.crs.PlateCarree())
+
+    plotting.add_volcanoes_to_map(ax["map"], extent, config)
+    ax["map"].plot(channels.Longitude, channels.Latitude, 's', markerfacecolor='orange', markersize=5, markeredgecolor='k', markeredgewidth=0.4, transform=ccrs.PlateCarree())
+    ax["map"].plot(eq.preferred_origin().longitude, eq.preferred_origin().latitude, 'o', markerfacecolor='firebrick', markersize=8, markeredgecolor='k', markeredgewidth=0.7, transform=ccrs.PlateCarree())
     for i, row in channels.iterrows():
-        t = ax["map"].annotate(row.NS.split('.')[-1], (row.Longitude, row.Latitude), xytext=(10,10), textcoords="offset pixels", fontsize=6, transform=cartopy.crs.Geodetic())
+        t = ax["map"].annotate(row.NS.split('.')[-1], (row.Longitude, row.Latitude), xytext=(10,10), textcoords="offset pixels", fontsize=6, transform=ccrs.Geodetic())
         t.clipbox = ax["map"].bbox
 
+    plotting.add_scale_bar(ax["map"], 10, txt_yoffset=0.01)
     ax["map"].set_title('{}\nM{:.1f}, {:.1f} km from {}\nDepth: {:.1f} km'.format(eq.preferred_origin().time.strftime('%Y-%m-%d %H:%M:%S'),
                                                                eq.preferred_magnitude().mag,
                                                                volcs.iloc[0].distance,
@@ -388,12 +303,12 @@ def plot_event(eq, volcs, config):
                         fontsize=8)
 
     ax_inset = fig.add_axes([0.66, 0.80, 0.12, 0.12])
-    ax_inset = plotting.make_map(
+    ax_inset, _ = plotting.make_map(
+        ax_inset,
         vlat,
         vlon,
         xdist=150,
         ydist=150,
-        ax=ax_inset,
         basemap="land",
         projection="orthographic",
     )

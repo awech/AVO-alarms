@@ -1,10 +1,11 @@
+from pathlib import Path
+
+import matplotlib.pyplot as plt
 from dotenv import load_dotenv
 
-load_dotenv()
+from . import messaging, plotting, processing, setup_utils
 
-from . import messaging
-from . import plotting
-from . import processing
-from . import setup_utils
+load_dotenv()
+plt.style.use(Path(__file__).parent / "./alarms.mplstyle")
 
 __all__ = ["messaging", "plotting", "processing", "setup_utils"]

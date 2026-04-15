@@ -82,7 +82,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         logger.info(f"Processing event {row.ID}")
         evt_url = "{}eventid={}".format(os.environ['FDSN_URL'], row.ID)
         logger.info(f"Downloading\n{evt_url}")
-        subject, message, attachment, eq = process_eq(evt_url, config)
+        subject, message, attachment, eq = process_event(evt_url, config)
 
         logger.info("Sending message...")
         messaging.send_alert(config.alarm_name, subject, message, attachment=attachment, test=test_flag)
@@ -165,7 +165,7 @@ def create_message(eq, volcs):
     origin = eq.preferred_origin()
     t = pd.Timestamp(origin.time.datetime, tz="UTC")
     t_local = t.tz_convert(os.environ["TIMEZONE"])
-    Local_time_text = f"{t_local.strftime("%Y-%m-%d %H:%M:%S")} {t_local.tzname()}"
+    Local_time_text = f"{t_local.strftime('%Y-%m-%d %H:%M:%S')} {t_local.tzname()}"
 
     message = f"{t.strftime('%Y-%m-%d %H:%M:%S')} UTC\n{Local_time_text}"
     message = f"{message}\n\n**Magnitude:** {eq.preferred_magnitude().mag:.1f}"
@@ -186,7 +186,10 @@ def create_message(eq, volcs):
         message = f"{message}\n**Azimuthal Gap:** {origin.quality.azimuthal_gap:g} degrees"
         message = f"{message}\n**Standard Error:** {origin.quality.standard_error:g} s"
         message = f"{message}\n**Vertical/Horizontal Error:** {origin.depth_errors['uncertainty'] / 1000:.1f} km / {origin.origin_uncertainty.horizontal_uncertainty / 1000:.1f} km"
-    except:
+    except Exception as e:
+        logger.warning("Problem adding location quality info to message. Continue anyway.")
+        logger.warning(e)
+        logger.warning(traceback.format_exc())
         pass
 
     subject = f"M{eq.preferred_magnitude().mag:.1f} earthquake at {volcs.iloc[0].Volcano}"
@@ -202,8 +205,7 @@ def get_channels(eq):
     LATS = []
     LONS = []
     DIST = []
-    P = []
-    S = []
+
     for p in eq.picks:
         wid = p.waveform_id
         net, sta, loc, chan = wid.id.split(".")

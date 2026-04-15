@@ -331,11 +331,14 @@ def add_scale_bar(ax, length_km, location=(0.1, 0.05), txt_yoffset=0.02):
             transform=ccrs.PlateCarree(), ha='center', va='bottom', fontsize=5)
 
 
-def add_inset_polygon(ax, extent, **kwargs):
+def add_inset_polygon(ax, extent, fc="none", ec="red", lw=0.35, **kwargs):
     extent_new = [sgeom.box(extent[0], extent[2], extent[1], extent[3])]
     ax.add_geometries(
         extent_new,
         ccrs.PlateCarree(),
+        facecolor=fc,
+        edgecolor=ec,
+        linewidth=lw,
         **kwargs,
     )
 

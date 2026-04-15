@@ -1,9 +1,8 @@
 import importlib
-import os
 import io
-import requests
-import time
 import json
+import os
+import time
 from glob import glob
 from pathlib import Path
 
@@ -31,7 +30,8 @@ def IRIS_client():
         try:
             client = FDSN_Client("IRIS")
             break
-        except:
+        except Exception as e:
+            logger.warning(f"IRIS client connection attempt {attempt} failed: {e}")
             time.sleep(2)
             attempt += 1
             client = None

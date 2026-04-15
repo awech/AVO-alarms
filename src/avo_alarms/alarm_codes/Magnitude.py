@@ -17,7 +17,6 @@ warnings.filterwarnings("ignore")
 
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
-    # Download the event data
     T0_str = T0.strftime('%Y-%m-%d %H:%M')
     logger.info(f"{T0_str}\nDownloading events...")
     T2 = T0

@@ -140,15 +140,15 @@ def get_recipients_list(alarm_name, test=False):
         users = yaml.safe_load(file) 
 
     alarm_key = alarm_name
-    if alarm_name not in distribution.keys():
-        alarm_key = "All Alarms"
-        logger.info("Defaulting to 'All alarms' list")
-    else:
-        logger.info(f"Sending to '{alarm_name}' recipients")
-
     if test:
         alarm_key = "Error"
         logger.info("Test mode. Sending message to 'Error' recipients")
+    else:
+        if alarm_name not in distribution.keys():
+            alarm_key = "All Alarms"
+            logger.info("Defaulting to 'All alarms' list")
+        else:
+            logger.info(f"Sending to '{alarm_name}' recipients")
 
     recipients = []
     for user in distribution[alarm_key]:

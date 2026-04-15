@@ -314,7 +314,7 @@ def upload_mm_attachments(mm, channel_id, attachment):
     return file_ids
 
 
-def post_mattermost(config, subject, body, attachment=None, send=False, test=False):
+def post_mattermost(config, subject, body, attachment=None, send=False, test=False, volcano=None):
     """Post alarm message to Mattermost channel with optional attachments.
 
     Parameters
@@ -369,6 +369,18 @@ def post_mattermost(config, subject, body, attachment=None, send=False, test=Fal
         post = mm.posts.create_post(options=message_details)
 
     url = f"mattermost://{os.environ['MATTERMOST_POST_URL']}/{post['id']}"
+
+    if not test and volcano is not None:
+        if volcano in getattr(config, "mm_response_channels", "empty"):
+            logger.info(f"Posting to {volcano} Mattermost response channel")
+            volcano_channel_id = config.mm_response_channels[volcano]
+            volcano_file_ids = upload_mm_attachments(mm, volcano_channel_id, attachment)
+            message_details = {
+                "channel_id": volcano_channel_id,
+                "message": message,
+                "file_ids": volcano_file_ids,
+            }
+            post = mm.posts.create_post(options=message_details)
     
     return url
 

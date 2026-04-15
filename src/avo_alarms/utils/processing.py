@@ -352,6 +352,66 @@ def addPhaseHint(cat):
     return cat
 
 
+def eq_picks_to_dataframe(eq):
+
+    client = IRIS_client()
+
+    NS = []
+    NSLC = []
+    SCNL = []
+    LATS = []
+    LONS = []
+    DIST = []
+
+    for p in eq.picks:
+        wid = p.waveform_id
+        net, sta, loc, chan = wid.id.split(".")
+        ns = ".".join([net, sta])
+        if ns not in NS:
+            logger.info(f"Getting lat/lon info for {wid.id}")
+            inventory = client.get_stations(
+                network=net, station=sta, location=loc, channel=chan
+            )
+            # NSLC.append(wid.id.replace('..','.--.'))
+            NS.append(ns)
+            NSLC.append(wid.id)
+            SCNL.append(".".join([sta, chan, net, loc]))
+            LATS.append(inventory[0][0].latitude)
+            LONS.append(inventory[0][0].longitude)
+    for i, nslc in enumerate(NSLC):
+        dist = (
+            gps2dist_azimuth(
+                eq.preferred_origin().latitude,
+                eq.preferred_origin().longitude,
+                LATS[i],
+                LONS[i],
+            )[0]
+            / 1000.0
+        )
+        DIST.append(dist)
+
+    STAS = pd.DataFrame(
+        {
+            "NS": NS,
+            "NSLC": NSLC,
+            "SCNL": SCNL,
+            "Latitude": LATS,
+            "Longitude": LONS,
+            "Distance": DIST,
+        }
+    )
+
+    STAS["P"] = np.nan
+    STAS["S"] = np.nan
+    for p in eq.picks:
+        ns = ".".join(p.waveform_id.id.split(".")[:2])
+        STAS.loc[STAS.NS == ns, p.phase_hint] = p.time
+
+    STAS = STAS.sort_values("Distance")
+
+    return STAS
+
+
 def update_stationXML():
     """_summary_"""
 

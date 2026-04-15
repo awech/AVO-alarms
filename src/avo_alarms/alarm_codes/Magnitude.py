@@ -5,19 +5,15 @@ from pathlib import Path
 
 import cartopy.crs as ccrs
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
-from obspy.geodetics.base import gps2dist_azimuth
 
-from ..utils import messaging, plotting, processing
-from ..utils.setup_utils import get_logger
+from avo_alarms.utils import messaging, plotting, processing
+from avo_alarms.utils.setup_utils import get_logger
 
 logger = get_logger(__name__)
 
-plt.style.use(Path("utils") / "alarms.mplstyle")
 warnings.filterwarnings("ignore")
 
-client = processing.IRIS_client()
 
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
@@ -28,7 +24,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     T1 = T2 - config.DURATION
 
     URL = (
-        f"{os.environ['FDSN_URL']}"
+        f"{os.getenv('FDSN_URL')}"
         f"starttime={T1.strftime('%Y-%m-%dT%H:%M:%S')}"
         f"&endtime={T2.strftime('%Y-%m-%dT%H:%M:%S')}"
         f"&minmagnitude={config.MAGMIN}"
@@ -52,7 +48,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         return
 
     # Compare new event distance with volcanoes
-    catalog_df = update_catalog_dataframe(catalog_df, config)
+    catalog_df = add_volcano_distances(catalog_df, config)
     catalog_df = catalog_df[catalog_df["V_DIST"] < config.DISTANCE]
 
     # New events, but not close enough to volcanoes
@@ -80,20 +76,23 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     logger.info(f"{len(new_events_df)} new events found. Looping through events...")
     for i, row in new_events_df.iterrows():
         logger.info(f"Processing event {row.ID}")
-        evt_url = "{}eventid={}".format(os.environ['FDSN_URL'], row.ID)
-        logger.info(f"Downloading\n{evt_url}")
-        subject, message, attachment, eq = process_event(evt_url, config)
+        evt_url = f"{os.getenv('FDSN_URL')}eventid={row.ID}"
+        subject, message, attachment, eq, volcs = process_event(evt_url, config)
 
         logger.info("Sending message...")
-        messaging.send_alert(config.alarm_name, subject, message, attachment=attachment, test=test_flag)
+        messaging.send_alert(
+            config.alarm_name, subject, message, attachment=attachment, test=test_flag
+        )
         logger.info("Posting to mattermost...")
-        messaging.post_mattermost(config, subject, message, attachment=attachment, send=mm_flag, test=test_flag)
-
-        # Post to dedicated response channels for volcnoes listed in config file
-        # if "mm_response_channels" in dir(config):
-        #     if volcs.iloc[0].Volcano in config.mm_response_channels.keys():
-        #         config.mattermost_channel_id = config.mm_response_channels[volcs.iloc[0].Volcano]
-        #         messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
+        messaging.post_mattermost(
+            config,
+            subject,
+            message,
+            attachment=attachment,
+            send=mm_flag,
+            test=test_flag,
+            volcano=volcs.iloc[0].Volcano,
+        )
 
         # delete the file you just sent
         if attachment:
@@ -117,14 +116,15 @@ def process_event(evt_url, config):
 
     # Find nearby volcanoes
     eq = cat[0]
+    origin = eq.preferred_origin()
     volcs = pd.read_excel(config.volc_file)
-    volcs = processing.volcano_distance(eq.preferred_origin().longitude, eq.preferred_origin().latitude, volcs)
+    volcs = processing.volcano_distance(origin.longitude, origin.latitude, volcs)
     volcs = volcs.sort_values('distance')
 
     try:
         filename = plot_event(eq, volcs, config)
-        fig_dir = Path(os.environ["TMP_FIGURE_DIR"])
-        eq_time = eq.preferred_origin().time.strftime("%Y%m%dT%H%M%S")
+        fig_dir = Path(os.getenv("TMP_FIGURE_DIR"))
+        eq_time = origin.time.strftime("%Y%m%dT%H%M%S")
         eq_mag = eq.preferred_magnitude().mag
         eq_id = "".join(eq.resource_id.id.split("/")[-2:]).lower()
         new_filename = fig_dir / f"{eq_time}_M{eq_mag:.1f}_{eq_id}{filename.suffix}"
@@ -138,10 +138,10 @@ def process_event(evt_url, config):
 
     subject, message = create_message(eq, volcs)
 
-    return subject, message, filename, eq
+    return subject, message, filename, eq, volcs
 
 
-def update_catalog_dataframe(cat_df, config):
+def add_volcano_distances(cat_df, config):
 
     VOLCS = pd.read_excel(config.volc_file)
     V_DIST = []
@@ -164,7 +164,7 @@ def update_catalog_dataframe(cat_df, config):
 def create_message(eq, volcs):
     origin = eq.preferred_origin()
     t = pd.Timestamp(origin.time.datetime, tz="UTC")
-    t_local = t.tz_convert(os.environ["TIMEZONE"])
+    t_local = t.tz_convert(os.getenv("TIMEZONE"))
     Local_time_text = f"{t_local.strftime('%Y-%m-%d %H:%M:%S')} {t_local.tzname()}"
 
     message = f"{t.strftime('%Y-%m-%d %H:%M:%S')} UTC\n{Local_time_text}"
@@ -197,72 +197,15 @@ def create_message(eq, volcs):
     return subject, message
 
 
-def get_channels(eq):
-
-    NS = []
-    NSLC = []
-    SCNL = []
-    LATS = []
-    LONS = []
-    DIST = []
-
-    for p in eq.picks:
-        wid = p.waveform_id
-        net, sta, loc, chan = wid.id.split(".")
-        ns = ".".join([net, sta])
-        if ns not in NS:
-            logger.info(f"Getting lat/lon info for {wid.id}")
-            inventory = client.get_stations(
-                network=net, station=sta, location=loc, channel=chan
-            )
-            # NSLC.append(wid.id.replace('..','.--.'))
-            NS.append(ns)
-            NSLC.append(wid.id)
-            SCNL.append(".".join([sta, chan, net, loc]))
-            LATS.append(inventory[0][0].latitude)
-            LONS.append(inventory[0][0].longitude)
-    for i, nslc in enumerate(NSLC):
-        dist = (
-            gps2dist_azimuth(
-                eq.preferred_origin().latitude,
-                eq.preferred_origin().longitude,
-                LATS[i],
-                LONS[i],
-            )[0]
-            / 1000.0
-        )
-        DIST.append(dist)
-
-    STAS = pd.DataFrame(
-        {
-            "NS": NS,
-            "NSLC": NSLC,
-            "SCNL": SCNL,
-            "Latitude": LATS,
-            "Longitude": LONS,
-            "Distance": DIST,
-        }
-    )
-
-    STAS["P"] = np.nan
-    STAS["S"] = np.nan
-    for p in eq.picks:
-        ns = ".".join(p.waveform_id.id.split(".")[:2])
-        STAS.loc[STAS.NS == ns, p.phase_hint] = p.time
-
-    STAS = STAS.sort_values("Distance")
-
-    return STAS
-
-
 def plot_event(eq, volcs, config, n_stations=8):
 
     ################### Download data ###################
-    channels = get_channels(eq)
+    channels = processing.eq_picks_to_dataframe(eq)
     plot_chans = channels[:n_stations]
+    origin = eq.preferred_origin()
     st = processing.grab_data(list(plot_chans.SCNL.values), 
-                        eq.preferred_origin().time-20, 
-                        eq.preferred_origin().time+50)
+                        origin.time-20, 
+                        origin.time+50)
 
     logger.info("Plotting traces...")
     axes_list, h_ratios = plotting.get_axes_and_ratios(st)
@@ -289,18 +232,18 @@ def plot_event(eq, volcs, config, n_stations=8):
     ax["map"].tick_params(length=0)
 
     plotting.add_volcanoes_to_map(ax["map"], extent, config)
-    ax["map"].plot(channels.Longitude, channels.Latitude, 's', markerfacecolor='orange', markersize=5, markeredgecolor='k', markeredgewidth=0.4, transform=ccrs.PlateCarree())
-    ax["map"].plot(eq.preferred_origin().longitude, eq.preferred_origin().latitude, 'o', markerfacecolor='firebrick', markersize=8, markeredgecolor='k', markeredgewidth=0.7, transform=ccrs.PlateCarree())
+    ax["map"].plot(channels.Longitude, channels.Latitude, 's', c='orange', ms=4, mec='k', mew=0.4, transform=ccrs.PlateCarree())
+    ax["map"].plot(origin.longitude, origin.latitude, 'o', c='firebrick', ms=6, mec='k', mew=0.7, transform=ccrs.PlateCarree())
     for i, row in channels.iterrows():
         t = ax["map"].annotate(row.NS.split('.')[-1], (row.Longitude, row.Latitude), xytext=(10,10), textcoords="offset pixels", fontsize=6, transform=ccrs.Geodetic())
         t.clipbox = ax["map"].bbox
 
     plotting.add_scale_bar(ax["map"], 10, txt_yoffset=0.01)
-    ax["map"].set_title('{}\nM{:.1f}, {:.1f} km from {}\nDepth: {:.1f} km'.format(eq.preferred_origin().time.strftime('%Y-%m-%d %H:%M:%S'),
+    ax["map"].set_title('{}\nM{:.1f}, {:.1f} km from {}\nDepth: {:.1f} km'.format(origin.time.strftime('%Y-%m-%d %H:%M:%S'),
                                                                eq.preferred_magnitude().mag,
                                                                volcs.iloc[0].distance,
                                                                volcs.iloc[0].Volcano,
-                                                               eq.preferred_origin().depth/1000,
+                                                               origin.depth/1000,
                                                                ),
                         fontsize=8)
 
@@ -309,18 +252,16 @@ def plot_event(eq, volcs, config, n_stations=8):
         ax_inset,
         vlat,
         vlon,
-        xdist=150,
-        ydist=150,
+        xdist=getattr(config, "inset_map_distance", 150),
+        ydist=getattr(config, "inset_map_distance", 150),
         basemap="land",
         projection="orthographic",
     )
 
-    plotting.add_inset_polygon(
-        ax_inset, extent, facecolor="none", edgecolor="red", linewidth=0.35
-    )
+    plotting.add_inset_polygon(ax_inset, extent)
 
     logger.info('Saving figure...')
-    jpg_file = plotting.save_file(fig, config, dpi=200)
+    jpg_file = plotting.save_file(fig, config)
     plt.close(fig)
 
     return jpg_file

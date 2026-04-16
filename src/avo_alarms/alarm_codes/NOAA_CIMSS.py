@@ -3,13 +3,11 @@ import re
 import traceback
 import warnings
 from pathlib import Path
-from urllib.parse import urljoin, urlparse
 
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import requests
 from obspy import UTCDateTime as utc
 from obspy.geodetics.base import gps2dist_azimuth
 
@@ -22,8 +20,10 @@ warnings.filterwarnings("ignore")
 
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
-    T0_str = T0.strftime("%Y-%m-%d %H:%M")
     config.outfile = Path(config.outfile)
+    T0_str = T0.strftime("%Y-%m-%d %H:%M")
+    max_distance = getattr(config, "max_distance", 25)
+    outfile_columns = ["time", "NOAA_id", "vv_id"]
     
     logger.info("Reading in alerts from volcview api .json file")
     cimss_df = downloading.download_cimss_vv_api()
@@ -33,9 +33,20 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 
-    recent_alerts = processing.get_recent_cimss_alerts(cimss_df, config, T0)
+    cimss_df = processing.format_cimss_dataframe(cimss_df, config, T0)
+    cimss_df = processing.find_nearest_volcano(cimss_df, config, lon_col="lon_rc", lat_col="lat_rc")
+    cimss_df = cimss_df[cimss_df["v_distance"] < max_distance]
+    cimss_df = processing.check_ignore_volcano(cimss_df, config)
+    cimss_df = cimss_df[cimss_df["keep"]]
     
-    if len(recent_alerts) == 0:
+    new_alerts_df, cimss_df = processing.compare_to_old_events(
+        cimss_df, config.outfile, outfile_columns, unique_id_col="NOAA_id"
+    )
+
+    if len(new_alerts_df) == 0:
+        if len(cimss_df) > 0:
+            logger.info("NOAA CIMSS alerts found have already been processed")
+        processing.write_to_csv(cimss_df, config, outfile_columns)
         state = "OK"
         state_message = f"{T0_str} (UTC) No new recent NOAA CIMSS alerts"
         messaging.icinga(config, state, state_message, send=icinga_flag)
@@ -45,20 +56,12 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     default_mm_id = config.mattermost_channel_id
 
     logger.info("Looping through alerts...")
-    for _, alert in recent_alerts.iterrows():
-
-        # keep only those volcanoes based on NOAA alert type
-        if on_ignore_list(config, alert):   
-            state = "WARNING"
-            state_message = f"{T0_str} (UTC) alert for {alert.v_name}: {alert.alert_type} on ignore list"
-            messaging.icinga(config, state, state_message, send=icinga_flag)
-            logger.info(f"Alert for {alert.v_name}: {alert.alert_type} on ignore list. Skipping.")
-            continue
+    for _, alert in new_alerts_df.iterrows():
 
         logger.info(f"--- New Alert! ---\n{alert}")
         logger.info("Scraping images and info from NOAA CIMSS page...")
 
-        alert_html_soup = processing.scrape_cimss_alert(alert)
+        alert_html_soup = downloading.scrape_cimss_alert(alert)
         if not alert_html_soup:
             logger.error("Error reading NOAA CIMSS page")
             state = "WARNING"
@@ -91,7 +94,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         logger.info("Posting to mattermost...")
         messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
         # send to other mm channels based on alert type and volcano status
-        other_mm_channels(alert, volcs, config, subject, message, filename, test_flag, mm_flag)
+        messaging.cimss_mm_channels(alert, volcs, config, subject, message, filename, test_flag, mm_flag)
         # change mm channel id back to default
         config.mattermost_channel_id = default_mm_id
 
@@ -100,6 +103,8 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
         if filename:
             os.remove(filename)
+
+        processing.write_to_csv(cimss_df, config, outfile_columns)
 
     messaging.icinga(config, state, state_message, send=icinga_flag)
 
@@ -142,29 +147,6 @@ def create_message(alert, volcs, output_text):
     return subject, message
 
 
-def other_mm_channels(alert, volcs, config, subject, message, attachment, test_flag, mm_flag):
-
-    ##################################################################
-    # Send thermal alerts to their own channel
-    if (alert.alert_type == "hot") and ("THERMAL" in alert.alert_header):
-        if volcs.iloc[0].distance < getattr(config, "thermal_alert_dist", 20):
-            config.mattermost_channel_id = config.thermal_alerts_mm
-            messaging.post_mattermost(config, subject, message, attachment=attachment, send=mm_flag, test=test_flag)
-    ##################################################################
-
-    ##################################################################
-    # Send alerts for elevated volcanoes to their own channel
-    elevated_volcs = volcs[
-        volcs["Volcano"].isin(config.elevated_volcano_list)
-    ]
-    if elevated_volcs.iloc[0].distance < config.elevated_volcano_dist:
-        config.mattermost_channel_id = config.elevated_volcano_mm
-        messaging.post_mattermost(config, subject, message, attachment=attachment, send=mm_flag, test=test_flag)
-    ##################################################################
-
-    return
-
-
 def process_alert_soup(soup, alert, config):
 
     output = {}
@@ -194,7 +176,7 @@ def process_alert_soup(soup, alert, config):
                 output["status_txt"] = get_alert_status_txt(soupy)
                 output["type_txt"] = get_type_txt(soupy)
 
-                get_cimss_image(soupy, alert, config)
+                downloading.get_cimss_image(soupy, alert, config)
 
                 tmp_text = soupy.select("a[href*=individual]")
                 aid = np.unique(
@@ -207,18 +189,6 @@ def process_alert_soup(soup, alert, config):
 
                 break
     return alert, output
-
-
-def on_ignore_list(config, alert):
-    ignore = False
-    VOLCS = pd.read_excel(config.volc_file)
-    ALERT_TYPE = {"ash": "NOAA Ash", "hot": "NOAA Thermal", "ice": "NOAA Ice"}
-    volcano = VOLCS[VOLCS["Volcano"]==alert.v_name]
-    volcano = volcano[volcano[ALERT_TYPE[alert.alert_type]] == "Y"]
-    if len(volcano) == 0:
-        ignore = True
-
-    return ignore
 
 
 def get_instrument(soup):
@@ -281,23 +251,6 @@ def get_latitude(soup):
     return lat, lon
 
 
-def get_cimss_image(soup, alert, config):
-
-    base_url = "://".join(urlparse(alert.alert_url)[:2])
-    image_files = soup.find(class_="alert_images").find_all("img")
-    for i, img in enumerate(image_files):
-        img.get("src")
-        im_url = urljoin(base_url, img.get("src"))
-        r = requests.get(im_url, verify=False, timeout=10)
-
-        if r.status_code == 200:
-            with open(
-                config.img_file.replace(".png", str(i + 1) + ".png"), "wb"
-            ) as out:
-                for bits in r.iter_content():
-                    out.write(bits)
-
-
 def plot_fig(alert, config, test=False):
 
     fig, ax = plt.subplot_mosaic(
@@ -350,7 +303,7 @@ def plot_fig(alert, config, test=False):
                                     projection="orthographic")
     plotting.add_inset_polygon(ax_inset, extent)
     fig.subplots_adjust(hspace=0.1)
-    jpg_file = plotting.save_file(plt, config, test=test, dpi=500)
+    jpg_file = plotting.save_file(fig, config, test=test, dpi=500)
 
     # remove images downloaded from NOAA/CIMSS webpage
     os.remove(tmp_file1)

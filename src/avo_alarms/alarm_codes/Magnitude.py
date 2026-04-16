@@ -21,6 +21,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     T2 = T0
     T1 = T2 - config.DURATION
     config.outfile = Path(config.outfile)
+    outfile_columns = ["time", "id"]
 
     URL = (
         f"{os.getenv('FDSN_URL')}"
@@ -59,12 +60,13 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         return
 
     # Read in old events. Filter to new events. Write out old and new events.
-    new_events_df = processing.update_event_list(
-        catalog_df, config.outfile, ["time", "id"], unique_id_col="id"
+    new_events_df, catalog_df = processing.compare_to_old_events(
+        catalog_df, config.outfile, outfile_columns, unique_id_col="id"
     )
 
     # No new events to process
     if len(new_events_df) == 0:
+        processing.write_to_csv(catalog_df, config, outfile_columns)
         logger.warning("Earthquakes detected, but already processed in previous run")
         state = "WARNING"
         state_message = f"{T0_str} (UTC) Old event detected"
@@ -100,6 +102,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         eq_str = eq.preferred_origin().time.strftime("%Y-%m-%d %H:%M:%S")
         state_message = f"{eq_str} (UTC) {subject}"
 
+    processing.write_to_csv(catalog_df, config, outfile_columns)
     messaging.icinga(config, state, state_message, send=icinga_flag)
 
 

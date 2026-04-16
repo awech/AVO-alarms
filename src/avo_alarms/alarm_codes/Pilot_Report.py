@@ -17,11 +17,12 @@ logger = get_logger(__name__)
 
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
-    T0_str = T0.strftime("%Y-%m-%d %H:%M")
     config.outfile = Path(config.outfile)
+    T0_str = T0.strftime("%Y-%m-%d %H:%M")
     ## TODO change this to `config.zipfile`
     config.zipfilename = Path(config.zipfilename)
     config.tmp_zipped_dir = Path(config.tmp_zipped_dir)
+    outfile_columns = ["time", "lat", "lon", "PROD_ID"]
 
     
     state, archive = downloading.download_pilot_reports(T0, config)
@@ -41,7 +42,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     new_pireps_df, pirep_df = processing.compare_to_old_events(
         pirep_df,
         config.outfile,
-        ["time", "lat", "lon", "PROD_ID"],
+        outfile_columns,
         unique_id_col="PROD_ID",
     )
 
@@ -49,6 +50,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     if len(new_pireps_df) == 0:
         if len(pirep_df) > 0:
             logger.info("PIREPS found have already been processed")
+        processing.write_to_csv(pirep_df, config, outfile_columns)
         state == "OK"
         state_message = f"{T0_str} (UTC) No new pilot reports"
         messaging.icinga(config, state, state_message, send=icinga_flag)
@@ -66,6 +68,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
         ### Craft message text ####
         subject, message = create_message(row, config)
+        state_message = message
 
         try:
             mm_url = messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
@@ -83,44 +86,13 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         if filename:
             os.remove(filename)
 
-        ## TODO revisit this for all codes
-        # OLD = OLD.append(tmp)
-        OLD = pd.concat([OLD, tmp])
 
-
-    OLD.to_csv(config.outfile, float_format='%.6f', index_label='time', sep='\t', date_format='%Y%m%dT%H%M%S.%f')
-    os.remove(config.zipfilename)
-    rmtree(config.tmp_zipped_dir)
-
+    processing.write_to_csv(pirep_df, config, outfile_columns)
     messaging.icinga(config, state, state_message, send=icinga_flag)
 
+    return
 
 
-
-
-# def get_old_pireps(config, T0):
-
-#     OLD = pd.read_csv(config.outfile, delimiter="\t", parse_dates=["time"])
-#     OLD = OLD.drop_duplicates(keep=False)
-#     OLD = OLD[OLD["time"] > (T0 - config.duration - 10).strftime("%Y%m%d %H%M%S.%f")]
-
-#     OLD["lats"] = OLD.lats.values.astype("float")
-#     OLD["lons"] = OLD.lons.values.astype("float")
-
-#     OLD.set_index("time", inplace=True)
-
-#     return OLD
-
-
-# def get_height_text(report):
-#     height = report.split("/FL")[-1].split("/")[0]
-#     try:
-#         height_text = "Flight level: {:.0f},000 feet asl".format(int(height) / 10.0)
-#     except Exception:
-#         logger.warning('Could not parse flight level from report')
-#         height_text = "Flight level: UNKNOWN"
-
-#     return height_text
 def get_height_text(FL):
     try:
         height_text = f"Flight level: {FL:,.0f} feet asl"
@@ -132,14 +104,17 @@ def get_height_text(FL):
 
 def get_pilot_remark(report):
 
-    RM = re.compile("(RM)*(.*)")
+    pattern = re.compile(r'^(?:\s)?RM(.*)$')
     fields = report.split("/")
 
     pilot_remark = ""
     for f in fields:
-        field_text = RM.sub(r"\2", f)
-        if field_text:
-            pilot_remark = field_text.lower().lstrip()
+        m = pattern.match(f)
+        if m:
+            pilot_remark = m.group(1)
+            pilot_remark = pilot_remark.strip()
+            pilot_remark = pilot_remark.capitalize()
+            logger.info(f"Pilot remark: {pilot_remark}")
 
     if not pilot_remark:
         pilot_remark = "NA"
@@ -200,9 +175,9 @@ def plot_fig(pirep_row, config, test=False):
     # Write title & caption
     t0 = pirep_row.time.strftime("%Y-%m-%d %H:%M")
     ax.set_title(f"{t0}\n{get_height_text(pirep_row.FL)}", fontsize=8)
-    xlabel_text = "\n".join(wrap(get_pilot_remark(pirep_row.REPORT), 60))
-    xlabel_text = "smoking seen at Mt spurr. looks really bad and i am super duper scared"
+    xlabel_text = "\n".join(wrap(get_pilot_remark(pirep_row.REPORT), 50))
     xlabel_text = "\n".join(wrap(xlabel_text, 50))
+    xlabel_text = f"Pilot Remark: {xlabel_text}"
     ax.text(0.5, -0.08, xlabel_text, va='top', ha='center',
         rotation='horizontal', rotation_mode='anchor',
         transform=ax.transAxes, fontsize=6) 
@@ -217,9 +192,7 @@ def plot_fig(pirep_row, config, test=False):
         basemap="land",
         projection="orthographic",
     )
-    plotting.add_volcanoes_to_map(
-        ax_inset, inset_extent, config, s1=7, s2=4, linewidths=0.1
-    )
+
     plotting.add_inset_polygon(ax_inset, extent)
 
     jpg_file = plotting.save_file(fig, config, test=test, dpi=300)

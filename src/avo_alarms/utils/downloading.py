@@ -7,6 +7,7 @@ import time
 import zipfile
 from glob import glob
 from pathlib import Path
+from urllib.parse import urljoin, urlparse
 
 import numpy as np
 import pandas as pd
@@ -239,8 +240,18 @@ def download_waveforms(scnl, T1, T2, fill_value=0):
     return st
 
 
-def download_lightning():
+def download_lightning(t=None, dt=60):
 
+    lightning_url = os.getenv("LIGHTNING_URL")
+    if t:
+        t = t - 60*dt / 2
+        T1 = (t - 60 * dt/ 2).strftime("%Y-%m-%d %H:%M:%S")
+        T2 = (t + 60 * dt/ 2).strftime("%Y-%m-%d %H:%M:%S")
+        logger.info(f"Downloading strokes from {T1} to {T2}")
+        lightning_url = os.getenv("LIGHTNING_URL").replace("avorecent/1", "region?")
+        lightning_url += f"minLat=49&maxLat=63&minLong=-180&maxLong=180&unixTimestamp={t.timestamp}&plusMinusMinutes={dt/2}"
+        print(lightning_url)
+        
     logger.info("Reading in alerts from volcview api .json file")
     attempt = 1
     max_tries = 3
@@ -249,22 +260,22 @@ def download_lightning():
             data = json.load(
                 os.popen(
                     'curl --connect-timeout 5 -H "username:{}" -H "password:{}" -X GET {}'.format(
-                        os.environ["API_USERNAME"],
-                        os.environ["API_PASSWORD"],
-                        os.environ["LIGHTNING_URL"],
+                        os.getenv("API_USERNAME"),
+                        os.getenv("API_PASSWORD"),
+                        lightning_url,
                     )
                 )
             )
-            A = pd.DataFrame(data["lightning"])
+            stroke_df = pd.DataFrame(data["lightning"])
             break
         except Exception as e:
             logger.warning(f"Error getting data from Volcview-API on attempt {attempt:g}")
             logger.warning(e)
             time.sleep(2)
             attempt += 1
-            A = None
+            stroke_df = None
 
-    return A
+    return stroke_df
 
 
 def download_cimss_vv_api():
@@ -366,6 +377,23 @@ def scrape_cimss_alert(alert):
             attempt += 1
 
     return soup
+
+
+def get_cimss_image(soup, alert, config):
+
+    base_url = "://".join(urlparse(alert.alert_url)[:2])
+    image_files = soup.find(class_="alert_images").find_all("img")
+    for i, img in enumerate(image_files):
+        img.get("src")
+        im_url = urljoin(base_url, img.get("src"))
+        r = requests.get(im_url, verify=False, timeout=10)
+
+        if r.status_code == 200:
+            with open(
+                config.img_file.replace(".png", str(i + 1) + ".png"), "wb"
+            ) as out:
+                for bits in r.iter_content():
+                    out.write(bits)
 
 
 def download_station_xml():

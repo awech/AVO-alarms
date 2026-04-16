@@ -334,13 +334,13 @@ def plot_fig(A_recent, config, T0):
     v_name = A_recent.iloc[0].volcanoName
     t_recent = A_recent.iloc[0].datetime.strftime('%Y-%m-%d %H:%M:%S')
 
-    X_DIST = 100
-    Y_DIST = 100
+    X_DIST = getattr(config, "map_xdist", 100)
+    Y_DIST = getattr(config, "map_ydist", 100)
     
     ax, extent = plotting.make_map(ax, lat0, lon0, basemap="HIGHRES", xdist=X_DIST, ydist=Y_DIST)
     ax.set_title(f"--- {v_name} Lightning ---\n{t_recent} UTC", fontsize=8)
     plotting.map_ticks(ax, extent, grid_kwargs="default")
-    plotting.add_volcanoes_to_map(ax, extent, config, c2="red", linewidths=0.1)
+    plotting.add_volcanoes_to_map(ax, extent, config, linewidths=0.1)
     plotting.add_scale_bar(ax, 15, txt_yoffset=0.01)
 
     G = A_recent.copy()

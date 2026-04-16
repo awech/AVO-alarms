@@ -15,7 +15,7 @@ from obspy.geodetics.base import gps2dist_azimuth
 from obspy.signal.cross_correlation import correlate, xcorr_max
 from pandas import DataFrame
 
-from avo_alarms.utils import messaging, plotting, processing
+from avo_alarms.utils import messaging, plotting, downloading
 from avo_alarms.utils.setup_utils import get_logger
 
 logger = get_logger(__name__)
@@ -31,7 +31,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     SCNL = DataFrame.from_dict(config.SCNL)
     t1 = T0 - config.duration
     t2 = T0
-    st = processing.grab_data(SCNL["scnl"].tolist(), t1, t2, fill_value=0)
+    st = downloading.download_waveforms(SCNL["scnl"].tolist(), t1, t2, fill_value=0)
     st = add_coordinate_info(st, SCNL)
     ########################
 
@@ -126,6 +126,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
             state = "WARNING"
 
     if state == "CRITICAL":
+        ## TODO fix whatever you were doing here
         #### Generate Figure ####
         filename = make_figure(st, volcano, T0, config, mx_pressure, test=test_flag)
         # try:
@@ -376,11 +377,11 @@ def make_figure(st, volcano, T0, config, mx_pressure, test=False):
     
     ##### get seismic data #####
     t_seis_win = config.seismic_plot_duration if hasattr(config, "seismic_plot_duration") else 3600
-    seis = processing.grab_data(volcano["seismic_scnl"], T0 - t_seis_win, T0, fill_value="interpolate")
+    seis = downloading.download_waveforms(volcano["seismic_scnl"], T0 - t_seis_win, T0, fill_value="interpolate")
     ##### get infrasound data #####
     infra_scnl = ['{}.{}.{}.{}'.format(tr.stats.station,tr.stats.channel,tr.stats.network,tr.stats.location) for tr in st]
     t_infra_win = config.infrasound_plot_duration if hasattr(config, "infrasound_plot_duration") else 600
-    infra = processing.grab_data(infra_scnl, T0 - t_infra_win, T0, fill_value="interpolate")
+    infra = downloading.download_waveforms(infra_scnl, T0 - t_infra_win, T0, fill_value="interpolate")
 
     logger.info(f"{time.time() - start:.2f} seconds to grab figure data.")
 

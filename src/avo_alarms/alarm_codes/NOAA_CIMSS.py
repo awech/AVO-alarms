@@ -13,7 +13,7 @@ import requests
 from obspy import UTCDateTime as utc
 from obspy.geodetics.base import gps2dist_azimuth
 
-from avo_alarms.utils import messaging, plotting, processing
+from avo_alarms.utils import messaging, plotting, processing, downloading
 from avo_alarms.utils.setup_utils import get_logger
 
 logger = get_logger(__name__)
@@ -26,8 +26,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     config.outfile = Path(config.outfile)
     
     logger.info("Reading in alerts from volcview api .json file")
-    cimss_df = processing.download_cimss_vv_api()
-
+    cimss_df = downloading.download_cimss_vv_api()
     if cimss_df is None:
         state = "WARNING"
         state_message = f"{T0_str} (UTC) Error getting data from Volcview-API"

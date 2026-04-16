@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from pandas import DataFrame
 
-from avo_alarms.utils import messaging, plotting, processing
+from avo_alarms.utils import messaging, plotting, processing, downloading
 from avo_alarms.utils.setup_utils import get_logger
 
 logger = get_logger(__name__)
@@ -32,7 +32,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
     t1 = T0 - config.duration
     t2 = T0
-    st = processing.grab_data(scnl, t1, t2, fill_value=0)
+    st = downloading.download_waveforms(scnl, t1, t2, fill_value=0)
 
     #### preprocess data ####
     st.detrend("demean")
@@ -164,7 +164,7 @@ def make_figure(scnl, T0, config, test=False):
     #### grab data ####
     start = time.time()
     t_win = config.plot_duration if hasattr(config, "plot_duration") else 3600
-    st = processing.grab_data(scnl, T0 - t_win, T0, fill_value="interpolate")
+    st = downloading.download_waveforms(scnl, T0 - t_win, T0, fill_value="interpolate")
     logger.info(f"{time.time() - start:.2f} seconds to grab figure data.")
 
     #### preprocess data ####

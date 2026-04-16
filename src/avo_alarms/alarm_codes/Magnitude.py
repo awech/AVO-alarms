@@ -7,7 +7,7 @@ import cartopy.crs as ccrs
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from avo_alarms.utils import messaging, plotting, processing
+from avo_alarms.utils import messaging, plotting, processing, downloading
 from avo_alarms.utils.setup_utils import get_logger
 
 logger = get_logger(__name__)
@@ -31,8 +31,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         f"&format=csv"
     )
     logger.info(f"{T0_str}\nDownloading events...")
-    catalog_df = processing.download_hypocenters_csv(URL)
-
+    catalog_df = downloading.download_hypocenters_csv(URL)
     if catalog_df is None: # Error pulling events
         state = "WARNING"
         state_message = f"{T0_str} (UTC) FDSN connection error"
@@ -106,7 +105,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
 def process_event(evt_url, config, test=False):
 
-    cat = processing.download_hypocenter_xml(evt_url)
+    cat = downloading.download_hypocenter_xml(evt_url)
     try:
         cat = processing.addPhaseHint(cat)
     except Exception as e:
@@ -181,9 +180,9 @@ def plot_event(eq, volcs, config, n_stations=8, test=False):
     channels = processing.eq_picks_to_dataframe(eq)
     plot_chans = channels[:n_stations]
     origin = eq.preferred_origin()
-    st = processing.grab_data(list(plot_chans.SCNL.values), 
-                        origin.time-20, 
-                        origin.time+50)
+    st = downloading.download_waveforms(
+        list(plot_chans.SCNL.values), origin.time - 20, origin.time + 50
+    )
 
     logger.info("Plotting traces...")
     axes_list, h_ratios = plotting.get_axes_and_ratios(st)

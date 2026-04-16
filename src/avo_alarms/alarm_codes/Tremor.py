@@ -10,7 +10,7 @@ from enveloc.core import XCOR
 from pathlib import Path
 
 
-from avo_alarms.utils import messaging, processing
+from avo_alarms.utils import messaging, processing, downloading
 from avo_alarms.utils.setup_utils import get_logger
 
 logger = get_logger(__name__)
@@ -30,7 +30,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     SCNL=DataFrame.from_dict(config.SCNL)
     t1 = T0-1.5*config.window_length-config.taper
     t2 = T0+config.taper
-    st = processing.grab_data(SCNL['scnl'].tolist(),t1,t2,fill_value=0)
+    st = downloading.download_waveforms(SCNL['scnl'].tolist(),t1,t2,fill_value=0)
     st = add_coordinate_info(st,SCNL)
     #################################
     

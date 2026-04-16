@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from obspy import UTCDateTime as utc
 
-from avo_alarms.utils import messaging, plotting, processing
+from avo_alarms.utils import messaging, plotting, processing, downloading
 from avo_alarms.utils.setup_utils import get_logger
 
 logger = get_logger(__name__)
@@ -24,8 +24,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     config.tmp_zipped_dir = Path(config.tmp_zipped_dir)
 
     
-    state, archive = processing.download_pilot_reports(T0, config)
-
+    state, archive = downloading.download_pilot_reports(T0, config)
     if archive is None:
         if state == "OK":
             state_message = f"{T0_str} (UTC) No new pilot reports"
@@ -56,11 +55,9 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
 
     for i, row in new_pireps_df.iterrows():
-
         state = "WARNING"
-
         try:
-            filename = plot_fig(pirep_row, config, test=test_flag)
+            filename = plot_fig(row, config, test=test_flag)
         except Exception as e:
             logger.error('Error generating figure...')
             logger.error(e)

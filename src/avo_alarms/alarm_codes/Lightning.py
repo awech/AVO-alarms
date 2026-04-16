@@ -15,7 +15,7 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from obspy import UTCDateTime as utc
 from obspy.geodetics.base import gps2dist_azimuth
 
-from avo_alarms.utils import messaging, plotting, processing
+from avo_alarms.utils import messaging, plotting, processing, downloading
 from avo_alarms.utils.setup_utils import get_logger
 
 warnings.filterwarnings("ignore")
@@ -25,7 +25,7 @@ logger = get_logger(__name__)
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
     ### get alerts from volcview api
-    A = processing.download_lightning()
+    A = downloading.download_lightning()
     t_string = T0.strftime("%Y-%m-%d %H:%M")
 
     if A is None:

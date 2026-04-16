@@ -41,7 +41,8 @@ while attempt <= 3:
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
     # Download the event data
-    logger.info(T0.strftime('%Y-%m-%d %H:%M'))
+    T0_str = T0.strftime('%Y-%m-%d %H:%M')
+    logger.info(T0_str)
     logger.info('Downloading events...')
     config.DURATION = np.array([swm['MAX_EVT_TIME'] for swm in config.swarm_parameters]).max()
     T2 = T0
@@ -54,15 +55,15 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
     # Error pulling events
     if CAT is None:
-        state = 'WARNING'
-        state_message = '{} (UTC) FDSN connection error'.format(T0.strftime('%Y-%m-%d %H:%M'))
+        state = "WARNING"
+        state_message = f"{T0_str} (UTC) FDSN connection error"
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 
     # No events
     if len(CAT) == 0:
-        state = 'OK'
-        state_message = '{} (UTC) No new earthquakes'.format(T0.strftime('%Y-%m-%d %H:%M'))
+        state = "OK"
+        state_message = f"{T0_str} (UTC) No new earthquakes"
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 

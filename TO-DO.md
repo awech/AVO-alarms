@@ -3,9 +3,9 @@
 ## :sparkles: Features
 
 - [x] Organize file structure better - like a python package
-- [ ] Numerous folders with .py scripts that are much more simple and grouped by their tasks
+- [x] Numerous folders with .py scripts that are much more simple and grouped by their tasks
 - [ ] add `pyproject.toml` file
-- [ ] change `main.py` to be run as exectuable
+- [x] change `main.py` to be run as exectuable
 - [ ] change all `string{}.format()` to fstring
 - [ ] change all SCNL to NSLC!
 - [ ] Get dependencies up to date. Make all effort to minimize

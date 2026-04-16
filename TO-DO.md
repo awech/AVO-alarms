@@ -12,6 +12,7 @@
 - [ ] sort out cartopy/basemap kerfuffle --> modernize to just use cartopy
 - [ ] utilize one map making function
 - [ ] make effort to use `subplot_mosaic` for panel plots 
+- [ ] use os.getenv() instead of os.environ[] where appropriate
 - [x] move configs to external repository
 - [x] implement default "all" message distribution
 - [ ] allow for distribution/phonebook to be environment variables

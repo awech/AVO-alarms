@@ -1,8 +1,3 @@
-# RSAM  alarm to be run on list of channels
-# Based on MATLAB code originally written by Matt Haney and Aaron Wech
-#
-# Wech 2017-06-08
-
 import os
 import time
 import traceback
@@ -70,37 +65,32 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     T0_str = T0.strftime("%Y-%m-%d %H:%M")
     if (rms[-1] < lvlv[-1]) & (sum(rms[:-1] > lvlv[:-1]) >= config.min_sta):
         #### RSAM Detection!! ####
-        ##########################
         logger.info("********** DETECTION **********")
         state_message = f"{T0_str} (UTC) RSAM detection! {state_message}"
         state = "CRITICAL"
-        #
+
     elif (rms[-1] < lvlv[-1]) & (sum(rms[:-1] > lvlv[:-1] / 2) >= config.min_sta):
         #### elevated RSAM ####
-        #######################
         state_message = f"{T0_str} (UTC) RSAM elevated! {state_message}"
         state = "WARNING"
-        #
+
     elif sum(rms[:-1] != 0) < config.min_sta:
         #### not enough data ####
-        #########################
         state_message = f"{T0_str} (UTC) RSAM data missing! {state_message}"
         state = "WARNING"
-        #
+
     elif (rms[-1] >= lvlv[-1]) & (sum(rms[:-1] > lvlv[:-1]) >= config.min_sta):
         ### RSAM arrested ###
-        #####################
         state_message = f"{T0_str} (UTC) RSAM normal (arrested). {state_message}"
         state = "WARNING"
-        #
+
     else:
         #### RSAM normal ####
-        #####################
         state_message = f"{T0_str} (UTC) RSAM normal. {state_message}"
         state = "OK"
 
     if state == "CRITICAL":
-        #### Generate Figure ####
+        logger.info("Generating figure")
         try:
             filename = make_figure(scnl, T0, config, test=test_flag)
         except Exception as e:

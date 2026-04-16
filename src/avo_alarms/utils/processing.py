@@ -31,6 +31,7 @@ socket.setdefaulttimeout(15)
 
 logger = get_logger(__name__)
 
+# TODO move all `download` functions to a separate file, maybe `downloads.py`?
 
 def IRIS_client():
     attempt = 1
@@ -175,6 +176,7 @@ def grab_data(scnl, T1, T2, fill_value=0):
 
     t_test1 = UTCDateTime.now()
     for sta in scnl:
+        # TODO set up some default client. Maybe from .env? 
         client = EW_Client(
             os.environ["WINSTON_HOST"],
             int(os.environ["WINSTON_PORT"]),

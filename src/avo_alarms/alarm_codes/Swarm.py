@@ -1,27 +1,24 @@
-import os, sys
-import pandas as pd
-import numpy as np
-import utm
-from obspy import Catalog, UTCDateTime, Inventory
-from obspy.geodetics.base import gps2dist_azimuth
-import cartopy
-from cartopy.io.img_tiles import GoogleTiles
-from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
-import matplotlib.pyplot as plt
-from matplotlib.dates import date2num, num2date
-import matplotlib as m
-from matplotlib.path import Path
-from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-import shapely.geometry as sgeom
-from itertools import combinations
-import traceback
+import os
 import time
-from obspy.clients.fdsn import Client
-from sklearn.cluster import DBSCAN
+import traceback
+from itertools import combinations
 from pathlib import Path
 
+import cartopy
+import matplotlib as m
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import shapely.geometry as sgeom
+import utm
+from cartopy.io.img_tiles import GoogleTiles
+from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
+from matplotlib.dates import date2num, num2date
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+from obspy.clients.fdsn import Client
+from sklearn.cluster import DBSCAN
 
-from avo_alarms.utils import messaging, plotting, processing
+from avo_alarms.utils import downloading, messaging, plotting, processing
 from avo_alarms.utils.setup_utils import get_logger
 
 logger = get_logger(__name__)
@@ -51,7 +48,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
                                                                                          T1.strftime('%Y-%m-%dT%H:%M:%S'),
                                                                                          T2.strftime('%Y-%m-%dT%H:%M:%S'),
                                                                                          config.MAXDEP)
-    CAT = processing.download_hypocenters(URL)
+    CAT = downloading.download_hypocenters(URL)
 
     # Error pulling events
     if CAT is None:

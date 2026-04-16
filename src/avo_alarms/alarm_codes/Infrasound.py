@@ -15,8 +15,8 @@ from obspy.geodetics.base import gps2dist_azimuth
 from obspy.signal.cross_correlation import correlate, xcorr_max
 from pandas import DataFrame
 
-from ..utils import messaging, plotting, processing
-from ..utils.setup_utils import get_logger
+from avo_alarms.utils import messaging, plotting, processing
+from avo_alarms.utils.setup_utils import get_logger
 
 logger = get_logger(__name__)
 

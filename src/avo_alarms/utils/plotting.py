@@ -541,36 +541,38 @@ def map_ticks(ax, extent, nticks_x=2, nticks_y=2, grid_kwargs=None, lon_fmt_kwar
         ax.yaxis.tick_right()
 
 
-def add_watermark(text, ax=None):
+def add_watermark(fig, text):
     """Add a watermark to a figure
 
     Args:
+        fig (matplotlib Figure object): the matplotlib figure to add the watermark to.
         text (str): the text to add as a watermark
-        ax (matplotlib Axes object, optional): the matplotlib axis to add the watermark to.
-        Defaults to None. if `None` then `plt.gca` is used.
     """
-    if ax is None:
-        ax = plt.gca()
+    
+    fig_width_pts = fig.get_figwidth() * fig.dpi
+    fontsize = fig_width_pts * 0.1 
+    logger.info(f"Adding watermark with fontsize {fontsize}")
 
-    ax.text(
+    fig.text(
         0.5,
         0.5,
         text,
-        transform=ax.transAxes,
-        fontsize=50,
-        color="gray",
+        transform=fig.transFigure,
+        fontsize=fontsize,
+        color="red",
         alpha=0.5,
         va="center",
         ha="center",
+        rotation=30
     )
 
 
-def save_file(fig, config, dpi=250):
+def save_file(fig, config, test=False, dpi=250):
     """_summary_
 
     Parameters
     ----------
-    plt : _type_
+    fig : _type_
         _description_
     config : _type_
         _description_
@@ -589,7 +591,11 @@ def save_file(fig, config, dpi=250):
         / f"{config.alarm_name.replace(' ','_')}_{utc.utcnow().strftime('%Y%m%d_%H%M%S')}.jpg"
     )
 
+    if test:
+        add_watermark(fig, "TEST ALARM")
+
     fig.savefig(jpg_file, dpi=dpi, bbox_inches="tight", pad_inches=0.05)
+    plt.close(fig)
 
     return jpg_file
 

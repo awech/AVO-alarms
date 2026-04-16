@@ -76,7 +76,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     for i, row in new_events_df.iterrows():
         logger.info(f"Processing event {row.id}")
         evt_url = f"{os.getenv('FDSN_URL')}eventid={row.id}"
-        subject, message, attachment, eq, volcs = process_event(evt_url, config)
+        subject, message, attachment, eq, volcs = process_event(evt_url, config, test=test_flag)
 
         logger.info("Sending message...")
         messaging.send_alert(
@@ -104,7 +104,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     messaging.icinga(config, state, state_message, send=icinga_flag)
 
 
-def process_event(evt_url, config):
+def process_event(evt_url, config, test=False):
 
     cat = processing.download_hypocenter_xml(evt_url)
     try:
@@ -120,7 +120,7 @@ def process_event(evt_url, config):
     volcs = processing.volcano_distance(origin.longitude, origin.latitude, volcs)
 
     try:
-        filename = plot_event(eq, volcs, config)
+        filename = plot_event(eq, volcs, config, test=test)
         fig_dir = Path(os.getenv("TMP_FIGURE_DIR"))
         eq_time = origin.time.strftime("%Y%m%dT%H%M%S")
         eq_mag = eq.preferred_magnitude().mag
@@ -175,7 +175,7 @@ def create_message(eq, volcs):
     return subject, message
 
 
-def plot_event(eq, volcs, config, n_stations=8):
+def plot_event(eq, volcs, config, n_stations=8, test=False):
 
     ################### Download data ###################
     channels = processing.eq_picks_to_dataframe(eq)
@@ -239,7 +239,6 @@ def plot_event(eq, volcs, config, n_stations=8):
     plotting.add_inset_polygon(ax_inset, extent)
 
     logger.info('Saving figure...')
-    jpg_file = plotting.save_file(fig, config)
-    plt.close(fig)
+    jpg_file = plotting.save_file(fig, config, test=test)
 
     return jpg_file

@@ -60,7 +60,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         state = "WARNING"
 
         try:
-            filename = plot_fig(pirep_row, config)
+            filename = plot_fig(pirep_row, config, test=test_flag)
         except Exception as e:
             logger.error('Error generating figure...')
             logger.error(e)
@@ -176,7 +176,7 @@ def create_message(pirep_row, config):
     return subject, message
 
 
-def plot_fig(pirep_row, config):
+def plot_fig(pirep_row, config, test=False):
 
     fig, ax = plt.subplots(figsize=(3.4, 3.15))
 
@@ -225,6 +225,6 @@ def plot_fig(pirep_row, config):
     )
     plotting.add_inset_polygon(ax_inset, extent)
 
-    jpg_file = plotting.save_file(fig, config, dpi=300)
+    jpg_file = plotting.save_file(fig, config, test=test, dpi=300)
 
     return jpg_file

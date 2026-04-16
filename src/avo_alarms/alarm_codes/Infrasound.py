@@ -127,7 +127,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
     if state == "CRITICAL":
         #### Generate Figure ####
-        filename = make_figure(st, volcano, T0, config, mx_pressure)
+        filename = make_figure(st, volcano, T0, config, mx_pressure, test=test_flag)
         # try:
         #     filename=make_figure(st,volcano,T0,config,mx_pressure)
         # except:
@@ -370,7 +370,7 @@ def xcorr_align_stream(st, config):
     return ST
 
 
-def make_figure(st, volcano, T0, config, mx_pressure):
+def make_figure(st, volcano, T0, config, mx_pressure, test=False):
 
     start = time.time()
     
@@ -458,7 +458,7 @@ def make_figure(st, volcano, T0, config, mx_pressure):
 
     plt.subplots_adjust(left=0.08, right=0.94, top=0.92, bottom=0.1, hspace=0.1)
 
-    jpg_file = plotting.save_file(plt, config, dpi=250)
+    jpg_file = plotting.save_file(plt, config, test=test, dpi=250)
 
     return jpg_file
 

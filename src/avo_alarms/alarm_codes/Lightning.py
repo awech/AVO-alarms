@@ -117,7 +117,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
                     logger.info("Crafting message...")
                     subject, message = create_message(V_recent, V_new, config)
                     try:
-                        filename = plot_fig(V_recent, config, T0)
+                        filename = plot_fig(V_recent, config, T0, test=test_flag)
                     except Exception as e:
                         logger.error("Error generating figure...")
                         logger.error(e)
@@ -325,7 +325,7 @@ def create_message(V_recent, V_new, config):
     return subject, message
 
 
-def plot_fig(A_recent, config, T0):
+def plot_fig(A_recent, config, T0, test=False):
     
     fig, ax = plt.subplots(figsize=(3.4, 3.15))
 
@@ -374,6 +374,6 @@ def plot_fig(A_recent, config, T0):
     plotting.add_volcanoes_to_map(ax_inset, inset_extent, config, s1=7, s2=4, linewidths=0.1)
     plotting.add_inset_polygon(ax_inset, extent, ec="red", fc="none", linewidth=0.3)
 
-    jpg_file = plotting.save_file(fig, config, dpi=300)
+    jpg_file = plotting.save_file(fig, config, test=test, dpi=300)
 
     return jpg_file

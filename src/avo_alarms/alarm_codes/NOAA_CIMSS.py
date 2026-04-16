@@ -75,7 +75,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
         try:
             logger.info("Done. Attempting to generate figure")
-            filename = plot_fig(alert, config)
+            filename = plot_fig(alert, config, test=test_flag)
             logger.info("Figure generated successfully")
         except Exception as e:
             filename = []
@@ -299,7 +299,7 @@ def get_cimss_image(soup, alert, config):
                     out.write(bits)
 
 
-def plot_fig(alert, config):
+def plot_fig(alert, config, test=False):
 
     fig, ax = plt.subplot_mosaic(
         [["img1"], ["img2"], ["map"]],
@@ -351,7 +351,7 @@ def plot_fig(alert, config):
                                     projection="orthographic")
     plotting.add_inset_polygon(ax_inset, extent)
     fig.subplots_adjust(hspace=0.1)
-    jpg_file = plotting.save_file(plt, config, dpi=500)
+    jpg_file = plotting.save_file(plt, config, test=test, dpi=500)
 
     # remove images downloaded from NOAA/CIMSS webpage
     os.remove(tmp_file1)

@@ -102,7 +102,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     if state == "CRITICAL":
         #### Generate Figure ####
         try:
-            filename = make_figure(scnl, T0, config)
+            filename = make_figure(scnl, T0, config, test=test_flag)
         except Exception as e:
             logger.error("Problem making figure for RSAM alarm")
             logger.error(e)
@@ -159,7 +159,7 @@ def create_message(t1, t2, stations, rms, lvlv, DR, alarm_name):
     return subject, message
 
 
-def make_figure(scnl, T0, config):
+def make_figure(scnl, T0, config, test=False):
 
     #### grab data ####
     start = time.time()
@@ -184,6 +184,6 @@ def make_figure(scnl, T0, config):
 
     plt.subplots_adjust(left=0.08, right=0.94, top=0.92, bottom=0.1, hspace=0.1)
 
-    jpg_file = plotting.save_file(fig, config, dpi=250)
+    jpg_file = plotting.save_file(fig, config, test=test, dpi=250)
 
     return jpg_file

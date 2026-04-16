@@ -7,6 +7,7 @@
 - [ ] add `pyproject.toml` file
 - [ ] change `main.py` to be run as exectuable
 - [ ] change all `string{}.format()` to fstring
+- [ ] change all SCNL to NSLC!
 - [ ] Get dependencies up to date. Make all effort to minimize
 - [ ] sort out cartopy/basemap kerfuffle --> modernize to just use cartopy
 - [ ] utilize one map making function

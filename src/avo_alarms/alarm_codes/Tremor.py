@@ -10,8 +10,8 @@ from enveloc.core import XCOR
 from pathlib import Path
 
 
-from ..utils import messaging, processing
-from ..utils.setup_utils import get_logger
+from avo_alarms.utils import messaging, processing
+from avo_alarms.utils.setup_utils import get_logger
 
 logger = get_logger(__name__)
 

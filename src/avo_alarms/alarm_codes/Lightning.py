@@ -15,8 +15,8 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from obspy import UTCDateTime as utc
 from obspy.geodetics.base import gps2dist_azimuth
 
-from ..utils import messaging, plotting, processing
-from ..utils.setup_utils import get_logger
+from avo_alarms.utils import messaging, plotting, processing
+from avo_alarms.utils.setup_utils import get_logger
 
 warnings.filterwarnings("ignore")
 logger = get_logger(__name__)

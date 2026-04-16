@@ -21,8 +21,8 @@ from sklearn.cluster import DBSCAN
 from pathlib import Path
 
 
-from ..utils import messaging, plotting, processing
-from ..utils.setup_utils import get_logger
+from avo_alarms.utils import messaging, plotting, processing
+from avo_alarms.utils.setup_utils import get_logger
 
 logger = get_logger(__name__)
 

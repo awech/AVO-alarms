@@ -1,334 +1,229 @@
-import os, sys
-import pandas as pd
-import numpy as np
-import requests
-import time
-from obspy.geodetics.base import gps2dist_azimuth
-from obspy import UTCDateTime
-import warnings
-from urllib.parse import urlparse, urljoin
-from bs4 import BeautifulSoup
+import os
 import re
-import matplotlib as m
-import matplotlib.pyplot as plt
-from matplotlib.patches import Polygon
-import matplotlib.image as mpimg
 import traceback
+import warnings
 from pathlib import Path
-warnings.filterwarnings("ignore")
+from urllib.parse import urljoin, urlparse
 
+import matplotlib.image as mpimg
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import requests
+from obspy import UTCDateTime as utc
+from obspy.geodetics.base import gps2dist_azimuth
 
-from ..utils import messaging, plotting, processing
-from ..utils.setup_utils import get_logger
+from avo_alarms.utils import messaging, plotting, processing
+from avo_alarms.utils.setup_utils import get_logger
 
 logger = get_logger(__name__)
+warnings.filterwarnings("ignore")
 
 
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
-    ### get alerts from volcview api ###
-    ####################################
+    T0_str = T0.strftime("%Y-%m-%d %H:%M")
+    config.outfile = Path(config.outfile)
+    
     logger.info("Reading in alerts from volcview api .json file")
-    attempt = 1
-    max_tries = 3
-    while attempt <= max_tries:
-        try:
-            result = os.popen(
-                'curl --connect-timeout 5 --max-time 20 -H "username:{}" -H "password:{}" -X GET {}'.format(
-                    os.environ["API_USERNAME"],
-                    os.environ["API_PASSWORD"],
-                    os.environ["NOAA_CIMSS_URL"],
-                )
-            ).read()
-            A = pd.read_json(result)
-            break
-        except:
-            logger.warning(
-                "Error getting data from Volcview-API on attempt {:g}".format(attempt)
-            )
-            time.sleep(2)
-            attempt += 1
-            A = None
-    #################################
+    cimss_df = processing.download_cimss_vv_api()
 
-    if A is None:
+    if cimss_df is None:
         state = "WARNING"
-        state_message = "{} (UTC) Error getting data from Volcview-API".format(
-            T0.strftime("%Y-%m-%d %H:%M")
-        )
+        state_message = f"{T0_str} (UTC) Error getting data from Volcview-API"
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 
-    ####################################
-    ####################################
-    # volcs = pd.read_csv('alarm_aux_files/volcanoes_kml.txt',
-    # 				  delimiter='\t',
-    # 				  names=['Volcano','kml','Lon','Lat'])
-    VOLCS = pd.read_excel(config.volc_file)
-
-    # update DataFrame with unique NOAA/CIMSS id
-    A["NOAA_id"] = ""
-    A["aid"] = ""
-    for i in A.index:
-        try:
-            A.at[i, "NOAA_id"] = int(A.at[i, "alert_url"].split("/")[-1])
-        except:
-            A.at[i, "NOAA_id"] = 0  # alert has no url to scrap info from
-    A = A.loc[A["NOAA_id"] > 0]  # ignore alerts with no urls
-
-    A["object_date_time"] = pd.to_datetime(
-        A["object_date_time"]
-    )  # convert time to datetime in DataFrame
-    recent_alerts = A.loc[
-        A["object_date_time"] > (T0 - 3600 * 12).strftime("%Y-%m-%d %H:%M")
-    ]  # limit DataFrame to alerts in the past 12 hours
-    old_alerts = pd.read_csv(config.outfile)  # read in old alerts
-
-    # now update alerts file
-    A[["object_date_time", "NOAA_id", "vv_id"]].to_csv(config.outfile, index=False)
-
+    recent_alerts = processing.get_recent_cimss_alerts(cimss_df, config, T0)
+    
     if len(recent_alerts) == 0:
-        state = "WARNING"
-        state_message = (
-            "{} (UTC) No new recent NOAA CIMSS alerts. Webpage or API problem?".format(
-                T0.strftime("%Y-%m-%d %H:%M")
-            )
-        )
+        state = "OK"
+        state_message = f"{T0_str} (UTC) No new recent NOAA CIMSS alerts"
+        messaging.icinga(config, state, state_message, send=icinga_flag)
+        return
 
-    recent_alerts.loc[:, "aid"] = np.nan
-    logger.info("Looping through alerts...")
 
-    recent_alerts = recent_alerts.sort_values("object_date_time")
     default_mm_id = config.mattermost_channel_id
-    for i, alert in recent_alerts.iterrows():
 
-        # DIST = np.array([])
-        # for lat, lon in zip(volcs.Lat.values, volcs.Lon.values):
-        # 	dist, azimuth, az2 = gps2dist_azimuth(lat, lon, alert.lat_rc, alert.lon_rc)
-        # 	DIST = np.append(DIST, dist/1000.)
-        # volcs['distance'] = DIST
-        # volcs = volcs.sort_values('distance')
+    logger.info("Looping through alerts...")
+    for _, alert in recent_alerts.iterrows():
 
         # keep only those volcanoes based on NOAA alert type
-        ALERT_TYPE = {"ash": "NOAA Ash", "hot": "NOAA Thermal", "ice": "NOAA Ice"}
-        volcs = VOLCS.loc[VOLCS[ALERT_TYPE[alert.alert_type]] == "Y"]
+        if on_ignore_list(config, alert):   
+            state = "WARNING"
+            state_message = f"{T0_str} (UTC) alert for {alert.v_name}: {alert.alert_type} on ignore list"
+            messaging.icinga(config, state, state_message, send=icinga_flag)
+            logger.info(f"Alert for {alert.v_name}: {alert.alert_type} on ignore list. Skipping.")
+            continue
 
+        logger.info(f"--- New Alert! ---\n{alert}")
+        logger.info("Scraping images and info from NOAA CIMSS page...")
+
+        alert_html_soup = processing.scrape_cimss_alert(alert)
+        if not alert_html_soup:
+            logger.error("Error reading NOAA CIMSS page")
+            state = "WARNING"
+            state_message = f"{T0_str} (UTC) NOAA/CIMSS webpage error"
+            continue
+        
+        alert, output_text = process_alert_soup(alert_html_soup, alert, config)
+        if not output_text:
+            logger.error("Error processing NOAA CIMSS page")
+            state = "WARNING"
+            state_message = f"{T0_str} (UTC) NOAA/CIMSS webpage error"
+            continue
+
+        try:
+            logger.info("Done. Attempting to generate figure")
+            filename = plot_fig(alert, config)
+            logger.info("Figure generated successfully")
+        except Exception as e:
+            filename = []
+            logger.error("Problem making figure. Continue anyway")
+            logger.error(e)
+            logger.error(traceback.format_exc())
+            pass
+
+        logger.info("Crafting message...")
+        volcs = pd.read_excel(config.volc_file)
         volcs = processing.volcano_distance(alert.lon_rc, alert.lat_rc, volcs)
-        volcs = volcs.sort_values("distance")
+        subject, message = create_message(alert, volcs, output_text)
 
-        if volcs.distance.min() >= config.max_distance:
-            state = "OK"
-            state_message = "{} (UTC) No new NOAA CIMSS alerts".format(
-                T0.strftime("%Y-%m-%d %H:%M")
-            )
+        logger.info("Posting to mattermost...")
+        messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
+        # send to other mm channels based on alert type and volcano status
+        other_mm_channels(alert, volcs, config, subject, message, filename, test_flag, mm_flag)
+        # change mm channel id back to default
+        config.mattermost_channel_id = default_mm_id
 
-        else:
+        state = "CRITICAL"
+        state_message = f"{T0_str} (UTC) {subject}"
 
-            logger.info("Found alert <{:g} km from volcanoes.".format(config.max_distance))
-            if alert.NOAA_id in old_alerts.NOAA_id.values:
-                logger.info("....just kidding! Old alert.")
-                state = "OK"
-                state_message = "{} (UTC) No new NOAA CIMSS alerts".format(
-                    T0.strftime("%Y-%m-%d %H:%M")
-                )
-                continue
-            else:
-                logger.info(
-                    "New Alert! Getting images and additional info from NOAA CIMSS webpage...\n\n"
-                )
-                logger.info(alert)
-
-                attempt = 1
-                max_tries = 3
-                while attempt <= max_tries:
-                    try:
-                        soup = scrape_web(alert)
-                        break
-                    except:
-                        if attempt == max_tries:
-                            logger.error("Error reading NOAA CIMSS page")
-                            state = "WARNING"
-                            state_message = "{} (UTC) NOAA/CIMSS webpage error".format(
-                                T0.strftime("%Y-%m-%d %H:%M")
-                            )
-                            continue
-                        attempt += 1
-
-                try:
-                    instrument = get_instrument(soup)
-                    sections = soup.select("div[class*=alert_box]")
-                except:
-                    state = "WARNING"
-                    state_message = "{} (UTC) NOAA/CIMSS webpage error".format(
-                        T0.strftime("%Y-%m-%d %H:%M")
-                    )
-                    continue
-
-                for soupy in sections:
-                    t = get_timestamp(soupy)
-                    lat_web, lon_web = get_latitude(soupy)
-                    if t:
-                        if (
-                            UTCDateTime(alert.object_date_time) - UTCDateTime(t)
-                        ) == 0 & (
-                            gps2dist_azimuth(
-                                lat_web, lon_web, alert.lat_rc, alert.lon_rc
-                            )[0]
-                            / 1000
-                            == 0
-                        ):
-
-                            height_txt = get_height_txt(soupy)
-                            status_txt = get_alert_status_txt(soupy)
-                            type_txt = get_type_txt(soupy)
-
-                            get_cimss_image(soupy, alert, config)
-
-                            tmp_text = soupy.select("a[href*=individual]")
-                            aid = np.unique(
-                                [
-                                    x["href"].split("#")[0].split("/")[-1]
-                                    for x in tmp_text
-                                ]
-                            )
-                            alert["aid"] = aid
-
-                            break
-
-                logger.info("\n\nDone.")
-
-                logger.info("Trying to make figure attachment")
-                try:
-                    filename = plot_fig(alert, volcs, config)
-                    logger.info("Figure generated successfully")
-                except:
-                    filename = []
-                    logger.error("Problem making figure. Continue anyway")
-                    b = traceback.format_exc()
-                    err_message = "".join("{}\n".format(a) for a in b.splitlines())
-                    logger.error(err_message)
-                    pass
-
-                # craft and send the message
-                logger.info("Crafting message...")
-                subject, message = create_message(
-                    alert, instrument, height_txt, volcs, status_txt, type_txt
-                )
-
-                # logger.info('Sending message...')
-                # messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
-                logger.info("Posting to mattermost...")
-                messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
-
-                ##################################################################
-                # Send thermal alerts to their own channel
-                #
-                if (alert.alert_type == "hot") and ("THERMAL" in alert.alert_header):
-                    if volcs.iloc[0].distance < config.thermal_alert_dist:
-                        config.mattermost_channel_id = config.thermal_alerts_mm
-                        messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
-                #
-                ##################################################################
-
-                ##################################################################
-                # Send alerts for elevated volcanoes to their own channel
-                #
-                elevated_volcs = volcs[
-                    volcs["Volcano"].isin(config.elevated_volcano_list)
-                ]
-
-                if elevated_volcs.iloc[0].distance < config.elevated_volcano_dist:
-                    config.mattermost_channel_id = config.elevated_volcano_mm
-                    messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
-                #
-                ##################################################################
-
-                # change mm channel id back to default
-                config.mattermost_channel_id = default_mm_id
-
-                state = "CRITICAL"
-                state_message = "{} (UTC) {}".format(
-                    T0.strftime("%Y-%m-%d %H:%M"), subject
-                )
-
-                # delete the file you just sent
-                if filename:
-                    os.remove(filename)
+        if filename:
+            os.remove(filename)
 
     messaging.icinga(config, state, state_message, send=icinga_flag)
 
 
-def create_message(alert, instrument, height_txt, volcs, status_txt, type_txt):
-    t = pd.Timestamp(alert.object_date_time, tz="UTC")
-    t_local = t.tz_convert(os.environ["TIMEZONE"])
-    Local_time_text = "{} {}".format(
-        t_local.strftime("%Y-%m-%d %H:%M"), t_local.tzname()
-    )
+def create_message(alert, volcs, output_text):
 
-    message = "{} UTC\n{}\n".format(t.strftime("%Y-%m-%d %H:%M"), Local_time_text)
+    t = utc(alert.object_date_time)
+    instrument = output_text["instrument"]
+    height_txt = output_text["height_txt"]
+    status_txt = output_text["status_txt"]
+    type_txt = output_text["type_txt"]
+    message = messaging.format_timestring(t)
 
-    message += "\n**Primary Instrument:** {}".format(instrument)
+
+    message += f"\n**Primary Instrument:** {instrument}"
     if height_txt:
-        message += "\n{}".format(
-            height_txt.replace("Max", "**Max").replace("]:", "]:**")
-        )
+        height_txt = height_txt.replace("Max", "**Max").replace("]:", "]:**")
+        message += f"\n{height_txt}"
     if status_txt:
-        message += "\n{}".format(
-            status_txt.replace("Alert", "**Alert").replace(":", ":**")
-        )
+        status_txt = status_txt.replace("Alert", "**Alert").replace(":", ":**")
+        message += f"\n{status_txt}"
     if type_txt:
-        message += "\n{}".format(
-            type_txt.replace("Type of Volcanic Event:", "**Event type:**")
-        )
-    message += "\n**Latitude:** {:.3f}\n**Longitude:** {:.3f}\n".format(
-        alert.lat_rc, alert.lon_rc
-    )
+        type_txt = type_txt.replace("Type of Volcanic Event:", "**Event type:**")
+        message += f"\n{type_txt}"
+    message += f"\n**Latitude:** {alert.lat_rc:.3f}\n**Longitude:** {alert.lon_rc:.3f}\n"
 
-    volcs = volcs.sort_values("distance")
     v_text = ""
     for i, row in volcs[:3].iterrows():
-        v_text = "{}{} ({:.0f} km), ".format(v_text, row.Volcano, row.distance)
+        v_text = f"{v_text}{row.Volcano} ({row.distance:.0f} km), "
     v_text = v_text.replace("_", " ")
 
-    message += "**Method:** {}\n".format(alert.method)
-    message += "**Nearest volcanoes:** {}\n\n".format(v_text[:-2])
-    message += "**More info:** {}\n".format(
-        alert.alert_url.replace(
-            "report/" + str(alert.NOAA_id), "individual/" + str(alert.aid)
-        )
-    )
+    message += f"**Method:** {alert.method}\n"
+    message += f"**Nearest volcanoes:** {v_text[:-2]}\n\n"
+    message += f"**More info:** {alert.alert_url.replace('report/' + str(alert.NOAA_id), 'individual/' + str(alert.aid))}\n"
 
     subject_text = alert.alert_header.title().replace(" Found", "")
     subject_text = subject_text.replace(" Detected", "")
-    subject = "{}: {}".format(volcs.iloc[0].Volcano, subject_text)
+    subject = f"{volcs.iloc[0].Volcano}: {subject_text}"
 
     return subject, message
 
 
-def scrape_web(alert):
+def other_mm_channels(alert, volcs, config, subject, message, attachment, test_flag, mm_flag):
 
-    soup = BeautifulSoup(
-        requests.get(alert.alert_url, verify=False, timeout=10).content
-    )
-    redir = soup.select_one("#loginform-custom")["action"]
+    ##################################################################
+    # Send thermal alerts to their own channel
+    if (alert.alert_type == "hot") and ("THERMAL" in alert.alert_header):
+        if volcs.iloc[0].distance < getattr(config, "thermal_alert_dist", 20):
+            config.mattermost_channel_id = config.thermal_alerts_mm
+            messaging.post_mattermost(config, subject, message, attachment=attachment, send=mm_flag, test=test_flag)
+    ##################################################################
 
-    # This URL will be the URL that your login form points to with the "action" tag.
-    POST_LOGIN_URL = redir
-    # This URL is the page you actually want to pull down with requests.
-    REQUEST_URL = alert.alert_url
+    ##################################################################
+    # Send alerts for elevated volcanoes to their own channel
+    elevated_volcs = volcs[
+        volcs["Volcano"].isin(config.elevated_volcano_list)
+    ]
+    if elevated_volcs.iloc[0].distance < config.elevated_volcano_dist:
+        config.mattermost_channel_id = config.elevated_volcano_mm
+        messaging.post_mattermost(config, subject, message, attachment=attachment, send=mm_flag, test=test_flag)
+    ##################################################################
 
-    payload = {"log": os.environ["CIMSS_USERNAME"], "pwd": os.environ["CIMSS_PASSWORD"]}
+    return
 
-    with requests.Session() as session:
-        post = session.post(POST_LOGIN_URL, data=payload, verify=False, timeout=10)
-        r = session.get(REQUEST_URL, verify=False, timeout=10)
-        soup = BeautifulSoup(r.content)
-    session.close()
 
-    return soup
+def process_alert_soup(soup, alert, config):
+
+    output = {}
+    try:
+        output["instrument"] = get_instrument(soup)
+        sections = soup.select("div[class*=alert_box]")
+    except Exception as e:
+        logger.error("Error processing NOAA CIMSS alert page")
+        logger.error(e)
+        return alert, None
+
+    for soupy in sections:
+        t = get_timestamp(soupy)
+        lat_web, lon_web = get_latitude(soupy)
+        if t:
+            if (
+                utc(alert.object_date_time) - utc(t)
+            ) == 0 & (
+                gps2dist_azimuth(
+                    lat_web, lon_web, alert.lat_rc, alert.lon_rc
+                )[0]
+                / 1000
+                == 0
+            ):
+
+                output["height_txt"] = get_height_txt(soupy)
+                output["status_txt"] = get_alert_status_txt(soupy)
+                output["type_txt"] = get_type_txt(soupy)
+
+                get_cimss_image(soupy, alert, config)
+
+                tmp_text = soupy.select("a[href*=individual]")
+                aid = np.unique(
+                    [
+                        x["href"].split("#")[0].split("/")[-1]
+                        for x in tmp_text
+                    ]
+                )
+                alert["aid"] = aid
+
+                break
+    return alert, output
+
+
+def on_ignore_list(config, alert):
+    ignore = False
+    VOLCS = pd.read_excel(config.volc_file)
+    ALERT_TYPE = {"ash": "NOAA Ash", "hot": "NOAA Thermal", "ice": "NOAA Ice"}
+    volcano = VOLCS[VOLCS["Volcano"]==alert.v_name]
+    volcano = volcano[volcano[ALERT_TYPE[alert.alert_type]] == "Y"]
+    if len(volcano) == 0:
+        ignore = True
+
+    return ignore
 
 
 def get_instrument(soup):
+
     tbl = soup.find("div", {"class": "alert_box alert_report_summary"})
     rows = tbl.find_all("tr")
     row = [tr for tr in rows if "Primary" in str(tr)]
@@ -404,70 +299,58 @@ def get_cimss_image(soup, alert, config):
                     out.write(bits)
 
 
-def plot_fig(alert, volcs, config):
-    m.use("Agg")
+def plot_fig(alert, config):
 
-    # Create figure
-    plt.figure(figsize=(3, 6.6))
-    ax = plt.subplot(3, 1, 3)
-
-    lat0 = alert.lat_rc
-    lon0 = alert.lon_rc
-    m_map, inmap = plotting.make_map(
-        ax, lat0, lon0, main_dist=150, inset_dist=400, scale=50
+    fig, ax = plt.subplot_mosaic(
+        [["img1"], ["img2"], ["map"]],
+        figsize=(3, 6.6),
+        height_ratios=[1.1, 1.1, 1]
     )
 
-    m_map.plot(
-        lat0,
-        lon0,
-        "o",
-        latlon=True,
-        markeredgecolor="black",
-        markerfacecolor="gold",
-        markersize=6,
-        markeredgewidth=0.5,
+    title_str = "{} UTC\n{}\nMethod: {}".format(
+        str(alert.object_date_time), alert.alert_header.capitalize(), alert.method
     )
-
-    v = volcs.copy().sort_values("distance")
-    m_map.plot(
-        v.Longitude.values[:10],
-        v.Latitude.values[:10],
-        "^",
-        latlon=True,
-        markerfacecolor="forestgreen",
-        markeredgecolor="black",
-        markersize=4,
-        markeredgewidth=0.5,
-    )
-
-    # draw rectangle on inset map
-    bx, by = inmap(m_map.boundarylons, m_map.boundarylats)
-    xy = list(zip(bx, by))
-    mapboundary = Polygon(xy, edgecolor="firebrick", linewidth=0.5, fill=False)
-    inmap.ax.add_patch(mapboundary)
-
+    ax["img1"].set_title(title_str, fontsize=8)
+    
     # read in images downloaded from NOAA/CIMSS webpage
     tmp_file1 = config.img_file.replace(".png", "1.png")
     tmp_file2 = config.img_file.replace(".png", "2.png")
     img1 = mpimg.imread(tmp_file1)
     img2 = mpimg.imread(tmp_file2)
 
-    plt.subplot(3, 1, 1)
-    plt.imshow(img1)
-    plt.gca().set_xticks([])
-    plt.gca().set_yticks([])
-    title_str = "{} UTC\n{}\nMethod: {}".format(
-        str(alert.object_date_time), alert.alert_header.capitalize(), alert.method
+    ax["img1"].imshow(img1)
+    ax["img1"].set_xticks([])
+    ax["img1"].set_yticks([])
+
+    ax["img2"].imshow(img2)
+    ax["img2"].set_xticks([])
+    ax["img2"].set_yticks([])
+
+
+    X_DIST = getattr(config, "map_xdist", 150)
+    Y_DIST = getattr(config, "map_ydist", 150)
+    ax["map"], extent = plotting.make_map(
+        ax["map"],
+        alert.lat_rc,
+        alert.lon_rc,
+        basemap="HIGHRES",
+        xdist=X_DIST,
+        ydist=Y_DIST,
     )
-    plt.title(title_str, fontsize=8)
 
-    plt.subplot(3, 1, 2)
-    plt.imshow(img2)
-    plt.gca().set_xticks([])
-    plt.gca().set_yticks([])
+    plotting.map_ticks(ax["map"], extent, grid_kwargs="default")
+    plotting.add_volcanoes_to_map(ax["map"], extent, config, linewidths=0.1)
+    plotting.add_scale_bar(ax["map"], 25, txt_yoffset=0.02)
 
-    plt.tight_layout(pad=0.5)
-
+    # draw rectangle on inset map
+    ax_inset = fig.add_axes([0.66, 0.25, 0.15, 0.15])
+    ax_inset, inset_extent = plotting.make_map(ax_inset, alert.lat_rc, alert.lon_rc,
+                                    xdist=400,
+                                    ydist=300,
+                                    basemap="land",
+                                    projection="orthographic")
+    plotting.add_inset_polygon(ax_inset, extent)
+    fig.subplots_adjust(hspace=0.1)
     jpg_file = plotting.save_file(plt, config, dpi=500)
 
     # remove images downloaded from NOAA/CIMSS webpage

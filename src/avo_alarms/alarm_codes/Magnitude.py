@@ -18,9 +18,9 @@ warnings.filterwarnings("ignore")
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
     T0_str = T0.strftime('%Y-%m-%d %H:%M')
-    logger.info(f"{T0_str}\nDownloading events...")
     T2 = T0
     T1 = T2 - config.DURATION
+    config.outfile = Path(config.outfile)
 
     URL = (
         f"{os.getenv('FDSN_URL')}"
@@ -30,6 +30,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         f"&maxdepth={config.MAXDEP}"
         f"&format=csv"
     )
+    logger.info(f"{T0_str}\nDownloading events...")
     catalog_df = processing.download_hypocenters_csv(URL)
 
     if catalog_df is None: # Error pulling events
@@ -47,8 +48,8 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         return
 
     # Compare new event distance with volcanoes
-    catalog_df = add_volcano_distances(catalog_df, config)
-    catalog_df = catalog_df[catalog_df["V_DIST"] < config.DISTANCE]
+    catalog_df = processing.find_nearest_volcano(catalog_df, config)
+    catalog_df = catalog_df[catalog_df["v_distance"] < config.DISTANCE]
 
     # New events, but not close enough to volcanoes
     if len(catalog_df) == 0:
@@ -58,11 +59,10 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 
-    # Read in old events. Write all recent events. Filter to new events
-    OLD_EVENTS = pd.read_csv(config.outfile) 
-    catalog_df[["ID"]].to_csv(config.outfile, index=False)
-    new_events_df = catalog_df[~catalog_df["ID"].isin(OLD_EVENTS.ID)]
-    new_events_df = new_events_df.sort_values("Time")
+    # Read in old events. Filter to new events. Write out old and new events.
+    new_events_df = processing.update_event_list(
+        catalog_df, config.outfile, ["time", "id"], unique_id_col="id"
+    )
 
     # No new events to process
     if len(new_events_df) == 0:
@@ -74,8 +74,8 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
     logger.info(f"{len(new_events_df)} new events found. Looping through events...")
     for i, row in new_events_df.iterrows():
-        logger.info(f"Processing event {row.ID}")
-        evt_url = f"{os.getenv('FDSN_URL')}eventid={row.ID}"
+        logger.info(f"Processing event {row.id}")
+        evt_url = f"{os.getenv('FDSN_URL')}eventid={row.id}"
         subject, message, attachment, eq, volcs = process_event(evt_url, config)
 
         logger.info("Sending message...")
@@ -118,7 +118,6 @@ def process_event(evt_url, config):
     origin = eq.preferred_origin()
     volcs = pd.read_excel(config.volc_file)
     volcs = processing.volcano_distance(origin.longitude, origin.latitude, volcs)
-    volcs = volcs.sort_values('distance')
 
     try:
         filename = plot_event(eq, volcs, config)
@@ -138,26 +137,6 @@ def process_event(evt_url, config):
     subject, message = create_message(eq, volcs)
 
     return subject, message, filename, eq, volcs
-
-
-def add_volcano_distances(cat_df, config):
-
-    VOLCS = pd.read_excel(config.volc_file)
-    V_DIST = []
-
-    for _, eq in cat_df.iterrows():
-        volcs = processing.volcano_distance(eq.longitude, eq.latitude, VOLCS)
-        volcs = volcs.sort_values("distance")
-        V_DIST.append(volcs.iloc[0].distance)
-
-    cat_df.columns = cat_df.columns.str.capitalize()
-    cat_df.rename(columns={"Mag": "Magnitude",
-                            "Id": "ID"},
-                inplace=True)
-    cat_df["V_DIST"] = V_DIST
-    cat_df['Time'] = pd.to_datetime(cat_df['Time'])
-
-    return cat_df
 
 
 def create_message(eq, volcs):

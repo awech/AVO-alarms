@@ -25,33 +25,36 @@ logger = get_logger(__name__)
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
     ### get alerts from volcview api
-    A = downloading.download_lightning()
-    t_string = T0.strftime("%Y-%m-%d %H:%M")
+    tmp_t = T0 if test_flag else None
+    strokes_df = downloading.download_lightning(t=tmp_t)
+    T0_str = T0.strftime("%Y-%m-%d %H:%M")
 
-    if A is None:
+    if strokes_df is None:
         state = "WARNING"
-        state_message = f"{t_string} (UTC) Error getting data from Volcview-API"
+        state_message = f"{T0_str} (UTC) Error getting data from Volcview-API"
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 
 
     ignored_volcanoes = []
 
-    if len(A) > 0:
-        A["send_alert"] = False
-        A["nearestVnum"] = A["nearestVnum"].astype("int")
+
+    ## TODO clean this up and just use functions from processing.py
+    if len(strokes_df) > 0:
+        strokes_df["send_alert"] = False
+        strokes_df["nearestVnum"] = strokes_df["nearestVnum"].astype("int")
 
         # Limit strokes to those in AVO's file list
         VOLCS = pd.read_excel(config.volc_file)
-        A = A[A["nearestVnum"].isin(VOLCS.vnum.values)]
+        strokes_df = strokes_df[strokes_df["nearestVnum"].isin(VOLCS.vnum.values)]
 
         # Flag strokes at volcanoes where alert is desired
         VOLCS = VOLCS[VOLCS["Lightning"] == "Y"]
-        A.loc[
-            A.index[A["nearestVnum"].isin(VOLCS.vnum.values)].tolist(), "send_alert"
+        strokes_df.loc[
+            strokes_df.index[strokes_df["nearestVnum"].isin(VOLCS.vnum.values)].tolist(), "send_alert"
         ] = True
 
-        A_recent, A_new = get_new_strokes(A, T0, config)
+        A_recent, A_new = get_new_strokes(strokes_df, T0, config)
         volcanoes = A_new.volcanoName.unique()
 
     else:
@@ -61,7 +64,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     if len(volcanoes) == 0:
         logger.info("****** No lightning detected ******")
         state = "OK"
-        state_message = f"{t_string} (UTC) No new strokes detected"
+        state_message = f"{T0_str} (UTC) No new strokes detected"
         A_recent.to_csv(config.outfile, index=False)
 
     else:
@@ -77,7 +80,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
             if not V_new.iloc[0].send_alert:
                 logger.info(f"Ignoring {v} Lightning")
                 state = "WARNING"
-                state_message = f"{t_string} (UTC) New strokes at {v} (ignored)"
+                state_message = f"{T0_str} (UTC) New strokes at {v} (ignored)"
                 ignored_volcanoes.append(v)
                 continue
 
@@ -98,7 +101,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
             if len(A_new) == 0:
                 logger.info("********** OLD DETECTION **********")
                 state = "WARNING"
-                state_message = get_state_message(state, t_string, V_recent.iloc[0].volcanoName, n_ring1, n_ring2, config, len(A_new))
+                state_message = get_state_message(state, T0_str, V_recent.iloc[0].volcanoName, n_ring1, n_ring2, config, len(A_new))
                 A_recent.to_csv(config.outfile, index=False)
             else:
                 logger.info("********** NEW DETECTION **********")
@@ -107,11 +110,11 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
                 if V_recent.iloc[-1].latest_distance > config.dist1:
                     logger.info("...distal detection 1st.")
                     state = "WARNING"
-                    state_message = get_state_message(state, t_string, V_recent.iloc[0].volcanoName, n_ring1, n_ring2, config, len(A_new))
+                    state_message = get_state_message(state, T0_str, V_recent.iloc[0].volcanoName, n_ring1, n_ring2, config, len(A_new))
                 else:
                     logger.info('********** PROXIMAL DETECTION 1st **********')
                     state = "CRITICAL"
-                    state_message = get_state_message(state, t_string, V_recent.iloc[0].volcanoName, n_ring1, n_ring2, config, len(A_new))
+                    state_message = get_state_message(state, T0_str, V_recent.iloc[0].volcanoName, n_ring1, n_ring2, config, len(A_new))
 
                     ### Send Email Notification ####
                     logger.info("Crafting message...")
@@ -273,15 +276,15 @@ def inner_outer(X, config):
     return n_ring1, n_ring2
 
 
-def get_state_message(state, t_string, v_name, n_ring1, n_ring2, config, N_new):
+def get_state_message(state, T0_str, v_name, n_ring1, n_ring2, config, N_new):
     match state:
         case "WARNING":
             if N_new == 0:
-                state_message = f"{t_string} (UTC) {v_name} Lightning Detection!"
+                state_message = f"{T0_str} (UTC) {v_name} Lightning Detection!"
             else:
-                state_message = f"{t_string} (UTC) {v_name} Distal Lightning Detection!"
+                state_message = f"{T0_str} (UTC) {v_name} Distal Lightning Detection!"
         case "CRITICAL":
-            state_message = f"{t_string} (UTC) {v_name} Lightning Detection!"
+            state_message = f"{T0_str} (UTC) {v_name} Lightning Detection!"
             state_message = f"{state_message} {N_new} new strokes!"
 
     state_message = f"{state_message} {n_ring1} strokes < 20 km (20 km < {n_ring2} < 100 km)"

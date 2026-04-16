@@ -10,12 +10,14 @@ import numpy as np
 import pandas as pd
 import requests
 import urllib3
+from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from obspy import Catalog, Stream, Trace, UTCDateTime, read_inventory
 from obspy.clients.earthworm import Client as EW_Client
 from obspy.clients.fdsn import Client as FDSN_Client
 from obspy.geodetics import gps2dist_azimuth
 from obspy.io.quakeml.core import Unpickler
+from pandas.errors import EmptyDataError
 
 from .setup_utils import get_logger
 
@@ -38,6 +40,41 @@ def IRIS_client():
     return client
 
 
+def download_hypocenters(URL):
+    """_summary_
+
+    Returns
+    -------
+    _type_
+        _description_
+    """
+
+    urllib3.disable_warnings()
+
+    attempt = 1
+    while attempt <= 3:
+        try:
+            res = requests.get(URL, verify=False, timeout=10)
+            body = res.content
+            break
+        except Exception as e:
+            logger.warning(f"Attempt {attempt} failed: {e}")
+            time.sleep(2)
+            attempt += 1
+            body = None
+
+    if not body:
+        return None
+
+    try:
+        CAT = Unpickler().loads(body)
+    except Exception:
+        CAT = Catalog()
+        logger.warning("No events!")
+
+    return CAT
+
+
 def download_hypocenters_csv(URL):
     attempt = 1
     success = False
@@ -47,6 +84,9 @@ def download_hypocenters_csv(URL):
             body = requests.get(URL, verify=False).content
             catalog_df = pd.read_csv(io.StringIO(body.decode('utf-8')), parse_dates=["time"])
             # catalog_df["id"] = catalog_df.apply(lambda x: x.net.lower() + str(x.id), axis=1)
+            if len(catalog_df) > 0:
+                catalog_df["time"] = catalog_df.apply(lambda x: UTCDateTime(x.time).strftime("%Y-%m-%d %H:%M:%S.%f"), axis=1)
+                catalog_df["time"] = pd.to_datetime(catalog_df["time"])
             success = True
             break
         except Exception as e:
@@ -93,7 +133,6 @@ def download_hypocenter_xml(URL):
         logger.warning("No events!")
 
     return CAT
-
 
 
 def grab_data(scnl, T1, T2, fill_value=0):
@@ -225,39 +264,140 @@ def download_lightning():
     return A
 
 
-def download_hypocenters(URL):
-    """_summary_
-
-    Returns
-    -------
-    _type_
-        _description_
-    """
-
-    urllib3.disable_warnings()
-
+def download_cimss_vv_api():
     attempt = 1
-    while attempt <= 3:
+    max_tries = 3
+    while attempt <= max_tries:
         try:
-            res = requests.get(URL, verify=False, timeout=10)
-            body = res.content
+            usr = os.getenv("API_USERNAME")
+            pwd = os.getenv("API_PASSWORD")
+            url = os.getenv("NOAA_CIMSS_URL")
+            result = os.popen(
+                f"curl --connect-timeout 5 --max-time 20 -H 'username:{usr}' -H 'password:{pwd}' -X GET {url}"
+            ).read()
+            cimss_df = pd.read_json(result)
             break
         except Exception as e:
-            logger.warning(f"Attempt {attempt} failed: {e}")
+            logger.warning(f"Error getting data from Volcview-API on attempt {attempt:g}")
+            logger.warning(e)
             time.sleep(2)
             attempt += 1
-            body = None
+            cimss_df = None
+    return cimss_df
 
-    if not body:
-        return None
+
+def update_event_list(df, event_file, default_cols, unique_id_col="id"):
+
+    if not event_file.exists():
+        logger.warning(f"No event file found at {event_file}. Creating new file.")
+        blank_df = pd.DataFrame(columns=default_cols)
+        blank_df.to_csv(event_file, index=False)
+        logger.warning(f"Created {event_file.absolute()} with headers: {default_cols}")
 
     try:
-        CAT = Unpickler().loads(body)
-    except Exception:
-        CAT = Catalog()
-        logger.warning("No events!")
+        old_df = pd.read_csv(event_file)
+    except EmptyDataError:
+        logger.warning(f"Empty file found at {event_file}. Assigning headers with default columns.")
+        old_df = pd.DataFrame(columns=default_cols)
 
-    return CAT
+    new_events_df = df[~df[unique_id_col].isin(old_df[unique_id_col])]
+
+    if len(new_events_df) > 0:
+        logger.info(f"New events since last check:\n{new_events_df}")
+    else:
+        logger.info("No new events since last check.")
+
+    logger.info(f"Writing {len(df)} old and new events to {event_file}")
+    df.to_csv(event_file, columns=default_cols, index=False) # write old and new events to file
+
+    return new_events_df
+
+
+def get_recent_cimss_alerts(cimss_df, config, T0):
+
+    # update DataFrame with unique NOAA/CIMSS id
+    # Remove rows with empty alert_url and extract NOAA_id
+    cimss_df = cimss_df[cimss_df["alert_url"].notna() & (cimss_df["alert_url"] != "")]
+    cimss_df["NOAA_id"] = pd.to_numeric(
+        cimss_df["alert_url"].str.split("/").str[-1],
+        errors="coerce",
+        downcast="integer",
+    )
+    cimss_df = cimss_df[cimss_df["NOAA_id"].notna()]
+
+    cimss_df["time"] = pd.to_datetime(cimss_df["object_date_time"])
+
+
+    cimss_df = find_nearest_volcano(cimss_df, config, lon_col="lon_rc", lat_col="lat_rc")
+    cimss_df = cimss_df[
+        cimss_df["v_distance"] < getattr(config, "max_distance", 25)
+    ] # fiter dataframe to events < `max_distance` km from a volcano
+
+    cimss_df = cimss_df.loc[
+        cimss_df["time"] > (T0 - 3600 * 12).strftime("%Y-%m-%d %H:%M")
+    ]  # limit DataFrame to alerts in the past 12 hours
+
+    new_alerts_df = update_event_list(cimss_df, config.outfile, ["time", "NOAA_id", "vv_id"], unique_id_col="NOAA_id")
+
+    n = len(cimss_df) - len(new_alerts_df)
+    logger.info(f"{n} old and {len(new_alerts_df)} new NOAA CIMSS alerts.")
+
+    if len(new_alerts_df) > 0:
+        new_alerts_df.loc[:, "aid"] = np.nan
+        new_alerts_df = new_alerts_df.sort_values("time")
+
+    return new_alerts_df
+
+
+def scrape_cimss_alert(alert):
+
+    attempt = 1
+    max_tries = 3
+
+    while attempt <= max_tries:
+        try:
+            soup = BeautifulSoup(
+                requests.get(alert.alert_url, verify=False, timeout=10).content
+            )
+            redir = soup.select_one("#loginform-custom")["action"]
+
+            # This URL will be the URL that your login form points to with the "action" tag.
+            POST_LOGIN_URL = redir
+            # This URL is the page you actually want to pull down with requests.
+            REQUEST_URL = alert.alert_url
+
+            payload = {"log": os.environ["CIMSS_USERNAME"], "pwd": os.environ["CIMSS_PASSWORD"]}
+
+            with requests.Session() as session:
+                session.post(POST_LOGIN_URL, data=payload, verify=False, timeout=10)
+                r = session.get(REQUEST_URL, verify=False, timeout=10)
+                soup = BeautifulSoup(r.content)
+            session.close()
+            break
+        except Exception:
+            logger.warning(f"Error scraping NOAA CIMSS alert on attempt {attempt:g}")
+            if attempt == max_tries:
+                soup = None
+            attempt += 1
+
+    return soup
+
+
+def find_nearest_volcano(df, config, lon_col="longitude", lat_col="latitude"):
+
+    VOLCS = pd.read_excel(config.volc_file)
+    V_DIST = []
+    V_NAME = []
+
+    for _, row in df.iterrows():
+        volcs = volcano_distance(row[lon_col], row[lat_col], VOLCS)
+        V_DIST.append(volcs.iloc[0].distance)
+        V_NAME.append(volcs.iloc[0].Volcano)
+
+    df["v_distance"] = V_DIST
+    df["v_name"] = V_NAME
+
+    return df
 
 
 def volcano_distance(lon0, lat0, volcs):
@@ -283,6 +423,8 @@ def volcano_distance(lon0, lat0, volcs):
         dist, azimuth, az2 = gps2dist_azimuth(lat, lon, lat0, lon0)
         DIST = np.append(DIST, dist / 1000.0)
     volcs.loc[:, "distance"] = DIST
+
+    volcs = volcs.sort_values("distance")
 
     return volcs
 

@@ -1,8 +1,3 @@
-# Airwave alarm to be run on set of channels in small aperture infrasound array
-# Based on MATLAB code originally written by Matt Haney and John Lyons
-#
-# Wech 2017-06-08
-
 import os
 import time
 import traceback
@@ -33,7 +28,6 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     t2 = T0
     st = downloading.download_waveforms(SCNL["scnl"].tolist(), t1, t2, fill_value=0)
     st = add_coordinate_info(st, SCNL)
-    ########################
 
     #### check for enough data ####
     for tr in st:
@@ -45,7 +39,6 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         state = "WARNING"
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
-    ########################
 
     #### check for gappy data ####
     for tr in st:
@@ -58,7 +51,6 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         state = "WARNING"
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
-    ########################
 
     #### preprocess data ####
     st.detrend("demean")
@@ -69,10 +61,12 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
             tr.decimate(2)
         if tr.stats["sampling_rate"] != 50:
             tr.resample(50.0)
-    ########################
 
     #### check amplitude threshold ####
-    min_pa = np.array([v["min_pa"] for v in config.VOLCANO]).min()
+    if test_flag:
+        min_pa = 0
+    else:
+        min_pa = np.array([v["min_pa"] for v in config.VOLCANO]).min()
     st = Stream([tr for tr in st if np.any(np.abs(tr.data * config.digouti) > min_pa)])
     if len(st) < config.min_chan and not test_flag:
         state_message = f"{state_message} - not enough channels exceeding amplitude threshold!"
@@ -80,7 +74,6 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         state = "OK"
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
-    ########################
 
     #### Set up grid ####
     config = get_volcano_backazimuth(st, config)
@@ -92,55 +85,58 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     if counter == 0:
         state_message = f"{state_message} - alarm normal."
         state = "OK"
-    else:
-        #### some event detected...determine velocity and azimuth ####
-        velocity, azimuth, rms = inversion(
-            cmbm2n, cmbm2, intsd, ints_az, lags_inds1, lags_inds2, lags, mpk
-        )
-        d_Azimuth = azimuth - np.array([t["back_azimuth"] for t in config.VOLCANO])
-        az_tolerance = np.array([t["Azimuth_tolerance"] for t in config.VOLCANO])
-        #### check if this is airwave velocity from a volcano in config file list ####
-        if np.any(np.abs(d_Azimuth) < az_tolerance) or test_flag:
-            v_ind = np.argmin(np.abs(d_Azimuth))
-            mx_pressure = np.max(np.array([np.max(np.abs(tr.data)) for tr in st])) * config.digouti
-            if (
-                config.VOLCANO[v_ind]["vmin"] < velocity < config.VOLCANO[v_ind]["vmax"]
-                and mx_pressure > config.VOLCANO[v_ind]["min_pa"]
-            ) or test_flag:
-                #### DETECTION ####
-                volcano = config.VOLCANO[v_ind]
-                d_Azimuth = d_Azimuth[v_ind]
+        messaging.icinga(config, state, state_message, send=icinga_flag)
+        return
 
-                logger.info("Airwave Detection!!!")
-                state_message = f"{state_message} - {volcano['volcano']} detection! {mx_pressure:.1f} Pa peak pressure"
-                state = "CRITICAL"
+    #### some event detected...determine velocity and azimuth ####
+    velocity, azimuth, rms = inversion(
+        cmbm2n, cmbm2, intsd, ints_az, lags_inds1, lags_inds2, lags, mpk
+    )
+    d_Azimuth = azimuth - np.array([t["back_azimuth"] for t in config.VOLCANO])
+    az_tolerance = np.array([t["Azimuth_tolerance"] for t in config.VOLCANO])
+    #### check if this is airwave velocity from a volcano in config file list ####
+    if np.any(np.abs(d_Azimuth) < az_tolerance) or test_flag:
+        v_ind = np.argmin(np.abs(d_Azimuth))
+        mx_pressure = np.max(np.array([np.max(np.abs(tr.data)) for tr in st])) * config.digouti
+        if (
+            config.VOLCANO[v_ind]["vmin"] < velocity < config.VOLCANO[v_ind]["vmax"]
+            and mx_pressure > config.VOLCANO[v_ind]["min_pa"]
+        ) or test_flag:
+            #### DETECTION ####
+            volcano = config.VOLCANO[v_ind]
+            d_Azimuth = d_Azimuth[v_ind]
 
-            else:
-                logger.info("Non-volcano detect!!!")
-                state_message = f"{state_message} - Detection with wrong velocity ({velocity:.1f} km/s) or maximum pressure ({mx_pressure:.1f} Pa)"
-                state = "WARNING"
+            logger.info("Airwave Detection!!!")
+            state_message = f"{state_message} - {volcano['volcano']} detection! {mx_pressure:.1f} Pa peak pressure"
+            state = "CRITICAL"
+
         else:
-            #### trigger, but not from volcano ####
             logger.info("Non-volcano detect!!!")
-            state_message = f"{state_message} - Detection with wrong backazimuth ({azimuth:.0f} from N)"
+            state_message = f"{state_message} - Detection with wrong velocity ({velocity:.1f} km/s) or maximum pressure ({mx_pressure:.1f} Pa)"
             state = "WARNING"
+    else:
+        #### trigger, but not from volcano ####
+        logger.info("Non-volcano detect!!!")
+        state_message = f"{state_message} - Detection with wrong backazimuth ({azimuth:.0f} from N)"
+        state = "WARNING"
 
     if state == "CRITICAL":
-        ## TODO fix whatever you were doing here
-        #### Generate Figure ####
-        filename = make_figure(st, volcano, T0, config, mx_pressure, test=test_flag)
-        # try:
-        #     filename=make_figure(st,volcano,T0,config,mx_pressure)
-        # except:
-        #     filename=None
-        
-        ### Craft message text ####
+
+        try:
+            logger.info("generating figure")
+            filename = make_figure(st, volcano, T0, config, mx_pressure, test=test_flag)
+        except Exception as e:
+            logger.error("problem generating figure")
+            logger.error(e)
+            logger.error(traceback.format_exc())
+            filename=None
+
         subject, message = create_message(
             t1, t2, config, volcano, azimuth, d_Azimuth, velocity, mx_pressure
         )
 
-        ### Send message ###
         try:
+            logger.info("posting to mattermost")
             mm_url = messaging.post_mattermost(
                 config,
                 subject,
@@ -459,7 +455,7 @@ def make_figure(st, volcano, T0, config, mx_pressure, test=False):
 
     plt.subplots_adjust(left=0.08, right=0.94, top=0.92, bottom=0.1, hspace=0.1)
 
-    jpg_file = plotting.save_file(plt, config, test=test, dpi=250)
+    jpg_file = plotting.save_file(fig, config, test=test, dpi=250)
 
     return jpg_file
 

@@ -40,12 +40,37 @@ def compare_to_old_events(df, event_file, default_cols, unique_id_col="id"):
     else:
         logger.info("No new events since last check.")
 
-    logger.info(f"{old_events_df} old and {len(new_events_df)} new events")
+    logger.info(f"{len(old_events_df)} old and {len(new_events_df)} new events")
 
     return new_events_df, df
 
 
-def get_recent_cimss_alerts(cimss_df, config, T0):
+def check_ignore_volcano(cimss_df, config, alert_type=None):
+
+    volcs = pd.read_excel(config.volc_file, index_col="Volcano")
+    cimss_df["keep"] = True
+    if alert_type is None:
+        ALERT_TYPE = {"ash": "NOAA Ash", "hot": "NOAA Thermal", "ice": "NOAA Ice"}
+        for i, row in cimss_df.iterrows():
+            if volcs.loc[row.v_name, ALERT_TYPE[row.alert_type]] == "N":
+                cimss_df.loc[i, "keep"] = False
+    else:
+        for i, row in cimss_df.iterrows():
+            if volcs.loc[row.v_name, alert_type] == "N":
+                cimss_df.loc[i, "keep"] = False
+
+    return cimss_df
+
+
+def write_to_csv(df, config, columns):
+
+    logger.info(f"Writing {len(df)} events to {config.outfile}")
+    df.to_csv(config.outfile, columns=columns, index=False, date_format='%Y-%m-%d %H:%M:%S.%f')
+
+    return
+
+
+def format_cimss_dataframe(cimss_df, config, T0):
 
     # update DataFrame with unique NOAA/CIMSS id
     # Remove rows with empty alert_url and extract NOAA_id
@@ -59,29 +84,11 @@ def get_recent_cimss_alerts(cimss_df, config, T0):
 
     cimss_df["time"] = pd.to_datetime(cimss_df["object_date_time"])
 
+    if len(cimss_df) > 0:
+        cimss_df.loc[:, "aid"] = np.nan
+        cimss_df = cimss_df.sort_values("time")
 
-    cimss_df = find_nearest_volcano(cimss_df, config, lon_col="lon_rc", lat_col="lat_rc")
-    cimss_df = cimss_df[
-        cimss_df["v_distance"] < getattr(config, "max_distance", 25)
-    ] # fiter dataframe to events < `max_distance` km from a volcano
-
-    cimss_df = cimss_df.loc[
-        cimss_df["time"] > (T0 - 3600 * 12).strftime("%Y-%m-%d %H:%M")
-    ]  # limit DataFrame to alerts in the past 12 hours
-
-    new_alerts_df = compare_to_old_events(cimss_df, config.outfile, ["time", "NOAA_id", "vv_id"], unique_id_col="NOAA_id")
-
-    n = len(cimss_df) - len(new_alerts_df)
-    logger.info(f"{n} old and {len(new_alerts_df)} new NOAA CIMSS alerts.")
-
-    if len(new_alerts_df) > 0:
-        new_alerts_df.loc[:, "aid"] = np.nan
-        new_alerts_df = new_alerts_df.sort_values("time")
-
-    return new_alerts_df
-
-
-
+    return cimss_df
 
 
 def pirep_archive_to_dataframe(T0, config, archive):

@@ -22,6 +22,7 @@
 - [ ] implement a 'kill' switch - probably from config file
 
 ## :test_tube: Tests
+- [ ] sort out `test_flag` vs possible `force` flag
 - [ ] implement test flag
     - [ ] RSAM
     - [ ] Infrasound

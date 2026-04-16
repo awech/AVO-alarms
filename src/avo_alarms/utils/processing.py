@@ -2,13 +2,17 @@ import importlib
 import io
 import json
 import os
+import socket
 import time
+import zipfile
 from glob import glob
 from pathlib import Path
+from shutil import rmtree
 
 import numpy as np
 import pandas as pd
 import requests
+import shapefile
 import urllib3
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
@@ -22,6 +26,8 @@ from pandas.errors import EmptyDataError
 from .setup_utils import get_logger
 
 load_dotenv()
+urllib3.disable_warnings()
+socket.setdefaulttimeout(15)
 
 logger = get_logger(__name__)
 
@@ -286,7 +292,7 @@ def download_cimss_vv_api():
     return cimss_df
 
 
-def update_event_list(df, event_file, default_cols, unique_id_col="id"):
+def compare_to_old_events(df, event_file, default_cols, unique_id_col="id"):
 
     if not event_file.exists():
         logger.warning(f"No event file found at {event_file}. Creating new file.")
@@ -295,22 +301,21 @@ def update_event_list(df, event_file, default_cols, unique_id_col="id"):
         logger.warning(f"Created {event_file.absolute()} with headers: {default_cols}")
 
     try:
-        old_df = pd.read_csv(event_file)
+        old_events_df = pd.read_csv(event_file)
     except EmptyDataError:
         logger.warning(f"Empty file found at {event_file}. Assigning headers with default columns.")
-        old_df = pd.DataFrame(columns=default_cols)
+        old_events_df = pd.DataFrame(columns=default_cols)
 
-    new_events_df = df[~df[unique_id_col].isin(old_df[unique_id_col])]
+    new_events_df = df[~df[unique_id_col].isin(old_events_df[unique_id_col])]
 
     if len(new_events_df) > 0:
         logger.info(f"New events since last check:\n{new_events_df}")
     else:
         logger.info("No new events since last check.")
 
-    logger.info(f"Writing {len(df)} old and new events to {event_file}")
-    df.to_csv(event_file, columns=default_cols, index=False) # write old and new events to file
+    logger.info(f"{old_events_df} old and {len(new_events_df)} new events")
 
-    return new_events_df
+    return new_events_df, df
 
 
 def get_recent_cimss_alerts(cimss_df, config, T0):
@@ -381,6 +386,156 @@ def scrape_cimss_alert(alert):
             attempt += 1
 
     return soup
+
+
+def download_pilot_reports(T0, config):
+
+    volcs = pd.read_excel(config.volc_file)
+    volcs = volcs[volcs["PIREP"] == "Y"]
+
+    T2 = T0
+    T1 = T2 - config.duration
+    t1 = "&year1={}&month1={}&day1={}&hour1={}&minute1={}".format(
+        T1.strftime("%Y"),
+        T1.strftime("%m"),
+        T1.strftime("%d"),
+        T1.strftime("%H"),
+        T1.strftime("%M"),
+    )
+    t2 = "&year2={}&month2={}&day2={}&hour2={}&minute2={}".format(
+        T2.strftime("%Y"),
+        T2.strftime("%m"),
+        T2.strftime("%d"),
+        T2.strftime("%H"),
+        T2.strftime("%M"),
+    )
+    pirep_url = f"{os.getenv('PIREP_URL')}?fmt=shp{t1}{t2}"
+
+    state = "OK"
+    archive = None
+    try:
+        with open(config.zipfilename, "wb") as f:
+            resp = requests.get(pirep_url, verify=False, timeout=10)
+            f.write(resp.content)
+    except Exception:
+        logger.error("Request error from PIREP API")
+        state = "WARNING"
+        return state, archive
+
+    if zipfile.is_zipfile(config.zipfilename):
+        archive = zipfile.ZipFile(config.zipfilename, "r")
+        logger.info("New pilot reports from API call")
+    else:
+        logger.info("No new pilot reports from API call")
+
+    os.remove(config.zipfilename)
+
+    return state, archive
+
+
+def pirep_archive_to_dataframe(T0, config, archive):
+
+    T2 = T0
+    T1 = T2 - config.duration
+
+    archive.extractall(path=config.tmp_zipped_dir)
+    T1_str = T1.strftime('%Y%m%d%H%M')
+    T2_str = T2.strftime('%Y%m%d%H%M')
+    shp_path = config.tmp_zipped_dir / f"pireps_{T1_str}_{T2_str}"
+
+    # read file, parse out the records
+    sf = shapefile.Reader(shp_path)
+    fields = [x[0] for x in sf.fields][1:]
+    records = sf.records()
+
+    # convert to a DataFrame
+    pirep_df = pd.DataFrame(columns=fields, data=records)
+    pirep_df['VALID'] = pd.to_datetime(pirep_df['VALID'])
+    pirep_df = pirep_df[pirep_df.LAT>49]
+    pirep_df["time"] = pd.to_datetime(pirep_df["VALID"])
+    pirep_df["lat"] = pirep_df["LAT"]
+    pirep_df["lon"] = pirep_df["LON"]
+
+    # delete duplicate events with different text versions in the 'REPORT' field'
+    A = pirep_df.copy()
+    del A['REPORT']
+    A.drop_duplicates(inplace=True)
+    pirep_df = pirep_df.loc[A.index]
+    pirep_df.reset_index(drop=True, inplace=True)
+
+    rmtree(config.tmp_zipped_dir)
+
+    return pirep_df
+
+
+
+    # new_pireps_df = update_event_list(
+    #     pirep_df,
+    #     config.outfile,
+    #     ["time", "lat", "lon", "PROD_ID"],
+    #     unique_id_col="PROD_ID",
+    # )
+
+    # n = len(pirep_df) - len(new_pireps_df)
+    # logger.info(f"{n} old and {len(new_pireps_df)} new PIREP alerts.")
+
+    # if len(new_pireps_df) > 0:
+    #     new_pireps_df.loc[:, "aid"] = np.nan
+    #     new_pireps_df = new_pireps_df.sort_values("time")
+
+
+    # return new_pireps_df
+
+
+def check_volcano_mention(df):
+    df["trigger"] = False
+    for i, row in df.iterrows():
+        report = row["REPORT"].upper()
+        tmp_report = report.replace("VAR", "")
+        tmp_report = tmp_report.replace("VAL", "")
+        tmp_report = tmp_report.replace("VAT", "")
+        tmp_report = tmp_report.replace("NEVA", "")
+        tmp_report = tmp_report.replace("AVAIL", "")
+        tmp_report = tmp_report.replace("SVA", "")
+        tmp_report = tmp_report.replace("PREVAIL", "")
+        tmp_report = tmp_report.replace("VASI", "")
+        tmp_report = tmp_report.replace("TOLOVANA", "")
+        tmp_report = tmp_report.replace("GAVANSKI", "")
+        tmp_report = tmp_report.replace("CORDOVA", "")
+        tmp_report = tmp_report.replace("ADVANC", "")
+        tmp_report = tmp_report.replace("INVAD", "")
+        tmp_report = tmp_report.replace("VACINITY", "")
+        tmp_report = tmp_report.replace("SULLIVAN", "")
+        tmp_report = tmp_report.replace("BELIEVABLE", "")
+        tmp_report = tmp_report.replace("DURD VA RWY", "")
+        if (
+            len(tmp_report.split("/SK")) > 1
+            and "VA" in tmp_report.split("/SK")[-1].split("/")[0]
+        ):
+            df.loc[i, "trigger"] = True
+        elif (
+            len(tmp_report.split("/RM")) > 1
+            and "VA" in tmp_report.split("/RM")[-1].split("/")[0]
+        ):
+            df.loc[i, "trigger"] = True
+
+        trigger_words = [
+            " ASH",
+            "/ASH",
+            "VOLC",
+            "SULFUR",
+            "SULPHUR",
+            "PLUME",
+            "ERUPT",
+            "STEAM",
+            "MAGMA",
+            "PYROCLASTIC",
+        ]
+
+        if any(t_word in report for t_word in trigger_words):
+            df.loc[i, "trigger"] = True
+
+    return df
 
 
 def find_nearest_volcano(df, config, lon_col="longitude", lat_col="latitude"):

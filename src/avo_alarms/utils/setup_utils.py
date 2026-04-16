@@ -49,6 +49,9 @@ class StderrToLogger(io.TextIOBase):
         return False
 
 
+# TODO consider adding function that reads config and .env and sets all defaults
+
+
 def load_config(config_name):
     """
     Load logging configuration from environment variables.

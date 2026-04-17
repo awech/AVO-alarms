@@ -2,12 +2,10 @@ import os
 import re
 import traceback
 import warnings
-from pathlib import Path
 
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 from obspy import UTCDateTime as utc
 from obspy.geodetics.base import gps2dist_azimuth
 

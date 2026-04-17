@@ -1,1 +1,1 @@
-ID	Time	Latitude	Longitude	VOLCANO
+id,time,latitude,longitude,v_name

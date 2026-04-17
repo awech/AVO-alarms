@@ -11,8 +11,8 @@ from obspy.clients.fdsn import Client as FDSN_Client
 from obspy.geodetics import gps2dist_azimuth
 from pandas.errors import EmptyDataError
 
-from .setup_utils import get_logger
-from .downloading import IRIS_client
+from avo_alarms.utils.setup_utils import get_logger
+from avo_alarms.utils.downloading import IRIS_client
 
 load_dotenv()
 
@@ -501,3 +501,66 @@ def RSAM_to_DR(tr, volcano_name, VELOCITY=1.5, FREQ=2, Q=200):
     DR = rmssta * np.sqrt(r * wavelength)       # converted to reduced displacement
 
     return DR
+
+
+def check_inventory(tr, inv):
+    """
+    Check if a trace exists in the inventory.
+
+    Args:
+        tr (Trace): ObsPy Trace object.
+        inv (Inventory): ObsPy Inventory object.
+
+    Returns:
+        bool: True if the trace exists in the inventory, False otherwise.
+    """
+    
+    inv_test = inv.select(
+        network=tr.stats.network,
+        station=tr.stats.station,
+        location=tr.stats.location,
+        channel=tr.stats.channel,
+        starttime=tr.stats.starttime,
+        endtime=tr.stats.starttime,
+    )
+    value = True if len(inv_test) > 0 else False
+    return value
+
+
+def add_metadata(st):
+    """
+    Add metadata to traces in a stream.
+
+    Args:
+        st (Stream): ObsPy Stream object.
+        config (dict): Configuration dictionary.
+
+    Returns:
+        Stream: Stream with updated metadata.
+    """
+
+    ## TODO fix hard-coded path here
+    xml_file = Path(os.environ["HOME_DIR"]) / "alarm_aux_files" / "stations.xml"
+
+    if not xml_file.exists():
+        logger.error("Station XML file missing")
+        return
+    
+    inventory = read_inventory(xml_file)
+
+    for tr in st:
+        logger.info(f"Getting metadata for {tr.id}")
+
+        # if check_inventory(tr, inventory):
+        inv = inventory.select(
+            network=tr.stats.network,
+            station=tr.stats.station,
+            location=tr.stats.location,
+            channel=tr.stats.channel,
+            starttime=tr.stats.starttime,
+            endtime=tr.stats.endtime,
+        )
+        tr.stats.coordinates = inv.get_coordinates(tr.id, tr.stats.starttime)
+        tr.inventory = inv
+
+    return st

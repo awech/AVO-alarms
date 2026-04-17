@@ -317,7 +317,6 @@ def eq_picks_to_dataframe(eq):
 
     NS = []
     NSLC = []
-    SCNL = []
     LATS = []
     LONS = []
     DIST = []
@@ -334,7 +333,6 @@ def eq_picks_to_dataframe(eq):
             # NSLC.append(wid.id.replace('..','.--.'))
             NS.append(ns)
             NSLC.append(wid.id)
-            SCNL.append(".".join([sta, chan, net, loc]))
             LATS.append(inventory[0][0].latitude)
             LONS.append(inventory[0][0].longitude)
     for i, nslc in enumerate(NSLC):
@@ -353,7 +351,6 @@ def eq_picks_to_dataframe(eq):
         {
             "NS": NS,
             "NSLC": NSLC,
-            "SCNL": SCNL,
             "Latitude": LATS,
             "Longitude": LONS,
             "Distance": DIST,
@@ -396,10 +393,10 @@ def Dr_to_RSAM(config, DR, volcano_name, base=25):
     T0 = UTCDateTime.utcnow()
     VOLCS = load_volcano_list()
     volcs = VOLCS[VOLCS["Volcano"] == volcano_name].copy()
-    SCNL = pd.DataFrame.from_dict(config.SCNL)
+    NSLC = pd.DataFrame.from_dict(config.NSLC)
 
-    for scnl in SCNL.scnl:
-        sta, chan, net, loc = scnl.split(".")
+    for nslc in NSLC.nslc:
+        net, sta, loc, chan = nslc.split(".")
         inventory = client.get_stations(
             network=net,
             station=sta,
@@ -410,10 +407,9 @@ def Dr_to_RSAM(config, DR, volcano_name, base=25):
             level="response",
         )
 
-        tr_id = ".".join((net, sta, loc, chan)).replace("--", "")
-        coords = inventory.get_coordinates(tr_id)
+        coords = inventory.get_coordinates(nslc)
         gain = inventory.get_response(
-            tr_id, T0
+            nslc, T0
         ).instrument_sensitivity.value  # counts/m/s
 
         volcs = volcano_distance(coords["longitude"], coords["latitude"], volcs)
@@ -439,7 +435,7 @@ def Dr_to_RSAM(config, DR, volcano_name, base=25):
 
         lvl = base * np.round(lvl / base)
 
-        logger.info("{}: {:g}".format(scnl, lvl))
+        logger.info("{}: {:g}".format(nslc, lvl))
 
     return
 

@@ -23,11 +23,11 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     state_message=f'{T0.strftime("%Y-%m-%d %H:%M")} (UTC) {config.alarm_name}'
 
     #### download data ####
-    SCNL = DataFrame.from_dict(config.SCNL)
+    NSLC = DataFrame.from_dict(config.NSLC)
     t1 = T0 - config.duration
     t2 = T0
-    st = downloading.download_waveforms(SCNL["scnl"].tolist(), t1, t2, fill_value=0)
-    st = add_coordinate_info(st, SCNL)
+    st = downloading.download_waveforms(NSLC["nslc"].tolist(), t1, t2, fill_value=0)
+    st = add_coordinate_info(st, NSLC)
 
     #### check for enough data ####
     for tr in st:
@@ -163,16 +163,14 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     messaging.icinga(config, state, state_message, send=icinga_flag)
 
 
-def add_coordinate_info(st, SCNL):
+def add_coordinate_info(st, nslc_df):
     #### compare remaining stations with lat/lon station info in config file
     #### to attach lat/lon info with each corresponding trace
     for tr in st:
-        if tr.stats.location == "":
-            tr.stats.location = "--"
-
-        scnl = f"{tr.stats.station}.{tr.stats.channel}.{tr.stats.network}.{tr.stats.location}"
-        tmp_lat = SCNL[SCNL["scnl"] == scnl].sta_lat.values[0]
-        tmp_lon = SCNL[SCNL["scnl"] == scnl].sta_lon.values[0]
+        # Construct NSLC string: Network.Station.Location.Channel
+        nslc = f"{tr.stats.network}.{tr.stats.station}.{tr.stats.location}.{tr.stats.channel}"
+        tmp_lat = nslc_df[nslc_df["nslc"] == nslc].sta_lat.values[0]
+        tmp_lon = nslc_df[nslc_df["nslc"] == nslc].sta_lon.values[0]
         tr.stats.coordinates = {
             "latitude": tmp_lat,
             "longitude": tmp_lon,
@@ -373,11 +371,12 @@ def make_figure(st, volcano, T0, config, mx_pressure, test=False):
     
     ##### get seismic data #####
     t_seis_win = config.seismic_plot_duration if hasattr(config, "seismic_plot_duration") else 3600
-    seis = downloading.download_waveforms(volcano["seismic_scnl"], T0 - t_seis_win, T0, fill_value="interpolate")
+    seis = downloading.download_waveforms(volcano["seismic_nslc"], T0 - t_seis_win, T0, fill_value="interpolate")
     ##### get infrasound data #####
-    infra_scnl = ['{}.{}.{}.{}'.format(tr.stats.station,tr.stats.channel,tr.stats.network,tr.stats.location) for tr in st]
+    # Construct NSLC list from stream traces: Network.Station.Location.Channel
+    infra_nslc = ['{}.{}.{}.{}'.format(tr.stats.network,tr.stats.station,tr.stats.location,tr.stats.channel) for tr in st]
     t_infra_win = config.infrasound_plot_duration if hasattr(config, "infrasound_plot_duration") else 600
-    infra = downloading.download_waveforms(infra_scnl, T0 - t_infra_win, T0, fill_value="interpolate")
+    infra = downloading.download_waveforms(infra_nslc, T0 - t_infra_win, T0, fill_value="interpolate")
 
     logger.info(f"{time.time() - start:.2f} seconds to grab figure data.")
 
@@ -476,8 +475,8 @@ def create_message(t1, t2, config, volcano, azimuth, d_Azimuth, velocity, mx_pre
     if "traveltime" in volcano:
         calc_tt = volcano["traveltime"]
     if ("v_lat" in volcano) & calc_tt:
-        lat0 = np.mean([scnl["sta_lat"] for scnl in config.SCNL])
-        lon0 = np.mean([scnl["sta_lon"] for scnl in config.SCNL])
+        lat0 = np.mean([nslc_entry["sta_lat"] for nslc_entry in config.NSLC])
+        lon0 = np.mean([nslc_entry["sta_lon"] for nslc_entry in config.NSLC])
         travel_time = UTCDateTime(
             gps2dist_azimuth(lat0, lon0, volcano["v_lat"], volcano["v_lon"])[0] / 333
         )

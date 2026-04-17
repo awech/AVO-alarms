@@ -26,11 +26,10 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     CAT = CAT[CAT["time"] > (T0 - config.duration).strftime("%Y%m%d %H%M%S.%f")]
 
     ######### download data #########
-    ## TODO change to NSLC
-    SCNL = DataFrame.from_dict(config.SCNL)
+    NSLC = DataFrame.from_dict(config.NSLC)
     t1 = T0 - 1.5 * config.window_length - config.taper
     t2 = T0 + config.taper
-    st = downloading.download_waveforms(SCNL["scnl"].tolist(), t1, t2, fill_value=0)
+    st = downloading.download_waveforms(NSLC["nslc"].tolist(), t1, t2, fill_value=0)
     st = processing.add_metadata(st)
     
     ##### check for enough data #####
@@ -168,7 +167,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
             #### Generate Figure ####
             try:
                 logger.info("Making figure")
-                filename = RSAM.make_figure(SCNL["scnl"].tolist(), T0, config)
+                filename = RSAM.make_figure(NSLC["nslc"].tolist(), T0, config)
             except Exception:
                 logger.error("Figure failed. Continue...")
                 filename = []

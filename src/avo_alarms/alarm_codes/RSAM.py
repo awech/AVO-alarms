@@ -20,14 +20,14 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     if test_flag:
         config.min_sta = 0
 
-    SCNL = DataFrame.from_dict(config.SCNL)
-    lvlv = np.array(SCNL["value"])
-    scnl = SCNL["scnl"].tolist()
-    stas = [sta.split(".")[0] for sta in scnl]
+    NSLC = DataFrame.from_dict(config.NSLC)
+    lvlv = np.array(NSLC["value"])
+    nslc = NSLC["nslc"].tolist()
+    stas = [sta.split(".")[1] for sta in nslc]
 
     t1 = T0 - config.duration
     t2 = T0
-    st = downloading.download_waveforms(scnl, t1, t2, fill_value=0)
+    st = downloading.download_waveforms(nslc, t1, t2, fill_value=0)
 
     #### preprocess data ####
     st.detrend("demean")
@@ -90,9 +90,9 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         state = "OK"
 
     if state == "CRITICAL":
-        logger.info("Generating figure")
+        logger.info("Generating")
         try:
-            filename = make_figure(scnl, T0, config, test=test_flag)
+            filename = make_figure(nslc, T0, config, test=test_flag)
         except Exception as e:
             logger.error("Problem making figure for RSAM alarm")
             logger.error(e)
@@ -149,12 +149,12 @@ def create_message(t1, t2, stations, rms, lvlv, DR, alarm_name):
     return subject, message
 
 
-def make_figure(scnl, T0, config, test=False):
+def make_figure(nslc, T0, config, test=False):
 
     #### grab data ####
     start = time.time()
     t_win = config.plot_duration if hasattr(config, "plot_duration") else 3600
-    st = downloading.download_waveforms(scnl, T0 - t_win, T0, fill_value="interpolate")
+    st = downloading.download_waveforms(nslc, T0 - t_win, T0, fill_value="interpolate")
     logger.info(f"{time.time() - start:.2f} seconds to grab figure data.")
 
     #### preprocess data ####

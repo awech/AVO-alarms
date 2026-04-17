@@ -391,7 +391,6 @@ def get_swarm_stations(swarm, CAT):
 
     if flag:
         NSLC = []
-        SCNL = []
         LATS = []
         LONS = []
         NS = []
@@ -410,10 +409,9 @@ def get_swarm_stations(swarm, CAT):
                                                     channel=chan)
                     NS.append(ns)
                     NSLC.append(wid.id)
-                    SCNL.append('.'.join([sta, chan, net, loc]))
                     LATS.append(inventory[0][0].latitude)
                     LONS.append(inventory[0][0].longitude)
-                    STAS = pd.DataFrame({'NS':NS, 'NSLC':NSLC, 'SCNL':SCNL, 'Latitude':LATS, 'Longitude':LONS})
+                    STAS = pd.DataFrame({'NS':NS, 'NSLC':NSLC, 'Latitude':LATS, 'Longitude':LONS})
     for ns in NS:
         STAS.loc[STAS['NS']==ns, 'count'] = int(len(np.where(np.array(NS_COUNT)==ns)[0]))
 

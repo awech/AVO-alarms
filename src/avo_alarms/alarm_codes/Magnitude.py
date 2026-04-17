@@ -183,7 +183,7 @@ def plot_event(eq, volcs, config, n_stations=8, test=False):
     plot_chans = channels[:n_stations]
     origin = eq.preferred_origin()
     st = downloading.download_waveforms(
-        list(plot_chans.SCNL.values), origin.time - 20, origin.time + 50
+        list(plot_chans.NSLC.values), origin.time - 20, origin.time + 50
     )
 
     logger.info("Plotting traces...")

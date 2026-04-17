@@ -137,12 +137,12 @@ def download_hypocenter_xml(URL):
     return CAT
 
 
-def download_waveforms(scnl, T1, T2, fill_value=0):
+def download_waveforms(nslc_list, T1, T2, fill_value=0):
     """_summary_
 
     Parameters
     ----------
-    scnl : _type_
+    nslc_list : _type_
         _description_
     T1 : _type_
         _description_
@@ -156,7 +156,7 @@ def download_waveforms(scnl, T1, T2, fill_value=0):
     _type_
         _description_
     """
-    # scnl = list of station names (eg. ['PS4A.EHZ.AV.--','PVV.EHZ.AV.--','PS1A.EHZ.AV.--'])
+    # nslc_list = list of station names in NSLC format (eg. ['AV.PS4A..BHZ','AV.PVV..BHZ','AV.PS1A..BHZ'])
     # T1 and T2 are start/end obspy UTCDateTimes
     # fill_value can be 0 (default), 'latest', or 'interpolate'
     #
@@ -170,14 +170,17 @@ def download_waveforms(scnl, T1, T2, fill_value=0):
     st = Stream()
 
     t_test1 = UTCDateTime.now()
-    for sta in scnl:
+    for nslc in nslc_list:
+        # NSLC format: Network.Station.Location.Channel
+        net, sta, loc, chan = nslc.split(".")
+        
         # TODO set up some default client. Maybe from .env? 
         client = EW_Client(
             os.environ["WINSTON_HOST"],
             int(os.environ["WINSTON_PORT"]),
             timeout=int(os.environ["TIMEOUT"]),
         )
-        if sta.split(".")[2] in ["HV", "AM"]:
+        if net in ["HV", "AM"]:
             client = EW_Client(
                 os.environ["NEIC_HOST"],
                 int(os.environ["NEIC_PORT"]),
@@ -186,16 +189,16 @@ def download_waveforms(scnl, T1, T2, fill_value=0):
 
         try:
             tr = client.get_waveforms(
-                sta.split(".")[2],
-                sta.split(".")[0],
-                sta.split(".")[3],
-                sta.split(".")[1],
+                net,
+                sta,
+                loc,
+                chan,
                 T1,
                 T2,
                 cleanup=True,
             )
             if len(tr) > 1:
-                logger.info("{:.0f} traces for {}".format(len(tr), sta))
+                logger.info("{:.0f} traces for {}".format(len(tr), nslc))
                 if fill_value == 0 or fill_value is None:
                     tr.detrend("demean")
                     tr.taper(max_percentage=0.01)
@@ -221,11 +224,7 @@ def download_waveforms(scnl, T1, T2, fill_value=0):
         if not tr:
             logger.warning(f"No data for {sta}. Filling with zeros")
             tr = Trace()
-            tr.stats["station"] = sta.split(".")[0]
-            tr.stats["channel"] = sta.split(".")[1]
-            tr.stats["network"] = sta.split(".")[2]
-            ## TODO deal with -- location codes
-            tr.stats["location"] = sta.split(".")[3].replace("--", "")
+            tr.id = nslc
             tr.stats["sampling_rate"] = 100
             tr.stats["starttime"] = T1
             tr.data = np.zeros(
@@ -428,7 +427,7 @@ def download_station_xml():
     files += list(Path(os.environ["CONFIGS_DIR"]).glob("*Tremor*.py", case_sensitive=False))
     files += list(Path(os.environ["CONFIGS_DIR"]).glob("*Infrasound*.py", case_sensitive=False))
 
-    SCNL = []
+    NSLC = []
 
     for file_path in files:
         file_name = Path(file_path).stem  # Get filename without extension
@@ -436,19 +435,19 @@ def download_station_xml():
         config = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(config)
         logger.info(config)
-        for scnl in config.SCNL:
-            SCNL.append(scnl["scnl"])
-    SCNL = np.array(SCNL)
-    SCNL = np.unique(SCNL)
+        for nslc_dict in config.NSLC:
+            NSLC.append(nslc_dict["nslc"])
+    NSLC = np.array(NSLC)
+    NSLC = np.unique(NSLC)
 
     logger.info("______ Begin Updating Metadata ______")
-    for scnl in SCNL:
-        logger.info(scnl)
-        sta, chan, net, loc = scnl.split(".")
+    for nslc in NSLC:
+        logger.info(nslc)
+        net, sta, loc, chan = nslc.split(".")
         if "inventory" not in locals():
             inventory = client.get_stations(
-                station=sta,
                 network=net,
+                station=sta,
                 channel=chan,
                 location=loc,
                 level="response",
@@ -456,8 +455,8 @@ def download_station_xml():
             )
         else:
             inventory += client.get_stations(
-                station=sta,
                 network=net,
+                station=sta,
                 channel=chan,
                 location=loc,
                 level="response",

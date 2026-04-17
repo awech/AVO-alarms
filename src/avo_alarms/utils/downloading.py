@@ -279,13 +279,15 @@ def download_lightning(t=None, dt=60):
 
 
 def download_cimss_vv_api():
+
+    usr = os.getenv("API_USERNAME")
+    pwd = os.getenv("API_PASSWORD")
+    url = os.getenv("NOAA_CIMSS_URL")
+
     attempt = 1
     max_tries = 3
     while attempt <= max_tries:
         try:
-            usr = os.getenv("API_USERNAME")
-            pwd = os.getenv("API_PASSWORD")
-            url = os.getenv("NOAA_CIMSS_URL")
             result = os.popen(
                 f"curl --connect-timeout 5 --max-time 20 -H 'username:{usr}' -H 'password:{pwd}' -X GET {url}"
             ).read()

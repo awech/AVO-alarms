@@ -19,7 +19,7 @@ from obspy.clients.fdsn import Client
 from sklearn.cluster import DBSCAN
 
 from avo_alarms.utils import downloading, messaging, plotting, processing
-from avo_alarms.utils.setup_utils import get_logger
+from avo_alarms.utils.setup_utils import get_logger, load_volcano_list
 
 logger = get_logger(__name__)
 
@@ -68,7 +68,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     logger.info("Filtering out regional VTs")
     ## TODO catalog.volc_file is used enough it should just be in .env
     catalog_df = processing.find_nearest_volcano(catalog_df, config)
-    # VOLCS = pd.read_excel(config.volc_file)
+    # VOLCS = load_volcano_list()
     # VOLCS = VOLCS[VOLCS['Holocene']=='Y']
     # CAT_DF = catalog_to_dataframe(CAT, VOLCS)
     catalog_df = catalog_df[catalog_df["v_distance"] < config.VOLCANO_DISTANCE]

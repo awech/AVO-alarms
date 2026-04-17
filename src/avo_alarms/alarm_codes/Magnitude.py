@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 from avo_alarms.utils import messaging, plotting, processing, downloading
-from avo_alarms.utils.setup_utils import get_logger
+from avo_alarms.utils.setup_utils import get_logger, load_volcano_list
 
 logger = get_logger(__name__)
 
@@ -117,7 +117,7 @@ def process_event(evt_url, config, test=False):
     # Find nearby volcanoes
     eq = cat[0]
     origin = eq.preferred_origin()
-    volcs = pd.read_excel(config.volc_file)
+    volcs = load_volcano_list()
     volcs = processing.volcano_distance(origin.longitude, origin.latitude, volcs)
 
     try:

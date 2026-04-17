@@ -16,7 +16,7 @@ from obspy import UTCDateTime as utc
 from obspy.geodetics.base import gps2dist_azimuth
 
 from avo_alarms.utils import messaging, plotting, processing, downloading
-from avo_alarms.utils.setup_utils import get_logger
+from avo_alarms.utils.setup_utils import get_logger, load_volcano_list
 
 warnings.filterwarnings("ignore")
 logger = get_logger(__name__)
@@ -45,7 +45,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         strokes_df["nearestVnum"] = strokes_df["nearestVnum"].astype("int")
 
         # Limit strokes to those in AVO's file list
-        VOLCS = pd.read_excel(config.volc_file)
+        VOLCS = load_volcano_list()
         strokes_df = strokes_df[strokes_df["nearestVnum"].isin(VOLCS.vnum.values)]
 
         # Flag strokes at volcanoes where alert is desired

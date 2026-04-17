@@ -16,7 +16,7 @@ from matplotlib.dates import date2num, num2date
 from matplotlib.path import Path as mpath
 from matplotlib.colors import LinearSegmentedColormap
 from obspy import UTCDateTime as utc
-from .setup_utils import get_logger
+from .setup_utils import get_logger, load_volcano_list
 from . import processing
 
 logger = get_logger(__name__)
@@ -291,7 +291,7 @@ def make_map(
 def add_volcanoes_to_map(ax, extent, config, c1="forestgreen", c2="darkseagreen", s1=25, s2=20, ec1="k", ec2="k", **kwargs):
 
     # add volcanoes
-    volcs = pd.read_excel(config.volc_file)
+    volcs = load_volcano_list()
     volcs = volcs[
         (volcs.Latitude >= extent[2]) & (volcs.Latitude <= extent[3]) & (volcs.Longitude >= extent[0]) & (volcs.Longitude <= extent[1])
     ]

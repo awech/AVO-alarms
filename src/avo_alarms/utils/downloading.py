@@ -19,7 +19,7 @@ from obspy.clients.earthworm import Client as EW_Client
 from obspy.clients.fdsn import Client as FDSN_Client
 from obspy.io.quakeml.core import Unpickler
 
-from .setup_utils import get_logger
+from .setup_utils import get_logger, load_volcano_list
 
 load_dotenv()
 urllib3.disable_warnings()
@@ -304,7 +304,7 @@ def download_cimss_vv_api():
 
 def download_pilot_reports(T0, config):
 
-    volcs = pd.read_excel(config.volc_file)
+    volcs = load_volcano_list()
     volcs = volcs[volcs["PIREP"] == "Y"]
 
     T2 = T0

@@ -18,6 +18,7 @@ import sys
 import time
 from pathlib import Path
 
+import pandas as pd
 from obspy import UTCDateTime as utc
 
 
@@ -112,6 +113,79 @@ def load_config(config_name):
             continue
     
     return config
+
+
+def load_volcano_list(volcano_file=None):
+    """
+    Load volcano list from file, supporting .xlsx, .csv, or .txt formats.
+    
+    Requires the following columns: "Volcano", "Latitude", "Longitude".
+    Additional columns are preserved if present.
+
+    Parameters
+    ----------
+    volcano_file : str, Path, or None
+        Path to the volcano list file (.xlsx, .csv, or .txt). If None (default),
+        loads from VOLCANO_LIST environment variable.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with required columns: Volcano, Latitude, Longitude
+        
+    Raises
+    ------
+    ValueError
+        If file format is not supported or required columns are missing
+    """
+    if volcano_file is None:
+        volcano_file = os.environ.get("VOLCANO_LIST")
+        if volcano_file is None:
+            raise ValueError(
+                "VOLCANO_LIST environment variable not set and no volcano_file provided"
+            )
+    
+    volcano_file = Path(volcano_file)
+    
+    required_columns = {"Volcano", "Latitude", "Longitude"}
+    
+    if volcano_file.suffix.lower() == ".xlsx":
+        df = pd.read_excel(volcano_file)
+    elif volcano_file.suffix.lower() == ".csv":
+        df = pd.read_csv(volcano_file)
+    elif volcano_file.suffix.lower() == ".txt":
+        # Try to infer delimiter for .txt files
+        df = pd.read_csv(volcano_file, sep=None, engine="python")
+    else:
+        raise ValueError(
+            f"Unsupported file format: {volcano_file.suffix}. "
+            "Must be .xlsx, .csv, or .txt"
+        )
+    
+    # Check for required columns (case-insensitive)
+    df_cols_lower = {col.lower(): col for col in df.columns}
+    missing_cols = []
+    
+    for req_col in required_columns:
+        if req_col.lower() not in df_cols_lower:
+            missing_cols.append(req_col)
+    
+    if missing_cols:
+        raise ValueError(
+            f"Missing required columns: {missing_cols}. "
+            f"File has columns: {list(df.columns)}"
+        )
+    
+    # Rename columns to match expected case (preserve other columns as-is)
+    rename_dict = {}
+    for req_col in required_columns:
+        if req_col.lower() in df_cols_lower and req_col not in df.columns:
+            rename_dict[df_cols_lower[req_col.lower()]] = req_col
+    
+    if rename_dict:
+        df = df.rename(columns=rename_dict)
+    
+    return df
 
 
 def update_arguments(args):

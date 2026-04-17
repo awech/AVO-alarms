@@ -10,7 +10,7 @@ import pandas as pd
 from obspy import UTCDateTime as utc
 
 from avo_alarms.utils import messaging, plotting, processing, downloading
-from avo_alarms.utils.setup_utils import get_logger
+from avo_alarms.utils.setup_utils import get_logger, load_volcano_list
 
 logger = get_logger(__name__)
 
@@ -18,7 +18,6 @@ logger = get_logger(__name__)
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
     T0_str = T0.strftime("%Y-%m-%d %H:%M")
-    ## TODO change this to `config.zipfile`
     outfile_columns = ["time", "lat", "lon", "PROD_ID"]
 
     
@@ -126,7 +125,7 @@ def create_message(pirep_row, config):
     message += f"\n{get_height_text(pirep_row.FL)}\nPilot Remark: {get_pilot_remark(pirep_row.REPORT)}"
     message += f"\nLatitude: {pirep_row.lat:.3f}\nLongitude: {pirep_row.lon:.3f}\n"
 
-    volcs = pd.read_excel(config.volc_file)
+    volcs = load_volcano_list()
     volcs = processing.volcano_distance(pirep_row.lon, pirep_row.lat, volcs)
 
     v_text = ""

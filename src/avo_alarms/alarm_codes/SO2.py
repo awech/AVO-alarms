@@ -13,8 +13,8 @@ import re
 from pathlib import Path
 
 
-from avo_alarms.utils import messaging, plotting, processing
-from avo_alarms.utils.setup_utils import get_logger
+from avo_alarms.utils import messaging, plotting, processing, downloading
+from avo_alarms.utils.setup_utils import get_logger, load_volcano_list
 
 logger = get_logger(__name__)
 
@@ -58,7 +58,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         if lon_dir == 'W':
             lon = -lon
 
-        volcs = pd.read_excel(config.volc_file)
+        volcs = load_volcano_list()
         volcs = volcs[volcs['SO2']=='Y']
         volcs = processing.volcano_distance(lon, lat, volcs)
         volcs = volcs.sort_values('distance')

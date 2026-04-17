@@ -11,7 +11,7 @@ from obspy.clients.fdsn import Client as FDSN_Client
 from obspy.geodetics import gps2dist_azimuth
 from pandas.errors import EmptyDataError
 
-from avo_alarms.utils.setup_utils import get_logger
+from avo_alarms.utils.setup_utils import get_logger, load_volcano_list
 from avo_alarms.utils.downloading import IRIS_client
 
 load_dotenv()
@@ -47,7 +47,7 @@ def compare_to_old_events(df, event_file, default_cols, unique_id_col="id"):
 
 def check_ignore_volcano(cimss_df, config, alert_type=None):
 
-    volcs = pd.read_excel(config.volc_file, index_col="Volcano")
+    volcs = load_volcano_list().set_index("Volcano")
     cimss_df["keep"] = True
     if alert_type is None:
         ALERT_TYPE = {"ash": "NOAA Ash", "hot": "NOAA Thermal", "ice": "NOAA Ice"}
@@ -198,7 +198,7 @@ def check_volcano_mention(df):
 
 def find_nearest_volcano(df, config, lon_col="longitude", lat_col="latitude"):
 
-    VOLCS = pd.read_excel(config.volc_file)
+    VOLCS = load_volcano_list()
     V_DIST = []
     V_NAME = []
 
@@ -390,7 +390,7 @@ def Dr_to_RSAM(config, DR, volcano_name, base=25):
     Q = 200  # quality factor
 
     T0 = UTCDateTime.utcnow()
-    VOLCS = pd.read_excel(home_dir / "alarm_aux_files" / "volcano_list.xlsx")
+    VOLCS = load_volcano_list()
     volcs = VOLCS[VOLCS["Volcano"] == volcano_name].copy()
     SCNL = pd.DataFrame.from_dict(config.SCNL)
 
@@ -471,7 +471,7 @@ def RSAM_to_DR(tr, volcano_name, VELOCITY=1.5, FREQ=2, Q=200):
     """
 
     home_dir = Path(os.environ["HOME_DIR"])
-    VOLCS = pd.read_excel(home_dir / "alarm_aux_files" / "volcano_list.xlsx")
+    VOLCS = load_volcano_list()
 
     volcs = VOLCS[VOLCS["Volcano"] == volcano_name].copy()
 

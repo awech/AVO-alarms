@@ -10,7 +10,7 @@ from obspy.geodetics.base import gps2dist_azimuth
 from obspy.signal.cross_correlation import correlate, xcorr_max
 from pandas import DataFrame
 
-from avo_alarms.utils import messaging, plotting, downloading
+from avo_alarms.utils import messaging, processing, plotting, downloading
 from avo_alarms.utils.setup_utils import get_logger
 
 logger = get_logger(__name__)
@@ -27,7 +27,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     t1 = T0 - config.duration
     t2 = T0
     st = downloading.download_waveforms(NSLC["nslc"].tolist(), t1, t2, fill_value=0)
-    st = add_coordinate_info(st, NSLC)
+    st = processing.add_metadata(st)
 
     #### check for enough data ####
     for tr in st:
@@ -61,13 +61,14 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
             tr.decimate(2)
         if tr.stats["sampling_rate"] != 50:
             tr.resample(50.0)
+        tr.remove_sensitivity(tr.inventory)
 
     #### check amplitude threshold ####
     if test_flag:
         min_pa = 0
     else:
         min_pa = np.array([v["min_pa"] for v in config.VOLCANO]).min()
-    st = Stream([tr for tr in st if np.any(np.abs(tr.data * config.digouti) > min_pa)])
+    st = Stream([tr for tr in st if np.any(np.abs(tr.data) > min_pa)])
     if len(st) < config.min_chan and not test_flag:
         state_message = f"{state_message} - not enough channels exceeding amplitude threshold!"
         logger.info(state_message)
@@ -97,7 +98,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     #### check if this is airwave velocity from a volcano in config file list ####
     if np.any(np.abs(d_Azimuth) < az_tolerance) or test_flag:
         v_ind = np.argmin(np.abs(d_Azimuth))
-        mx_pressure = np.max(np.array([np.max(np.abs(tr.data)) for tr in st])) * config.digouti
+        mx_pressure = np.max(np.array([np.max(np.abs(tr.data)) for tr in st]))
         if (
             config.VOLCANO[v_ind]["vmin"] < velocity < config.VOLCANO[v_ind]["vmax"]
             and mx_pressure > config.VOLCANO[v_ind]["min_pa"]
@@ -163,20 +164,20 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     messaging.icinga(config, state, state_message, send=icinga_flag)
 
 
-def add_coordinate_info(st, nslc_df):
-    #### compare remaining stations with lat/lon station info in config file
-    #### to attach lat/lon info with each corresponding trace
-    for tr in st:
-        # Construct NSLC string: Network.Station.Location.Channel
-        nslc = f"{tr.stats.network}.{tr.stats.station}.{tr.stats.location}.{tr.stats.channel}"
-        tmp_lat = nslc_df[nslc_df["nslc"] == nslc].sta_lat.values[0]
-        tmp_lon = nslc_df[nslc_df["nslc"] == nslc].sta_lon.values[0]
-        tr.stats.coordinates = {
-            "latitude": tmp_lat,
-            "longitude": tmp_lon,
-            "elevation": 0.0,
-        }
-    return st
+# def add_coordinate_info(st, nslc_df):
+#     #### compare remaining stations with lat/lon station info in config file
+#     #### to attach lat/lon info with each corresponding trace
+#     for tr in st:
+#         # Construct NSLC string: Network.Station.Location.Channel
+#         nslc = f"{tr.stats.network}.{tr.stats.station}.{tr.stats.location}.{tr.stats.channel}"
+#         tmp_lat = nslc_df[nslc_df["nslc"] == nslc].sta_lat.values[0]
+#         tmp_lon = nslc_df[nslc_df["nslc"] == nslc].sta_lon.values[0]
+#         tr.stats.coordinates = {
+#             "latitude": tmp_lat,
+#             "longitude": tmp_lon,
+#             "elevation": 0.0,
+#         }
+#     return st
 
 
 def get_volcano_backazimuth(st, config):
@@ -360,7 +361,7 @@ def xcorr_align_stream(st, config):
     ST = st[0].copy()
     for tr in st[1:]:
         ST.data = ST.data + tr.data
-    ST.data = (ST.data / len(st)) * config.digouti
+    ST.data = (ST.data / len(st))
     ST.trim(T1, T2)
     return ST
 
@@ -373,8 +374,7 @@ def make_figure(st, volcano, T0, config, mx_pressure, test=False):
     t_seis_win = config.seismic_plot_duration if hasattr(config, "seismic_plot_duration") else 3600
     seis = downloading.download_waveforms(volcano["seismic_nslc"], T0 - t_seis_win, T0, fill_value="interpolate")
     ##### get infrasound data #####
-    # Construct NSLC list from stream traces: Network.Station.Location.Channel
-    infra_nslc = ['{}.{}.{}.{}'.format(tr.stats.network,tr.stats.station,tr.stats.location,tr.stats.channel) for tr in st]
+    infra_nslc = [tr.id for tr in st]
     t_infra_win = config.infrasound_plot_duration if hasattr(config, "infrasound_plot_duration") else 600
     infra = downloading.download_waveforms(infra_nslc, T0 - t_infra_win, T0, fill_value="interpolate")
 

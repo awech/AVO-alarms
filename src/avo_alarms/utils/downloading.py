@@ -5,7 +5,6 @@ import os
 import socket
 import time
 import zipfile
-from glob import glob
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
 
@@ -225,7 +224,8 @@ def download_waveforms(scnl, T1, T2, fill_value=0):
             tr.stats["station"] = sta.split(".")[0]
             tr.stats["channel"] = sta.split(".")[1]
             tr.stats["network"] = sta.split(".")[2]
-            tr.stats["location"] = sta.split(".")[3]
+            ## TODO deal with -- location codes
+            tr.stats["location"] = sta.split(".")[3].replace("--", "")
             tr.stats["sampling_rate"] = 100
             tr.stats["starttime"] = T1
             tr.data = np.zeros(
@@ -396,14 +396,36 @@ def get_cimss_image(soup, alert, config):
                     out.write(bits)
 
 
+def download_vaa_from_api():
+
+    attempt = 1
+    max_tries = 3
+    vaa_id_list = None
+    while attempt <= max_tries:
+        try:
+            response = requests.get(os.environ["VAA_URL"], timeout=10, verify=False)
+            data = response.json()
+
+            vaa_id_list = data["@graph"]
+            break
+        except Exception:		
+            logger.warning('Page error on attempt number {:g}'.format(attempt))
+            attempt += 1	
+            if attempt == max_tries:
+                logger.error(f'Problem connecting to VAA API after {max_tries} attempts')
+                
+    return vaa_id_list
+
+
 def download_station_xml():
     """Download and update station metadata XML file from IRIS."""
 
     client = FDSN_Client("IRIS")
 
-    seismic_dir = Path(os.environ["CONFIGS_DIR"]) / "*RSAM*.py"
-    infra_dir = Path(os.environ["CONFIGS_DIR"]) / "*Infrasound*.py"
-    files = glob(str(seismic_dir)) + glob(str(infra_dir))
+    files = list(Path(os.environ["CONFIGS_DIR"]).glob("*RSAM*.py", case_sensitive=False))
+    files += list(Path(os.environ["CONFIGS_DIR"]).glob("*Tremor*.py", case_sensitive=False))
+    files += list(Path(os.environ["CONFIGS_DIR"]).glob("*Infrasound*.py", case_sensitive=False))
+
     SCNL = []
 
     for file_path in files:

@@ -44,59 +44,64 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     config.DURATION = np.array([swm['MAX_EVT_TIME'] for swm in config.swarm_parameters]).max()
     T2 = T0
     T1 = T2 - config.DURATION
-    URL = '{}starttime={}&endtime={}&maxdepth={}&includearrivals=true&format=xml'.format(os.environ['FDSN'],
-                                                                                         T1.strftime('%Y-%m-%dT%H:%M:%S'),
-                                                                                         T2.strftime('%Y-%m-%dT%H:%M:%S'),
-                                                                                         config.MAXDEP)
-    CAT = downloading.download_hypocenters(URL)
+    URL = '{}starttime={}&endtime={}&maxdepth={}&format=csv'.format(os.environ['FDSN_URL'],
+                                                                    T1.strftime('%Y-%m-%dT%H:%M:%S'),
+                                                                    T2.strftime('%Y-%m-%dT%H:%M:%S'),
+                                                                    config.MAXDEP)
+    catalog_df = downloading.download_hypocenters_csv(URL)
 
     # Error pulling events
-    if CAT is None:
+    if catalog_df is None:
         state = "WARNING"
         state_message = f"{T0_str} (UTC) FDSN connection error"
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 
     # No events
-    if len(CAT) == 0:
+    if len(catalog_df) == 0:
         state = "OK"
         state_message = f"{T0_str} (UTC) No new earthquakes"
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 
     # filter out regional VTs
-    logger.info('Filtering out regional VTs')
-    VOLCS = pd.read_excel(config.volc_file)
-    VOLCS = VOLCS[VOLCS['Holocene']=='Y']
-    CAT_DF = catalog_to_dataframe(CAT, VOLCS)
-    CAT_DF = CAT_DF[CAT_DF['V_DIST']<config.VOLCANO_DISTANCE]
-    CAT_DF = CAT_DF.reset_index(drop=True)
+    logger.info("Filtering out regional VTs")
+    ## TODO catalog.volc_file is used enough it should just be in .env
+    catalog_df = processing.find_nearest_volcano(catalog_df, config)
+    # VOLCS = pd.read_excel(config.volc_file)
+    # VOLCS = VOLCS[VOLCS['Holocene']=='Y']
+    # CAT_DF = catalog_to_dataframe(CAT, VOLCS)
+    catalog_df = catalog_df[catalog_df["v_distance"] < config.VOLCANO_DISTANCE]
+    # CAT_DF = CAT_DF.reset_index(drop=True)
 
     # New events, but not close enough to volcanoes
-    if len(CAT_DF) == 0:
-        logger.warning('Earthquakes detected, but not near any volcanoes')
-        state = 'OK'
-        state_message = '{} (UTC) No new swarm activity'.format(T0.strftime('%Y-%m-%d %H:%M'))
+    if len(catalog_df) == 0:
+        logger.warning("Earthquakes detected, but not near any volcanoes")
+        state = "OK"
+        state_message = f"{T0_str} (UTC) No new swarm activity"
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 
     # Read in old events. Filter to new events
-    OLD_EVENTS = pd.read_csv(config.outfile, sep='\t', parse_dates=['Time'])
-    NEW_EVENTS = CAT_DF.loc[~CAT_DF['ID'].isin(OLD_EVENTS.ID)]
+    outfile_cols = ["id", "time", "latitude", "longitude", "v_name"]
+    new_catalog_df, catalog_df = processing.compare_to_old_events(
+        catalog_df, config.outfile, outfile_cols, "id"
+    )
 
     # No new earthquakes
-    if len(NEW_EVENTS) == 0:
-        state = 'OK'
-        state_message = '{} (UTC) No new earthquakes'.format(T0.strftime('%Y-%m-%d %H:%M'))
+    if len(new_catalog_df) == 0:
+        state = "OK"
+        state_message = f"{T0_str} (UTC) No new earthquakes"
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 
     # Check for swarms
-    logger.info('Clustering...')
-    SWARMS = get_swarms(NEW_EVENTS.copy(), T0, config)
+    logger.info("Clustering...")
+    swarms = get_swarms(new_catalog_df.copy(), T0, config)
 
     # New events, but not swarm-y
     if len(SWARMS) == 0:
+        ## TODO this suggests need to keep old events in `compare_to_old_events` function
         ALL_EVENTS = pd.concat([OLD_EVENTS, NEW_EVENTS], keys='ID', ignore_index=True).drop_duplicates('ID')
         SWARM_CONTINUE = get_swarms(ALL_EVENTS.copy(), T0, config)
         SWARM_CONTINUE = [swarm.loc[~swarm['ID'].isin(OLD_EVENTS.ID)] for swarm in SWARM_CONTINUE]
@@ -494,37 +499,40 @@ def compare_swarms(SWARMS):
 
 def get_swarms(DF, T0, config):
 
-    lat0 = DF.Latitude.mean()
-    lon0 = DF.Longitude.mean()
+    t_str_fmt = "%Y-%m-%d %H:%M:%S"
+    lat0 = DF.latitude.mean()
+    lon0 = DF.longitude.mean()
     ZN_LET = utm.latitude_to_zone_letter(lat0)
-    ZN_NUM = utm.latlon_to_zone_number(lat0,lon0)
+    ZN_NUM = utm.latlon_to_zone_number(lat0, lon0)
 
-    east, north, ignore1, ignore2 = utm.from_latlon(DF.Latitude, DF.Longitude, force_zone_number=ZN_NUM, force_zone_letter=ZN_LET)
-    DF['x'] = east/1000
-    DF['y'] = north/1000
+    east, north, *_ = utm.from_latlon(
+        DF.latitude, DF.longitude, force_zone_number=ZN_NUM, force_zone_letter=ZN_LET
+    )
+    DF["x"] = east / 1000
+    DF["y"] = north / 1000
 
     SWARMS = []
     for params in config.swarm_parameters:
         # scale time to match distance
-        cat_df = DF.copy()[DF['Time'] > (T0 - params['MAX_EVT_TIME']).strftime('%Y-%m-%d %H:%M:%S')]
+        cat_df = DF.copy()[DF["time"] > (T0 - params["MAX_EVT_TIME"]).strftime(t_str_fmt)]
         if len(cat_df) == 0:
             continue
-        t = cat_df.Time
-        dtime = np.array([(t0-t.min()).total_seconds() for t0 in t])
-        dtime = dtime * (params['MAX_EVT_DISTANCE'] / float(params['MAX_EVT_TIME']))
+        t = cat_df.time
+        dtime = np.array([(t0 - t.min()).total_seconds() for t0 in t])
+        dtime = dtime * (params["MAX_EVT_DISTANCE"] / float(params["MAX_EVT_TIME"]))
         # put distance and time together
-        X = np.array([cat_df['x'], cat_df['y'], dtime]).T
-        # X = np.array([cat_df['x'], cat_df['y'], cat_df['Depth'], dtime]).T
-        db = DBSCAN(eps=params['MAX_EVT_DISTANCE'], min_samples=params['MIN_NUM_EVT']).fit(X)
+        X = np.array([cat_df["x"], cat_df["y"], dtime]).T
+        db = DBSCAN(
+            eps=params["MAX_EVT_DISTANCE"], min_samples=params["MIN_NUM_EVT"]
+        ).fit(X)
 
-
-        cat_df.loc[:,'label'] = db.labels_
-        cat_df.loc[:,'param_duration'] = float(params['MAX_EVT_TIME'])
-        ALL_DETECTS = cat_df[cat_df['label']>-1]
+        cat_df.loc[:, "label"] = db.labels_
+        cat_df.loc[:, "param_duration"] = float(params["MAX_EVT_TIME"])
+        all_detects = cat_df[cat_df["label"] > -1]
         # NOISE = cat_df[cat_df['label']==-1]
 
-        for i in ALL_DETECTS.label.unique():
-            df = cat_df[cat_df['label']==i]
+        for i in all_detects.label.unique():
+            df = cat_df[cat_df["label"] == i]
             SWARMS.append(df.copy())
 
     return SWARMS

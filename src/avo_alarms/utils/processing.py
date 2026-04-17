@@ -384,7 +384,6 @@ def Dr_to_RSAM(config, DR, volcano_name, base=25):
     """
 
     client = FDSN_Client("IRIS")
-    home_dir = Path(os.environ["HOME_DIR"])
 
     VELOCITY = 1.5  # km/s
     FREQ = 2  # dominant frequency (Hz)
@@ -470,13 +469,15 @@ def RSAM_to_DR(tr, volcano_name, VELOCITY=1.5, FREQ=2, Q=200):
 
     """
 
-    home_dir = Path(os.environ["HOME_DIR"])
     VOLCS = load_volcano_list()
-
     volcs = VOLCS[VOLCS["Volcano"] == volcano_name].copy()
 
-    tr.id = tr.id.replace("--", "")
-    inventory = read_inventory(home_dir / "alarm_aux_files" / "stations.xml")
+    xml_file = Path(os.getenv("STATION_XML", "blank"))
+    if not xml_file.exists():
+        logger.error("Station XML file missing")
+        return
+
+    inventory = read_inventory(xml_file)
 
     coords = inventory.get_coordinates(tr.id)
     gain = inventory.get_response(
@@ -539,13 +540,11 @@ def add_metadata(st):
         Stream: Stream with updated metadata.
     """
 
-    ## TODO fix hard-coded path here
-    xml_file = Path(os.environ["HOME_DIR"]) / "alarm_aux_files" / "stations.xml"
-
+    xml_file = Path(os.getenv("STATION_XML", "blank"))
     if not xml_file.exists():
         logger.error("Station XML file missing")
         return
-    
+
     inventory = read_inventory(xml_file)
 
     for tr in st:

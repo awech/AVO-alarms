@@ -328,7 +328,7 @@ def download_pilot_reports(T0, config):
     state = "OK"
     archive = None
     try:
-        with open(config.zipfilename, "wb") as f:
+        with open(config.zipfile, "wb") as f:
             resp = requests.get(pirep_url, verify=False, timeout=10)
             f.write(resp.content)
     except Exception:
@@ -336,13 +336,13 @@ def download_pilot_reports(T0, config):
         state = "WARNING"
         return state, archive
 
-    if zipfile.is_zipfile(config.zipfilename):
-        archive = zipfile.ZipFile(config.zipfilename, "r")
+    if zipfile.is_zipfile(config.zipfile):
+        archive = zipfile.ZipFile(config.zipfile, "r")
         logger.info("New pilot reports from API call")
     else:
         logger.info("No new pilot reports from API call")
 
-    os.remove(config.zipfilename)
+    os.remove(config.zipfile)
 
     return state, archive
 

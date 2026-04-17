@@ -35,7 +35,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     cimss_df = processing.format_cimss_dataframe(cimss_df, config, T0)
     cimss_df = processing.find_nearest_volcano(cimss_df, config, lon_col="lon_rc", lat_col="lat_rc")
     cimss_df = cimss_df[cimss_df["v_distance"] < max_distance]
-    cimss_df = processing.check_ignore_volcano(cimss_df, config)
+    cimss_df = processing.check_ignore_volcano(cimss_df)
     cimss_df = cimss_df[cimss_df["keep"]]
     
     new_alerts_df, cimss_df = processing.compare_to_old_events(
@@ -93,7 +93,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         logger.info("Posting to mattermost...")
         messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
         # send to other mm channels based on alert type and volcano status
-        messaging.cimss_mm_channels(alert, volcs, config, subject, message, filename, test_flag, mm_flag)
+        messaging.cimss_mm_channels(alert, config, subject, message, filename, test_flag, mm_flag)
         # change mm channel id back to default
         config.mattermost_channel_id = default_mm_id
 

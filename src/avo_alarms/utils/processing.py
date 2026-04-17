@@ -45,19 +45,23 @@ def compare_to_old_events(df, event_file, default_cols, unique_id_col="id"):
     return new_events_df, df
 
 
-def check_ignore_volcano(cimss_df, config, alert_type=None):
+def check_ignore_volcano(cimss_df, alert_type=None):
 
     volcs = load_volcano_list().set_index("Volcano")
+    alert_dict = {"ash": "NOAA Ash", "hot": "NOAA Thermal", "ice": "NOAA Ice"}
+    
     cimss_df["keep"] = True
-    if alert_type is None:
-        ALERT_TYPE = {"ash": "NOAA Ash", "hot": "NOAA Thermal", "ice": "NOAA Ice"}
-        for i, row in cimss_df.iterrows():
-            if volcs.loc[row.v_name, ALERT_TYPE[row.alert_type]] == "N":
-                cimss_df.loc[i, "keep"] = False
-    else:
-        for i, row in cimss_df.iterrows():
-            if volcs.loc[row.v_name, alert_type] == "N":
-                cimss_df.loc[i, "keep"] = False
+
+    alert_name = alert_type
+    for i, row in cimss_df.iterrows():
+        if alert_type is None:
+            alert_name = alert_dict[row.alert_type]
+        if alert_name not in volcs.columns:
+            logger.info(f"\'{alert_dict[row.alert_type]}\' not a column in {os.getenv('VOLCANO_LIST')}")
+            continue
+        if volcs.loc[row.v_name, alert_name] == "N":
+            logger.info(f"{row.v_name} has \'{alert_name}\' column set to \'N\'")
+            cimss_df.loc[i, "keep"] = False
 
     return cimss_df
 

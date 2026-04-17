@@ -16,7 +16,7 @@ import urllib3
 import yaml
 from mattermostdriver import Driver
 
-from .setup_utils import get_logger
+from .setup_utils import get_logger, load_volcano_list
 
 logger = get_logger(__name__)
 
@@ -385,8 +385,10 @@ def post_mattermost(config, subject, body, attachment=None, send=False, test=Fal
     return url
 
 
-def cimss_mm_channels(alert, volcs, config, subject, message, attachment, test_flag, mm_flag):
+def cimss_mm_channels(alert, config, subject, message, attachment, test_flag, mm_flag):
 
+    volcs = load_volcano_list()
+    
     ##################################################################
     # Send thermal alerts to their own channel
     if (alert.alert_type == "hot") and ("THERMAL" in alert.alert_header):

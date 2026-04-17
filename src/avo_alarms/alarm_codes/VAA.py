@@ -1,24 +1,25 @@
 import os
-import sys
 import re
+import sys
+import traceback
+import warnings
+from pathlib import Path
+
+import cartopy
+import matplotlib as m
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import requests
-from obspy.geodetics.base import gps2dist_azimuth
-from obspy import UTCDateTime
-import cartopy
-from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
-import matplotlib.pyplot as plt
-import matplotlib as m
+from cartopy.mpl.gridliner import LATITUDE_FORMATTER, LONGITUDE_FORMATTER
 from matplotlib.path import Path as mpath
-import traceback
-import warnings
-warnings.filterwarnings("ignore")
-from pathlib import Path
+from obspy import UTCDateTime
+from obspy.geodetics.base import gps2dist_azimuth
 
-
-from avo_alarms.utils import messaging, plotting, processing
+from avo_alarms.utils import messaging, plotting, processing, downloading
 from avo_alarms.utils.setup_utils import get_logger
+
+warnings.filterwarnings("ignore")
 
 logger = get_logger(__name__)
 
@@ -26,40 +27,28 @@ logger = get_logger(__name__)
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
     logger.info(T0)
-    attempt = 1
-    max_tries = 3
-    while attempt <= max_tries:
-        try:
-            vaa_list = read_VAA_api()
-            break
-        except:		
-            if attempt == max_tries:
-                logger.warning('Whoops.')
-                state='WARNING'
-                state_message='{} (UTC) webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
-                messaging.icinga(config, state, state_message, send=icinga_flag)
-                return
-            logger.warning('Page error on attempt number {:g}'.format(attempt))
-            attempt += 1						
+    config.outfile = Path(config.outfile)
+    T0_str = T0.strftime("%Y-%m-%d %H:%M")
 
-    try:
-        VAAS_FOUND = []
-        for vaa_id in vaa_list:
-            vaa = process_vaa_id(vaa_id)
-            if UTCDateTime(vaa['DTG']) > T0 - config.duration:
-                VAAS_FOUND.append(vaa)
-    except:
-        logger.warning('Page error.')
-        state='WARNING'
-        state_message='{} (UTC) webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
-        messaging.icinga(config, state, state_message, send=icinga_flag)	
-        return	
+    vaa_id_list = downloading.download_vaa_from_api()
 
+    if vaa_id_list is None:
+        logger.warning("Page error.")
+        state = "WARNING"
+        state_message = f"{T0_str} (UTC) webpage error"
+        messaging.icinga(config, state, state_message, send=icinga_flag)
+        return
 
-    if len(VAAS_FOUND)==0:
-        state='OK'
-        state_message='{} (UTC) No new SIGMETs'.format(T0.strftime('%Y-%m-%d %H:%M'))
-        messaging.icinga(config, state, state_message, send=icinga_flag)	
+    VAAS_FOUND = []
+    for vaa_id in vaa_id_list:
+        vaa = process_vaa_id(vaa_id)
+        if UTCDateTime(vaa["DTG"]) > T0 - config.duration:
+            VAAS_FOUND.append(vaa)
+
+    if len(VAAS_FOUND) == 0:
+        state = "OK"
+        state_message = f"{T0_str} (UTC) No new SIGMETs"
+        messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 
 

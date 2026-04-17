@@ -241,16 +241,6 @@ def download_waveforms(nslc_list, T1, T2, fill_value=0):
 
 def download_lightning(t=None, dt=60):
 
-    lightning_url = os.getenv("LIGHTNING_URL")
-    if t:
-        t = t - 60*dt / 2
-        T1 = (t - 60 * dt/ 2).strftime("%Y-%m-%d %H:%M:%S")
-        T2 = (t + 60 * dt/ 2).strftime("%Y-%m-%d %H:%M:%S")
-        logger.info(f"Downloading strokes from {T1} to {T2}")
-        lightning_url = os.getenv("LIGHTNING_URL").replace("avorecent/1", "region?")
-        lightning_url += f"minLat=49&maxLat=63&minLong=-180&maxLong=180&unixTimestamp={t.timestamp}&plusMinusMinutes={dt/2}"
-        print(lightning_url)
-        
     logger.info("Reading in alerts from volcview api .json file")
     attempt = 1
     max_tries = 3
@@ -261,7 +251,7 @@ def download_lightning(t=None, dt=60):
                     'curl --connect-timeout 5 -H "username:{}" -H "password:{}" -X GET {}'.format(
                         os.getenv("API_USERNAME"),
                         os.getenv("API_PASSWORD"),
-                        lightning_url,
+                        os.getenv("LIGHTNING_URL"),
                     )
                 )
             )

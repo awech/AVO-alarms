@@ -164,22 +164,6 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     messaging.icinga(config, state, state_message, send=icinga_flag)
 
 
-# def add_coordinate_info(st, nslc_df):
-#     #### compare remaining stations with lat/lon station info in config file
-#     #### to attach lat/lon info with each corresponding trace
-#     for tr in st:
-#         # Construct NSLC string: Network.Station.Location.Channel
-#         nslc = f"{tr.stats.network}.{tr.stats.station}.{tr.stats.location}.{tr.stats.channel}"
-#         tmp_lat = nslc_df[nslc_df["nslc"] == nslc].sta_lat.values[0]
-#         tmp_lon = nslc_df[nslc_df["nslc"] == nslc].sta_lon.values[0]
-#         tr.stats.coordinates = {
-#             "latitude": tmp_lat,
-#             "longitude": tmp_lon,
-#             "elevation": 0.0,
-#         }
-#     return st
-
-
 def get_volcano_backazimuth(st, config):
     lon0 = np.mean([tr.stats.coordinates.longitude for tr in st])
     lat0 = np.mean([tr.stats.coordinates.latitude for tr in st])

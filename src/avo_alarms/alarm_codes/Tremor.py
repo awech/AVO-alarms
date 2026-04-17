@@ -1,12 +1,10 @@
 import os
-import sys
 import time
 from pathlib import Path
 
 import numpy as np
 from enveloc.core import XCOR
 from obspy import UTCDateTime
-from obspy.core.util import AttribDict
 from obspy.signal.filter import envelope
 from pandas import DataFrame, Timestamp, concat, read_csv
 

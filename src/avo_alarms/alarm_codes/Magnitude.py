@@ -47,7 +47,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         return
 
     # Compare new event distance with volcanoes
-    catalog_df = processing.find_nearest_volcano(catalog_df, config)
+    catalog_df = processing.find_nearest_volcano(catalog_df)
     catalog_df = catalog_df[catalog_df["v_distance"] < config.DISTANCE]
 
     # New events, but not close enough to volcanoes

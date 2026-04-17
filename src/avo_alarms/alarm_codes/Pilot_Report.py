@@ -31,7 +31,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         return
 
     pirep_df = processing.pirep_archive_to_dataframe(T0, config, archive)
-    pirep_df = processing.find_nearest_volcano(pirep_df, config, lon_col="lon", lat_col="lat")
+    pirep_df = processing.find_nearest_volcano(pirep_df, lon_col="lon", lat_col="lat")
     pirep_df = pirep_df[pirep_df["v_distance"] < config.max_distance]
     pirep_df = processing.check_volcano_mention(pirep_df)
     pirep_df = pirep_df[pirep_df["trigger"]]

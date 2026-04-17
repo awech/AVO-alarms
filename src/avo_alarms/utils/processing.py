@@ -200,16 +200,17 @@ def check_volcano_mention(df):
     return df
 
 
-def find_nearest_volcano(df, config, lon_col="longitude", lat_col="latitude"):
+def find_nearest_volcano(df, lon_col="longitude", lat_col="latitude", volc_df=None):
 
-    VOLCS = load_volcano_list()
+    if volc_df is None:
+        volc_df = load_volcano_list()
     V_DIST = []
     V_NAME = []
 
     for _, row in df.iterrows():
-        volcs = volcano_distance(row[lon_col], row[lat_col], VOLCS)
-        V_DIST.append(volcs.iloc[0].distance)
-        V_NAME.append(volcs.iloc[0].Volcano)
+        volc_df = volcano_distance(row[lon_col], row[lat_col], volc_df)
+        V_DIST.append(volc_df.iloc[0].distance)
+        V_NAME.append(volc_df.iloc[0].Volcano)
 
     df["v_distance"] = V_DIST
     df["v_name"] = V_NAME

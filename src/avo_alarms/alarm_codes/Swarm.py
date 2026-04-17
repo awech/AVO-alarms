@@ -67,7 +67,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     # filter out regional VTs
     logger.info("Filtering out regional VTs")
     ## TODO catalog.volc_file is used enough it should just be in .env
-    catalog_df = processing.find_nearest_volcano(catalog_df, config)
+    catalog_df = processing.find_nearest_volcano(catalog_df)
     # VOLCS = load_volcano_list()
     # VOLCS = VOLCS[VOLCS['Holocene']=='Y']
     # CAT_DF = catalog_to_dataframe(CAT, VOLCS)

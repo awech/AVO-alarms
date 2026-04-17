@@ -1,7 +1,3 @@
-# Lightning alarm based on WWLLN & Earth Networks data
-#
-# Wech 2020-04-09
-
 import os
 import traceback
 import warnings
@@ -25,8 +21,7 @@ logger = get_logger(__name__)
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
     ### get alerts from volcview api
-    tmp_t = T0 if test_flag else None
-    strokes_df = downloading.download_lightning(t=tmp_t)
+    strokes_df = downloading.download_lightning()
     T0_str = T0.strftime("%Y-%m-%d %H:%M")
 
     if strokes_df is None:
@@ -45,7 +40,14 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         strokes_df["nearestVnum"] = strokes_df["nearestVnum"].astype("int")
 
         # Limit strokes to those in AVO's file list
-        VOLCS = load_volcano_list()
+        volcs = load_volcano_list()
+        volcs = volcs[volcs["Lightning"] == "Y"]
+        strokes_df = processing.find_nearest_volcano(
+            strokes_df,
+            lon_col="lightningLongitude",
+            lat_col="lightningLatitude",
+            volc_df=volcs,
+        )
         strokes_df = strokes_df[strokes_df["nearestVnum"].isin(VOLCS.vnum.values)]
 
         # Flag strokes at volcanoes where alert is desired

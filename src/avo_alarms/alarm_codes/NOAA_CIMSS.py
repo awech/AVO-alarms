@@ -31,7 +31,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         return
 
     cimss_df = processing.format_cimss_dataframe(cimss_df, config, T0)
-    cimss_df = processing.find_nearest_volcano(cimss_df, config, lon_col="lon_rc", lat_col="lat_rc")
+    cimss_df = processing.find_nearest_volcano(cimss_df, lon_col="lon_rc", lat_col="lat_rc")
     cimss_df = cimss_df[cimss_df["v_distance"] < max_distance]
     cimss_df = processing.check_ignore_volcano(cimss_df)
     cimss_df = cimss_df[cimss_df["keep"]]

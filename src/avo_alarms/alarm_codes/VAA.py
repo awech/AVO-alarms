@@ -27,7 +27,6 @@ logger = get_logger(__name__)
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
     logger.info(T0)
-    config.outfile = Path(config.outfile)
     T0_str = T0.strftime("%Y-%m-%d %H:%M")
 
     vaa_id_list = downloading.download_vaa_from_api()

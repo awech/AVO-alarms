@@ -13,6 +13,7 @@ import io
 import logging
 import logging.handlers
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -54,28 +55,61 @@ class StderrToLogger(io.TextIOBase):
 
 def load_config(config_name):
     """
-    Load logging configuration from environment variables.
+    Load configuration from a Python file in CONFIGS_DIR.
 
-    This function can be extended in the future to load more complex configurations
-    from a file or other source if needed. For now, it simply reads the relevant
-    environment variables and returns them in a dictionary.
+    Loads a Python module from CONFIGS_DIR/{config_name}.py and converts
+    any string attributes that look like file paths to pathlib.Path objects.
+
+    Parameters
+    ----------
+    config_name : str
+        Name of the config file (without .py extension)
 
     Returns
     -------
-    dict
-        Dictionary containing logging configuration parameters.
+    module
+        The loaded config module with path strings converted to Path objects
     """
-    config = {
-        "log_dir": os.environ.get("LOGS_DIR"),
-        "config_name": os.environ.get("CONFIG_NAME"),
-        "log_level": logging.INFO,
-    }
-
     config_path = Path(os.environ.get("CONFIGS_DIR")) / f"{config_name}.py"
     spec = importlib.util.spec_from_file_location(config_name, config_path)
     config = importlib.util.module_from_spec(spec)
     sys.modules[config_name] = config
     spec.loader.exec_module(config)
+    
+    def looks_like_path(value):
+        """Check if a string value looks like a file path."""
+        if not isinstance(value, str):
+            return False
+        
+        # Check for path separators
+        if '/' in value or '\\' in value:
+            return True
+        
+        # Check for relative/home/env var paths
+        if value.startswith(('.', '~', '$')):
+            return True
+        
+        # Check for filename with extension pattern
+        # Matches patterns like "file.txt", "config.yml", etc.
+        if re.search(r'[a-zA-Z0-9_-]+\.[a-zA-Z0-9]{2,}$', value):
+            return True
+        
+        return False
+    
+    # Iterate through config attributes and convert path-like strings to Path objects
+    for attr_name in dir(config):
+        # Skip private/magic attributes and imported modules
+        if attr_name.startswith('_'):
+            continue
+        
+        try:
+            attr_value = getattr(config, attr_name)
+            # Only process strings (skip callables, modules, etc.)
+            if isinstance(attr_value, str) and looks_like_path(attr_value):
+                setattr(config, attr_name, Path(attr_value))
+        except (TypeError, AttributeError):
+            # Some attributes might not be settable or might cause issues
+            continue
     
     return config
 

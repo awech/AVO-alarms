@@ -20,7 +20,6 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     T0_str = T0.strftime('%Y-%m-%d %H:%M')
     T2 = T0
     T1 = T2 - config.DURATION
-    config.outfile = Path(config.outfile)
     outfile_columns = ["time", "id"]
 
     URL = (

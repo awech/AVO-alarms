@@ -17,11 +17,8 @@ logger = get_logger(__name__)
 
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
-    config.outfile = Path(config.outfile)
     T0_str = T0.strftime("%Y-%m-%d %H:%M")
     ## TODO change this to `config.zipfile`
-    config.zipfilename = Path(config.zipfilename)
-    config.tmp_zipped_dir = Path(config.tmp_zipped_dir)
     outfile_columns = ["time", "lat", "lon", "PROD_ID"]
 
     

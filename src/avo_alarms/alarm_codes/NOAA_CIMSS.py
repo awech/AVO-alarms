@@ -20,7 +20,6 @@ warnings.filterwarnings("ignore")
 
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
-    config.outfile = Path(config.outfile)
     T0_str = T0.strftime("%Y-%m-%d %H:%M")
     max_distance = getattr(config, "max_distance", 25)
     outfile_columns = ["time", "NOAA_id", "vv_id"]

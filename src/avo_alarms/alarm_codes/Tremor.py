@@ -17,9 +17,6 @@ logger = get_logger(__name__)
 
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
-    ## TODO change this to `catalog.outfile`
-    config.outfile = Path(config.catalog_file)
-    config.grid_file = Path(config.grid_file)
     T0_str = T0.strftime("%Y-%m-%d %H:%M")
 
     if os.getenv("FROMCRON") == "yep":

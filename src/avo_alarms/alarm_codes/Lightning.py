@@ -25,123 +25,105 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     T0_str = T0.strftime("%Y-%m-%d %H:%M")
 
     if strokes_df is None:
+        logger.error("Error downloading lightning data from API")
         state = "WARNING"
         state_message = f"{T0_str} (UTC) Error getting data from Volcview-API"
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 
+    if len(strokes_df) == 0:
+        logger.info("No new lightning strokes detected")
+        state = "OK"
+        state_message = f"{T0_str} (UTC) No new strokes detected"
+        messaging.icinga(config, state, state_message, send=icinga_flag)
+        return
+        
 
-    ignored_volcanoes = []
-
-
-    ## TODO clean this up and just use functions from processing.py
-    if len(strokes_df) > 0:
-        strokes_df["send_alert"] = False
-        strokes_df["nearestVnum"] = strokes_df["nearestVnum"].astype("int")
-
-        # Limit strokes to those in AVO's file list
+    if test_flag:
+        strokes_df = strokes_df[strokes_df["time"] > strokes_df["time"].max() - pd.to_timedelta("1h")]
+        strokes_df["v_distance"] = strokes_df["api_vdist"]
+        strokes_df["v_name"] = strokes_df["api_vname"]
+    else:
         volcs = load_volcano_list()
         volcs = volcs[volcs["Lightning"] == "Y"]
         strokes_df = processing.find_nearest_volcano(
             strokes_df,
-            lon_col="lightningLongitude",
-            lat_col="lightningLatitude",
             volc_df=volcs,
         )
-        strokes_df = strokes_df[strokes_df["nearestVnum"].isin(VOLCS.vnum.values)]
 
-        # Flag strokes at volcanoes where alert is desired
-        VOLCS = VOLCS[VOLCS["Lightning"] == "Y"]
-        strokes_df.loc[
-            strokes_df.index[strokes_df["nearestVnum"].isin(VOLCS.vnum.values)].tolist(), "send_alert"
-        ] = True
+    strokes_df = strokes_df[strokes_df["v_distance"] < config.dist2]
+    outfile_columns = ["time", "v_name", "id"]
+    new_strokes_df, strokes_df = processing.compare_to_old_events(strokes_df, config.outfile, outfile_columns)
 
-        A_recent, A_new = get_new_strokes(strokes_df, T0, config)
-        volcanoes = A_new.volcanoName.unique()
-
-    else:
-        volcanoes = []
-        A_recent = make_blank_df()
-
-    if len(volcanoes) == 0:
+    if len(new_strokes_df) == 0:
         logger.info("****** No lightning detected ******")
         state = "OK"
         state_message = f"{T0_str} (UTC) No new strokes detected"
-        A_recent.to_csv(config.outfile, index=False)
+        strokes_df.to_csv(config.outfile, index=False)
+        messaging.icinga(config, state, state_message, send=icinga_flag)
+        return
 
-    else:
-        logger.info(f"Lightning detected at {len(volcanoes):.0f} volcanoe(s)")
-        for v in volcanoes:
-            if not v:
-                logger.warning("Null volcano. Skipping...")
-                continue
+    volcanoes = strokes_df.v_name.unique()
+    logger.info(f"Lightning detected at {len(volcanoes):.0f} volcano(es)")
+    for v in volcanoes:
+        if not v:
+            logger.warning("Null volcano. Skipping...")
+            continue
 
-            logger.info(f"--- Processing detects at {v} volcano ---")
-            V_new = A_new[A_new["volcanoName"] == v]
+        logger.info(f"--- Processing detects at {v} volcano ---")
 
-            if not V_new.iloc[0].send_alert:
-                logger.info(f"Ignoring {v} Lightning")
-                state = "WARNING"
-                state_message = f"{T0_str} (UTC) New strokes at {v} (ignored)"
-                ignored_volcanoes.append(v)
-                continue
+        ## TODO: finish this train of thought. 1st sort by time. if v_dist for the earliest is > dist1, you should be done.
+        # calculate n_ring1, and n_ring2 on the 
+        ## whole dataframe. then check if there are new strokes
+        v_strokes_df = strokes_df[new_strokes_df["v_name"] == v]
+        new_v_strokes_df, v_strokes_df = processing.compare_to_old_events(
+            v_strokes_df, config.outfile, outfile_columns
+        )
+        v_strokes_df = sort_by_time(v_strokes_df)
+        n_ring1, n_ring2 = inner_outer(V_recent.latest_distance, config)
 
-            V_recent = get_distances(
-                A_recent, V_new.iloc[0].volcanoLatitude, V_new.iloc[0].volcanoLongitude
-            )
-            V_recent = V_recent[V_recent["latest_distance"] < config.dist2]
-            
-            
-            # check if changing volcanoes means no events < dist2 ???????
-            # ????????
-            if len(V_recent) == 0:
-                continue
-
-            V_recent = sort_by_time(V_recent)
-            n_ring1, n_ring2 = inner_outer(V_recent.latest_distance, config)
-
-            if len(A_new) == 0:
-                logger.info("********** OLD DETECTION **********")
+        if len(A_new) == 0:
+            logger.info("********** OLD DETECTION **********")
+            state = "WARNING"
+            state_message = get_state_message(state, T0_str, V_recent.iloc[0].volcanoName, n_ring1, n_ring2, config, len(A_new))
+            A_recent.to_csv(config.outfile, index=False)
+        else:
+            logger.info("********** NEW DETECTION **********")
+            A_recent.to_csv(config.outfile, index=False)
+            config.dist1 = 1e8
+            if V_recent.iloc[-1].latest_distance > config.dist1:
+                logger.info("...distal detection 1st.")
                 state = "WARNING"
                 state_message = get_state_message(state, T0_str, V_recent.iloc[0].volcanoName, n_ring1, n_ring2, config, len(A_new))
-                A_recent.to_csv(config.outfile, index=False)
             else:
-                logger.info("********** NEW DETECTION **********")
-                A_recent.to_csv(config.outfile, index=False)
-                config.dist1 = 1e8
-                if V_recent.iloc[-1].latest_distance > config.dist1:
-                    logger.info("...distal detection 1st.")
-                    state = "WARNING"
-                    state_message = get_state_message(state, T0_str, V_recent.iloc[0].volcanoName, n_ring1, n_ring2, config, len(A_new))
-                else:
-                    logger.info('********** PROXIMAL DETECTION 1st **********')
-                    state = "CRITICAL"
-                    state_message = get_state_message(state, T0_str, V_recent.iloc[0].volcanoName, n_ring1, n_ring2, config, len(A_new))
+                logger.info('********** PROXIMAL DETECTION 1st **********')
+                state = "CRITICAL"
+                state_message = get_state_message(state, T0_str, V_recent.iloc[0].volcanoName, n_ring1, n_ring2, config, len(A_new))
 
-                    ### Send Email Notification ####
-                    logger.info("Crafting message...")
-                    subject, message = create_message(V_recent, V_new, config)
-                    try:
-                        filename = plot_fig(V_recent, config, T0, test=test_flag)
-                    except Exception as e:
-                        logger.error("Error generating figure...")
-                        logger.error(e)
-                        logger.error(traceback.format_exc())
-                        filename = None
+                ### Send Email Notification ####
+                logger.info("Crafting message...")
+                subject, message = create_message(V_recent, V_new, config)
+                try:
+                    filename = plot_fig(V_recent, config, T0, test=test_flag)
+                except Exception as e:
+                    logger.error("Error generating figure...")
+                    logger.error(e)
+                    logger.error(traceback.format_exc())
+                    filename = None
 
-                    ### Send message ###
-                    try:
-                        mm_url = messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
-                        message = f"{message}\n\n{mm_url}"
-                    except Exception as e:
-                        logger.error("problem posting to mattermost")
-                        logger.error(e)
-                        logger.error(traceback.format_exc())
-                        
-                    messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
-                    # delete the file you just sent
-                    if filename:
-                        os.remove(filename)
+                ### Send message ###
+                try:
+                    mm_url = messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
+                    message = f"{message}\n\n{mm_url}"
+                except Exception as e:
+                    logger.error("problem posting to mattermost")
+                    logger.error(e)
+                    logger.error(traceback.format_exc())
+                    
+                messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
+                # delete the file you just sent
+                if filename:
+                    os.remove(filename)
 
     logger.info("Ignored: {}".format(ignored_volcanoes))
     messaging.icinga(config, state, state_message, send=icinga_flag)

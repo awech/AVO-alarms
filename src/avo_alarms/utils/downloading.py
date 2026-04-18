@@ -255,16 +255,31 @@ def download_lightning(t=None, dt=60):
                     )
                 )
             )
-            stroke_df = pd.DataFrame(data["lightning"])
+            strokes_df = pd.DataFrame(data["lightning"])
+            if len(strokes_df) > 1:
+                column_rename = {
+                    "lightningLatitude": "latitude",
+                    "lightningLongitude": "longitude",
+                    "lightningDate": "time",
+                    "lightningId": "id",
+                    "dataSource": "dataSource",
+                    "volcanoName": "api_vname",
+                    "volcanoLatitude": "api_vlat",
+                    "volcanoLongitude": "api_vlon",
+                    "nearestDistanceKm": "api_vdist",
+                }
+                strokes_df.rename(columns=column_rename, inplace=True)
+                strokes_df["time"] = pd.to_datetime(strokes_df["time"])
+                strokes_df = strokes_df[column_rename.values()]
             break
         except Exception as e:
             logger.warning(f"Error getting data from Volcview-API on attempt {attempt:g}")
             logger.warning(e)
             time.sleep(2)
             attempt += 1
-            stroke_df = None
+            strokes_df = None
 
-    return stroke_df
+    return strokes_df
 
 
 def download_cimss_vv_api():

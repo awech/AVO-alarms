@@ -239,13 +239,14 @@ def download_waveforms(nslc_list, T1, T2, fill_value=0):
     return st
 
 
-def download_lightning(test=False):
+def download_lightning(force=False):
 
     logger.info("Reading in alerts from volcview api .json file")
     attempt = 1
     max_tries = 3
     lightning_url = os.getenv("LIGHTNING_URL")
-    if test:
+    if force:
+        logger.warning("Forcing trigger by pointing to global data source")
         lightning_url = lightning_url.replace("avorecent", "recent")
         lightning_url = lightning_url.replace("avo-volcview", "volcview")
     while attempt <= max_tries:
@@ -399,9 +400,8 @@ def get_cimss_image(soup, alert, config):
         r = requests.get(im_url, verify=False, timeout=10)
 
         if r.status_code == 200:
-            with open(
-                config.img_file.replace(".png", str(i + 1) + ".png"), "wb"
-            ) as out:
+            new_file = Path(str(config.img_file).replace(".png", f"{i+1:g}.png"))
+            with open(new_file, "wb") as out:
                 for bits in r.iter_content():
                     out.write(bits)
 

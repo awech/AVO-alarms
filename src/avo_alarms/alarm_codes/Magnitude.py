@@ -15,12 +15,15 @@ logger = get_logger(__name__)
 warnings.filterwarnings("ignore")
 
 
-def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
+def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force_flag=False):
 
     T0_str = T0.strftime('%Y-%m-%d %H:%M')
     T2 = T0
     T1 = T2 - config.DURATION
     outfile_columns = ["time", "id"]
+    if force_flag:
+        logger.warning("Forcing trigger by setting MAGMIN = -5")
+        config.MAGMIN = -5
 
     URL = (
         f"{os.getenv('FDSN_URL')}"
@@ -101,7 +104,8 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         eq_str = eq.preferred_origin().time.strftime("%Y-%m-%d %H:%M:%S")
         state_message = f"{eq_str} (UTC) {subject}"
 
-    processing.write_to_csv(catalog_df, config, outfile_columns)
+    if not force_flag:
+        processing.write_to_csv(catalog_df, config, outfile_columns)
     messaging.icinga(config, state, state_message, send=icinga_flag)
 
 

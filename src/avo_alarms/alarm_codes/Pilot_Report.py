@@ -1,12 +1,10 @@
 import os
 import re
 import traceback
-from pathlib import Path
 from textwrap import wrap
 
 import cartopy.crs as ccrs
 import matplotlib.pyplot as plt
-import pandas as pd
 from obspy import UTCDateTime as utc
 
 from avo_alarms.utils import messaging, plotting, processing, downloading
@@ -15,7 +13,7 @@ from avo_alarms.utils.setup_utils import get_logger, load_volcano_list
 logger = get_logger(__name__)
 
 
-def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
+def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force_flag=False):
 
     T0_str = T0.strftime("%Y-%m-%d %H:%M")
     outfile_columns = ["time", "lat", "lon", "PROD_ID"]
@@ -33,14 +31,17 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     pirep_df = processing.pirep_archive_to_dataframe(T0, config, archive)
     pirep_df = processing.find_nearest_volcano(pirep_df, lon_col="lon", lat_col="lat")
     pirep_df = pirep_df[pirep_df["v_distance"] < config.max_distance]
-    pirep_df = processing.check_volcano_mention(pirep_df)
-    pirep_df = pirep_df[pirep_df["trigger"]]
-    new_pireps_df, pirep_df = processing.compare_to_old_events(
-        pirep_df,
-        config.outfile,
-        outfile_columns,
-        unique_id_col="PROD_ID",
-    )
+    if force_flag:
+        new_pireps_df = pirep_df[:1]
+    else:
+        pirep_df = processing.check_volcano_mention(pirep_df)
+        pirep_df = pirep_df[pirep_df["trigger"]]
+        new_pireps_df, pirep_df = processing.compare_to_old_events(
+            pirep_df,
+            config.outfile,
+            outfile_columns,
+            unique_id_col="PROD_ID",
+        )
 
     
     if len(new_pireps_df) == 0:
@@ -74,7 +75,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
             logger.error(e)
 
         ### Send message to duty person ###
-        if row.URGENT == "T":
+        if row.URGENT == "T" or force_flag:
             state = "CRITICAL"
             messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
 
@@ -82,8 +83,8 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         if filename:
             os.remove(filename)
 
-
-    processing.write_to_csv(pirep_df, config, outfile_columns)
+    if not force_flag:
+        processing.write_to_csv(pirep_df, config, outfile_columns)
     messaging.icinga(config, state, state_message, send=icinga_flag)
 
     return

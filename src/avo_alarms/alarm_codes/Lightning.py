@@ -18,12 +18,13 @@ warnings.filterwarnings("ignore")
 logger = get_logger(__name__)
 
 
-def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
+def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force_flag=False):
 
     ### get alerts from volcview api
-    strokes_df = downloading.download_lightning(test=test_flag)
+    strokes_df = downloading.download_lightning(force=force_flag)
     T0_str = T0.strftime("%Y-%m-%d %H:%M")
     T1 = pd.to_datetime(T0_str) - pd.to_timedelta(config.duration, "s")
+    outfile_columns = ["time", "v_name", "id"]
 
     if strokes_df is None:
         logger.error("Error downloading lightning data from API")
@@ -32,15 +33,17 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 
-    strokes_df = strokes_df[strokes_df["time"] > T1.strftime("%Y-%m-%d %H:%M:%S")]
-    
     if len(strokes_df) == 0:
         logger.info("No new lightning strokes detected")
         state = "OK"
         state_message = f"{T0_str} (UTC) No new strokes detected"
+        processing.write_to_csv(strokes_df, config, outfile_columns)
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
-        
+
+
+
+    strokes_df = strokes_df[strokes_df["time"] > T1.strftime("%Y-%m-%d %H:%M:%S")]
 
     if test_flag:
         strokes_df["v_distance"] = strokes_df["api_vdist"]
@@ -54,7 +57,6 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         )
 
     strokes_df = strokes_df[strokes_df["v_distance"] < config.dist2]
-    outfile_columns = ["time", "v_name", "id"]
     new_strokes_df, strokes_df = processing.compare_to_old_events(strokes_df, config.outfile, outfile_columns)
 
     if len(new_strokes_df) == 0:
@@ -66,8 +68,10 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         return
 
     volcanoes = new_strokes_df.v_name.unique()
+    if force_flag:
+        volcanoes = [volcanoes[0]]
     N_v = len(volcanoes)
-    logger.info(f"Lightning detected at {N_v:.0f} volcano{"" if N_v==1 else "es"}")
+    logger.info(f"Lightning detected at {N_v:.0f} volcano{'' if N_v==1 else 'es'}")
     for v_name in volcanoes:
         if not v_name:
             logger.warning("Null volcano. Skipping...")
@@ -121,7 +125,8 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
                 if filename:
                     os.remove(filename)
 
-    processing.write_to_csv(strokes_df, config, outfile_columns)
+    if not force_flag:
+        processing.write_to_csv(strokes_df, config, outfile_columns)
     messaging.icinga(config, state, state_message, send=icinga_flag)
 
 
@@ -144,7 +149,9 @@ def get_state_message(state, T0_str, v_name, n_ring1, n_ring2, config):
             state_message = f"{T0_str} (UTC) {v_name} Lightning Detection!"
             state_message = f"{state_message} {n_ring1 + n_ring2} new strokes!"
 
-    state_message = f"{state_message} {n_ring1} strokes < 20 km (20 km < {n_ring2} < 100 km)"
+    d1 = config.dist1
+    d2 = config.dist2
+    state_message = f"{state_message} {n_ring1} strokes < {d1:g} km ({d1:g} km < {n_ring2} < {d2:g} km)"
     state_message = f"{state_message} in past {config.duration/60:.0f} minutes."
 
     return state_message
@@ -200,7 +207,8 @@ def plot_fig(df, config, T0, test=False):
     ax, extent = plotting.make_map(ax, lat0, lon0, basemap="HIGHRES", xdist=X_DIST, ydist=Y_DIST)
     ax.set_title(f"--- {v_name} Lightning ---\n{t_recent} UTC", fontsize=8)
     plotting.map_ticks(ax, extent, grid_kwargs="default")
-    plotting.add_volcanoes_to_map(ax, extent, config, linewidths=0.1)
+    plotting.add_volcanoes_to_map(ax, extent, config, c1="k", c2="grey", linewidths=0.1)
+    ax.plot(lon0, lat0, "^", mfc="k", mec="w", ms=6, transform=ccrs.Geodetic())
     plotting.add_scale_bar(ax, 15, txt_yoffset=0.01)
 
     map_hdl = ax.scatter(df.longitude.values,

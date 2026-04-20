@@ -16,7 +16,7 @@ from avo_alarms.utils.setup_utils import get_logger
 logger = get_logger(__name__)
 
 
-def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
+def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force_flag=False):
 
     if os.getenv("FROMCRON") == "yep":
         time.sleep(config.latency)
@@ -45,7 +45,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         num_zeros = len(np.where(tr.data == 0)[0])
         if num_zeros / float(tr.stats.npts) > 0.01:
             st.remove(tr)
-    if len(st) < config.min_chan:
+    if len(st) < config.min_chan and not force_flag:
         state_message = f"{state_message} - Gappy data!"
         logger.warning(state_message)
         state = "WARNING"
@@ -64,12 +64,13 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         tr.remove_sensitivity(tr.inventory)
 
     #### check amplitude threshold ####
-    if test_flag:
+    if force_flag:
+        logger.warning("Running in force trigger mode")
         min_pa = 0
     else:
         min_pa = np.array([v["min_pa"] for v in config.VOLCANO]).min()
     st = Stream([tr for tr in st if np.any(np.abs(tr.data) > min_pa)])
-    if len(st) < config.min_chan and not test_flag:
+    if len(st) < config.min_chan and not force_flag:
         state_message = f"{state_message} - not enough channels exceeding amplitude threshold!"
         logger.info(state_message)
         state = "OK"
@@ -80,7 +81,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     config = get_volcano_backazimuth(st, config)
     yx, intsd, ints_az = setup_coordinate_system(st)
     #### Cross correlate ####
-    lags, lags_inds1, lags_inds2 = calc_triggers(st, config, intsd, test=test_flag)
+    lags, lags_inds1, lags_inds2 = calc_triggers(st, config, intsd, force=force_flag)
     cmbm2, cmbm2n, counter, mpk = associator(lags_inds1, lags_inds2, st, config)
 
     if counter == 0:
@@ -96,13 +97,13 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     d_Azimuth = azimuth - np.array([t["back_azimuth"] for t in config.VOLCANO])
     az_tolerance = np.array([t["Azimuth_tolerance"] for t in config.VOLCANO])
     #### check if this is airwave velocity from a volcano in config file list ####
-    if np.any(np.abs(d_Azimuth) < az_tolerance) or test_flag:
+    if np.any(np.abs(d_Azimuth) < az_tolerance) or force_flag:
         v_ind = np.argmin(np.abs(d_Azimuth))
         mx_pressure = np.max(np.array([np.max(np.abs(tr.data)) for tr in st]))
         if (
             config.VOLCANO[v_ind]["vmin"] < velocity < config.VOLCANO[v_ind]["vmax"]
             and mx_pressure > config.VOLCANO[v_ind]["min_pa"]
-        ) or test_flag:
+        ) or force_flag:
             #### DETECTION ####
             volcano = config.VOLCANO[v_ind]
             d_Azimuth = d_Azimuth[v_ind]
@@ -137,7 +138,6 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         )
 
         try:
-            logger.info("posting to mattermost")
             mm_url = messaging.post_mattermost(
                 config,
                 subject,
@@ -194,7 +194,7 @@ def setup_coordinate_system(st):
     return yx, intsd, ints_az
 
 
-def calc_triggers(st, config, intsd, test=False):
+def calc_triggers(st, config, intsd, force=False):
     lags = np.array([])
     lags_inds1 = np.array([])
     lags_inds2 = np.array([])
@@ -211,7 +211,7 @@ def calc_triggers(st, config, intsd, test=False):
             #### check that the best lag is at least the vmin value
             #### and check for minimum cross correlation value
             all_vmin = np.array([v["vmin"] for v in config.VOLCANO]).min()
-            if (np.abs(dt) < intsd[ii, jj] / all_vmin and value > config.min_cc) or test:
+            if (np.abs(dt) < intsd[ii, jj] / all_vmin and value > config.min_cc) or force:
                 lags = np.append(lags, dt)
                 lags_inds1 = np.append(lags_inds1, ii)
                 lags_inds2 = np.append(lags_inds2, jj)

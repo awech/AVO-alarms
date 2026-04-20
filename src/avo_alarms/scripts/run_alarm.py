@@ -35,6 +35,7 @@ def main():
         help="utc time stamp:YYYYMMDDHHMM (optional, otherwise grabs current utc time)"
     )
     parser.add_argument("--test", help="Run in test mode", action="store_true")
+    parser.add_argument("--force", help="Force a trigger in test mode", action="store_true")
     parser.add_argument(
         "--mm", help="Post to mattermost",
         action=argparse.BooleanOptionalAction, default=None
@@ -87,7 +88,8 @@ def main():
             config, args.time,
             test_flag=args.test,
             mm_flag=args.mm,
-            icinga_flag=args.icinga
+            icinga_flag=args.icinga,
+            force_flag=args.force
         )
     except Exception:
         # if error, send message to designated recipients

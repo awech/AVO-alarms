@@ -2,6 +2,7 @@ import os
 import re
 import traceback
 import warnings
+from pathlib import Path
 
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
@@ -9,14 +10,14 @@ import numpy as np
 from obspy import UTCDateTime as utc
 from obspy.geodetics.base import gps2dist_azimuth
 
-from avo_alarms.utils import messaging, plotting, processing, downloading
+from avo_alarms.utils import downloading, messaging, plotting, processing
 from avo_alarms.utils.setup_utils import get_logger, load_volcano_list
 
 logger = get_logger(__name__)
 warnings.filterwarnings("ignore")
 
 
-def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
+def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force_flag=False):
 
     T0_str = T0.strftime("%Y-%m-%d %H:%M")
     max_distance = getattr(config, "max_distance", 25)
@@ -35,10 +36,16 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
     cimss_df = cimss_df[cimss_df["v_distance"] < max_distance]
     cimss_df = processing.check_ignore_volcano(cimss_df)
     cimss_df = cimss_df[cimss_df["keep"]]
-    
-    new_alerts_df, cimss_df = processing.compare_to_old_events(
-        cimss_df, config.outfile, outfile_columns, unique_id_col="NOAA_id"
-    )
+
+    if force_flag:
+        logger.warning(
+            "Attempting to force trigger by grabbing most recent (even if already processed)"
+        )
+        new_alerts_df = cimss_df[:1]
+    else:
+        new_alerts_df, cimss_df = processing.compare_to_old_events(
+            cimss_df, config.outfile, outfile_columns, unique_id_col="NOAA_id"
+        )
 
     if len(new_alerts_df) == 0:
         if len(cimss_df) > 0:
@@ -88,6 +95,9 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         volcs = processing.volcano_distance(alert.lon_rc, alert.lat_rc, volcs)
         subject, message = create_message(alert, volcs, output_text)
 
+        if force_flag:
+            messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
+
         logger.info("Posting to mattermost...")
         messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
         # send to other mm channels based on alert type and volcano status
@@ -101,7 +111,8 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         if filename:
             os.remove(filename)
 
-        processing.write_to_csv(cimss_df, config, outfile_columns)
+        if not force_flag:
+            processing.write_to_csv(cimss_df, config, outfile_columns)
 
     messaging.icinga(config, state, state_message, send=icinga_flag)
 
@@ -262,8 +273,8 @@ def plot_fig(alert, config, test=False):
     ax["img1"].set_title(title_str, fontsize=8)
     
     # read in images downloaded from NOAA/CIMSS webpage
-    tmp_file1 = config.img_file.replace(".png", "1.png")
-    tmp_file2 = config.img_file.replace(".png", "2.png")
+    tmp_file1 = Path(str(config.img_file).replace(".png", "1.png"))
+    tmp_file2 = Path(str(config.img_file).replace(".png", "2.png"))
     img1 = mpimg.imread(tmp_file1)
     img2 = mpimg.imread(tmp_file2)
 

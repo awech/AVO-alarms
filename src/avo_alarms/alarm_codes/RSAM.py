@@ -12,12 +12,13 @@ from avo_alarms.utils.setup_utils import get_logger
 logger = get_logger(__name__)
 
 
-def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
+def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force_flag=False):
 
     if os.getenv("FROMCRON") == "yep":
         time.sleep(config.latency)
 
-    if test_flag:
+    if force_flag:
+        logger.warning("Forcing trigger by setting min_sta = 0")
         config.min_sta = 0
 
     NSLC = DataFrame.from_dict(config.NSLC)

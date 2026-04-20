@@ -239,11 +239,15 @@ def download_waveforms(nslc_list, T1, T2, fill_value=0):
     return st
 
 
-def download_lightning(t=None, dt=60):
+def download_lightning(test=False):
 
     logger.info("Reading in alerts from volcview api .json file")
     attempt = 1
     max_tries = 3
+    lightning_url = os.getenv("LIGHTNING_URL")
+    if test:
+        lightning_url = lightning_url.replace("avorecent", "recent")
+        lightning_url = lightning_url.replace("avo-volcview", "volcview")
     while attempt <= max_tries:
         try:
             data = json.load(
@@ -251,7 +255,7 @@ def download_lightning(t=None, dt=60):
                     'curl --connect-timeout 5 -H "username:{}" -H "password:{}" -X GET {}'.format(
                         os.getenv("API_USERNAME"),
                         os.getenv("API_PASSWORD"),
-                        os.getenv("LIGHTNING_URL"),
+                        lightning_url,
                     )
                 )
             )

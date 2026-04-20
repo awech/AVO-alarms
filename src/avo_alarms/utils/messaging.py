@@ -203,7 +203,7 @@ def send_alert(alarm_name, subject, body, attachment=None, test=False):
             part = MIMEBase("image", "jpeg")
             part.set_payload(attachment.read())
             encoders.encode_base64(part)
-            part.add_header("Content-Disposition", f"attachment; filename={file}")
+            part.add_header("Content-Disposition", f"attachment; filename={file.name}")
             msg.attach(part)
 
     server = smtplib.SMTP_SSL(

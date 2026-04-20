@@ -190,6 +190,8 @@ def load_volcano_list(volcano_file=None):
 
 def update_arguments(args):
 
+    if args.force:
+        args.test = True
     if args.test and args.mm is None:
         args.mm = False
     if args.test and args.icinga is None:

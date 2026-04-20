@@ -23,19 +23,20 @@
 - [ ] implement a 'kill' switch - probably from config file
 
 ## :test_tube: Tests
-- [ ] sort out `test_flag` vs possible `force` flag
-- [ ] implement test flag
-    - [ ] RSAM
-    - [ ] Infrasound
-    - [ ] Magnitude
-    - [ ] NOAA_CIMSS
-    - [ ] Pilot_Report
-    - [ ] SIGMET
+- [x] sort out `test_flag` vs possible `force` flag
+- [ ] implement force & test flag
+    - [x] RSAM
+    - [x] Infrasound
+    - [x] Magnitude
+    - [x] Lightning
+    - [x] NOAA_CIMSS
+    - [x] Pilot_Report
+    - [ ] VAA
     - [ ] SO2
     - [ ] Swarm
     - [ ] Tremor
-    - [ ] utils.messaging
-    - [ ] utils.plotting (fig watermark)
+    - [x] utils.messaging
+    - [x] utils.plotting (fig watermark)
 - [ ] add test data in own directory
 - [ ] implement CI/CD with test data to run tests once a month 
 

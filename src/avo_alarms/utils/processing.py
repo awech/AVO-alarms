@@ -69,6 +69,9 @@ def check_ignore_volcano(cimss_df, alert_type=None):
 def write_to_csv(df, config, columns):
 
     logger.info(f"Writing {len(df)} events to {config.outfile}")
+    if len(df) == 0:
+        df = pd.DataFrame(columns=columns)
+        
     df.to_csv(config.outfile, columns=columns, index=False, date_format='%Y-%m-%d %H:%M:%S.%f')
 
     return

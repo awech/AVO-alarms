@@ -16,7 +16,7 @@ import urllib3
 import yaml
 from mattermostdriver import Driver
 
-from .setup_utils import get_logger, load_volcano_list
+from .setup_utils import get_logger
 
 logger = get_logger(__name__)
 
@@ -190,6 +190,9 @@ def send_alert(alarm_name, subject, body, attachment=None, test=False):
 
     recipients = get_recipients_list(alarm_name, test=test)
     fromaddr = alarm_name.replace(" ", "_") + "@usgs.gov"
+
+    if test:
+        subject = f"TEST: {subject}"
 
     msg = MIMEMultipart()
     msg["From"] = fromaddr
@@ -387,23 +390,18 @@ def post_mattermost(config, subject, body, attachment=None, send=False, test=Fal
 
 
 def cimss_mm_channels(alert, config, subject, message, attachment, test_flag, mm_flag):
-
-    volcs = load_volcano_list()
     
     ##################################################################
     # Send thermal alerts to their own channel
     if (alert.alert_type == "hot") and ("THERMAL" in alert.alert_header):
-        if volcs.iloc[0].distance < getattr(config, "thermal_alert_dist", 20):
+        if alert.v_distance < getattr(config, "thermal_alert_dist", 20):
             config.mattermost_channel_id = config.thermal_alerts_mm
             post_mattermost(config, subject, message, attachment=attachment, send=mm_flag, test=test_flag)
     ##################################################################
 
     ##################################################################
     # Send alerts for elevated volcanoes to their own channel
-    elevated_volcs = volcs[
-        volcs["Volcano"].isin(config.elevated_volcano_list)
-    ]
-    if elevated_volcs.iloc[0].distance < config.elevated_volcano_dist:
+    if (alert.v_distance < config.elevated_volcano_dist) and (alert.v_name in config.elevated_volcano_list):
         config.mattermost_channel_id = config.elevated_volcano_mm
         post_mattermost(config, subject, message, attachment=attachment, send=mm_flag, test=test_flag)
     ##################################################################

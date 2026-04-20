@@ -290,7 +290,6 @@ def make_map(
 
 def add_volcanoes_to_map(ax, extent, config, c1="forestgreen", c2="darkseagreen", s1=25, s2=20, ec1="k", ec2="k", **kwargs):
 
-    # add volcanoes
     volcs = load_volcano_list()
     volcs = volcs[
         (volcs.Latitude >= extent[2]) & (volcs.Latitude <= extent[3]) & (volcs.Longitude >= extent[0]) & (volcs.Longitude <= extent[1])

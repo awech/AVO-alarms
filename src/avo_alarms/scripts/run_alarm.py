@@ -27,7 +27,7 @@ def main():
 
     parser = argparse.ArgumentParser(
         prog="run-alarm",
-        epilog="e.g.: run-alarm Pavlof_RSAM --test or run-alarm Pavlof_RSAM 201701020205"
+        epilog="e.g.: run-alarm Pavlof_RSAM or run-alarm --test -t  201701020205 Pavlof_RSAM"
     )
     parser.add_argument("config", type=str, help="Name of the config file")
     parser.add_argument(

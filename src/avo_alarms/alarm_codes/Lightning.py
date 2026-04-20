@@ -32,10 +32,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 
-    strokes_df = strokes_df[
-        strokes_df["time"]
-        > T1.strftime("%Y-%m-%d %H:%M:%S")
-    ]
+    strokes_df = strokes_df[strokes_df["time"] > T1.strftime("%Y-%m-%d %H:%M:%S")]
     
     if len(strokes_df) == 0:
         logger.info("No new lightning strokes detected")

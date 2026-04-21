@@ -123,6 +123,7 @@ def make_map(
     projection="mercator",
     land_color="#CBCBCBFF",
     water_color="#B8F1FF",
+    extent=None
 ):
     """
     make the basemap for all AVO alarms that require maps.
@@ -212,7 +213,8 @@ def make_map(
         basemap in possible_basemaps
     ), f"{basemap} not in possible basemaps. please choose boring or hillshade"
 
-    extent = get_extent(volc_lat, volc_lon, xdist=xdist, ydist=ydist)
+    if not extent:
+        extent = get_extent(volc_lat, volc_lon, xdist=xdist, ydist=ydist)
 
     # how detailed to make the hillshade scales to how
     # big of an area to map
@@ -275,6 +277,7 @@ def make_map(
 
     elif basemap == "LAND":
         ax.add_feature(cfeature.LAND, facecolor=land_color)
+        ax.patch.set_facecolor(water_color)
 
     elif basemap == "HIGHRES":
         coast = cfeature.GSHHSFeature(scale="full")

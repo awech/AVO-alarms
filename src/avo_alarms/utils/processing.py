@@ -6,9 +6,10 @@ import numpy as np
 import pandas as pd
 import shapefile
 from dotenv import load_dotenv
-from obspy import UTCDateTime, read_inventory
+from obspy import UTCDateTime, read_inventory, Catalog
 from obspy.clients.fdsn import Client as FDSN_Client
 from obspy.geodetics import gps2dist_azimuth
+from obspy.core.event import Event
 from pandas.errors import EmptyDataError
 
 from avo_alarms.utils.setup_utils import get_logger, load_volcano_list
@@ -131,25 +132,6 @@ def pirep_archive_to_dataframe(T0, config, archive):
     rmtree(config.tmp_zipped_dir)
 
     return pirep_df
-
-
-
-    # new_pireps_df = update_event_list(
-    #     pirep_df,
-    #     config.outfile,
-    #     ["time", "lat", "lon", "PROD_ID"],
-    #     unique_id_col="PROD_ID",
-    # )
-
-    # n = len(pirep_df) - len(new_pireps_df)
-    # logger.info(f"{n} old and {len(new_pireps_df)} new PIREP alerts.")
-
-    # if len(new_pireps_df) > 0:
-    #     new_pireps_df.loc[:, "aid"] = np.nan
-    #     new_pireps_df = new_pireps_df.sort_values("time")
-
-
-    # return new_pireps_df
 
 
 def check_volcano_mention(df):
@@ -315,7 +297,7 @@ def addPhaseHint(cat):
     return cat
 
 
-def eq_picks_to_dataframe(eq):
+def eq_picks_to_dataframe(cat):
 
     client = IRIS_client()
 
@@ -325,31 +307,39 @@ def eq_picks_to_dataframe(eq):
     LONS = []
     DIST = []
 
-    for p in eq.picks:
-        wid = p.waveform_id
-        net, sta, loc, chan = wid.id.split(".")
-        ns = ".".join([net, sta])
-        if ns not in NS:
-            logger.info(f"Getting lat/lon info for {wid.id}")
-            inventory = client.get_stations(
-                network=net, station=sta, location=loc, channel=chan
-            )
-            # NSLC.append(wid.id.replace('..','.--.'))
-            NS.append(ns)
-            NSLC.append(wid.id)
-            LATS.append(inventory[0][0].latitude)
-            LONS.append(inventory[0][0].longitude)
-    for i, nslc in enumerate(NSLC):
-        dist = (
-            gps2dist_azimuth(
-                eq.preferred_origin().latitude,
-                eq.preferred_origin().longitude,
-                LATS[i],
-                LONS[i],
-            )[0]
-            / 1000.0
-        )
-        DIST.append(dist)
+    if isinstance(cat, Event):
+        catalog = Catalog([cat])
+    else:
+        catalog = cat
+
+    for eq in catalog:
+        for p in eq.picks:
+            wid = p.waveform_id
+            net, sta, loc, chan = wid.id.split(".")
+            ns = ".".join([net, sta])
+            if ns not in NS:
+                logger.info(f"Getting lat/lon info for {wid.id}")
+                inventory = client.get_stations(
+                    network=net, station=sta, location=loc, channel=chan
+                )
+
+                sta_lat = inventory[0][0].latitude
+                sta_lon = inventory[0][0].longitude
+                dist = (
+                    gps2dist_azimuth(
+                        eq.preferred_origin().latitude,
+                        eq.preferred_origin().longitude,
+                        sta_lat,
+                        sta_lon,
+                    )[0]
+                    / 1000.0
+                )
+
+                NS.append(ns)
+                NSLC.append(wid.id)
+                LATS.append(sta_lat)
+                LONS.append(sta_lon)
+                DIST.append(dist)
 
     STAS = pd.DataFrame(
         {
@@ -361,11 +351,12 @@ def eq_picks_to_dataframe(eq):
         }
     )
 
-    STAS["P"] = np.nan
-    STAS["S"] = np.nan
-    for p in eq.picks:
-        ns = ".".join(p.waveform_id.id.split(".")[:2])
-        STAS.loc[STAS.NS == ns, p.phase_hint] = p.time
+    if isinstance(cat, Event):
+        STAS["P"] = np.nan
+        STAS["S"] = np.nan
+        for p in eq.picks:
+            ns = ".".join(p.waveform_id.id.split(".")[:2])
+            STAS.loc[STAS.NS == ns, p.phase_hint] = p.time
 
     STAS = STAS.sort_values("Distance")
 

@@ -69,7 +69,6 @@ def main():
         return
 
     # TODO: implement kill switch
-    # TODO: add "force trigger" (or similar) argument to force an alert to trigger
 
     args = update_arguments(args)
     if args.test:

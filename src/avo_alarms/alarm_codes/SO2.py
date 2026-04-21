@@ -19,26 +19,17 @@ from avo_alarms.utils.setup_utils import get_logger, load_volcano_list
 logger = get_logger(__name__)
 
 
-def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
-    
-    logger.info('Reading SACS SO2 webpage')
-    attempt = 1
-    max_tries = 3
-    while attempt <= max_tries:
-        try:
-            page = requests.get(os.environ['SACS_URL'], verify=False, timeout=10)
-            soup = BeautifulSoup(page.content, 'html.parser')
-            table= soup.find_all('pre')[0]
-            break
-        except:
-            if attempt == max_tries:
-                logger.warning('Page error.')
-                state = 'WARNING'
-                state_message = '{} (UTC) webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
-                messaging.icinga(config, state, state_message, send=icinga_flag)
-                return
-            logger.warning('Page error on attempt number {:g}'.format(attempt))
-            attempt += 1
+def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force_flag=False):
+
+    T0_str = T0.strftime('%Y-%m-%d %H:%M')
+    table = downloading.download_SO2()
+
+    if table is None:
+        state = "WARNING"
+        state_message = f"{T0_str} (UTC) webpage error"
+        messaging.icinga(config, state, state_message, send=icinga_flag)
+        return
+
 
     try:
         table = table.get_text().split('\n')
@@ -103,10 +94,10 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         
         logger.info('Drafting alert')
         subject, message = create_message(date,time, table, config,volcs)
-        
+
         # logger.info('Sending direct alert')
         # messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
-        
+
         logger.info('Update timestamp to avoid resending same alert')
         update_timestamp(date, time, config)
         

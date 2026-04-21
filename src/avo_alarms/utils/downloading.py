@@ -427,6 +427,27 @@ def download_vaa_from_api():
     return vaa_id_list
 
 
+def download_SO2():
+
+    logger.info("Reading SACS SO2 webpage")
+    attempt = 1
+    max_tries = 3
+    while attempt <= max_tries:
+        try:
+            page = requests.get(os.getenv("SACS_URL"), verify=False, timeout=10)
+            soup = BeautifulSoup(page.content, "html.parser")
+            table = soup.find_all("pre")[0]
+            break
+        except Exception as e:
+            logger.warning(f"Error scraping SO2 webpage on attempt {attempt:g}")
+            logger.warning(e)
+            time.sleep(2)
+            attempt += 1
+            table = None
+
+    return table
+
+
 def download_station_xml():
     """Download and update station metadata XML file from IRIS."""
 

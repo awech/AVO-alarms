@@ -1,95 +1,64 @@
 import os
-import time
 import traceback
 from itertools import combinations
-from pathlib import Path
 
 import cartopy
-import matplotlib as m
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import shapely.geometry as sgeom
 import utm
-from cartopy.io.img_tiles import GoogleTiles
-from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
-from matplotlib.dates import date2num, num2date
+from matplotlib.dates import date2num
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-from obspy.clients.fdsn import Client
+from obspy import Catalog
 from sklearn.cluster import DBSCAN
 
 from avo_alarms.utils import downloading, messaging, plotting, processing
-from avo_alarms.utils.setup_utils import get_logger, load_volcano_list
+from avo_alarms.utils.setup_utils import get_logger
 
 logger = get_logger(__name__)
 
 
-attempt = 1
-while attempt <= 3:
-    try:
-        client = Client('IRIS')
-        break
-    except:
-        time.sleep(2)
-        attempt+=1
-        client = None
-
-
-def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
+def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force_flag=False):
 
     # Download the event data
-    T0_str = T0.strftime('%Y-%m-%d %H:%M')
-    logger.info(T0_str)
-    logger.info('Downloading events...')
+    T0_str = T0.strftime("%Y-%m-%d %H:%M")
+    outfile_cols = ["id", "time", "latitude", "longitude", "depth", "mag", "v_name"]
+
     config.DURATION = np.array([swm['MAX_EVT_TIME'] for swm in config.swarm_parameters]).max()
-    T2 = T0
-    T1 = T2 - config.DURATION
-    URL = '{}starttime={}&endtime={}&maxdepth={}&format=csv'.format(os.environ['FDSN_URL'],
-                                                                    T1.strftime('%Y-%m-%dT%H:%M:%S'),
-                                                                    T2.strftime('%Y-%m-%dT%H:%M:%S'),
-                                                                    config.MAXDEP)
-    catalog_df = downloading.download_hypocenters_csv(URL)
+    logger.info(f"Downloading events {config.DURATION:g}s before {T0_str}")
+    URL = build_download_url(T0, config)
+    T_min = (T0 - config.DURATION).strftime("%Y-%m-%d %H:%M:%S")
+    eq_df = downloading.download_hypocenters_csv(URL)
 
     # Error pulling events
-    if catalog_df is None:
+    if eq_df is None:
         state = "WARNING"
         state_message = f"{T0_str} (UTC) FDSN connection error"
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 
-    # No events
-    if len(catalog_df) == 0:
-        state = "OK"
-        state_message = f"{T0_str} (UTC) No new earthquakes"
-        messaging.icinga(config, state, state_message, send=icinga_flag)
-        return
-
-    # filter out regional VTs
+    # Filter out regional events
+    logger.info(f"{len(eq_df):g} earthquakes detected")
     logger.info("Filtering out regional VTs")
-    ## TODO catalog.volc_file is used enough it should just be in .env
-    catalog_df = processing.find_nearest_volcano(catalog_df)
-    # VOLCS = load_volcano_list()
-    # VOLCS = VOLCS[VOLCS['Holocene']=='Y']
-    # CAT_DF = catalog_to_dataframe(CAT, VOLCS)
-    catalog_df = catalog_df[catalog_df["v_distance"] < config.VOLCANO_DISTANCE]
-    # CAT_DF = CAT_DF.reset_index(drop=True)
+    eq_df = processing.find_nearest_volcano(eq_df)
+    eq_df = eq_df[eq_df["v_distance"] < config.VOLCANO_DISTANCE]
+    logger.info(f"{len(eq_df):g} earthquakes near volcanoes")
 
-    # New events, but not close enough to volcanoes
-    if len(catalog_df) == 0:
-        logger.warning("Earthquakes detected, but not near any volcanoes")
+    # No quakes close enough to volcanoes
+    if len(eq_df) == 0:
         state = "OK"
         state_message = f"{T0_str} (UTC) No new swarm activity"
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 
     # Read in old events. Filter to new events
-    outfile_cols = ["id", "time", "latitude", "longitude", "v_name"]
-    new_catalog_df, catalog_df = processing.compare_to_old_events(
-        catalog_df, config.outfile, outfile_cols, "id"
+    new_eq_df, eq_df = processing.compare_to_old_events(
+        eq_df, config.outfile, outfile_cols, "id"
     )
+    old_eq_df = pd.read_csv(config.outfile, parse_dates=["time"])
 
     # No new earthquakes
-    if len(new_catalog_df) == 0:
+    if len(new_eq_df) == 0:
         state = "OK"
         state_message = f"{T0_str} (UTC) No new earthquakes"
         messaging.icinga(config, state, state_message, send=icinga_flag)
@@ -97,422 +66,381 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
 
     # Check for swarms
     logger.info("Clustering...")
-    swarms = get_swarms(new_catalog_df.copy(), T0, config)
+    swarms = get_swarms(new_eq_df, T0, config)
+    swarm_continue = check_swarm_continue(T0, config, old_eq_df, new_eq_df)
 
-    # New events, but not swarm-y
-    if len(SWARMS) == 0:
-        ## TODO this suggests need to keep old events in `compare_to_old_events` function
-        ALL_EVENTS = pd.concat([OLD_EVENTS, NEW_EVENTS], keys='ID', ignore_index=True).drop_duplicates('ID')
-        SWARM_CONTINUE = get_swarms(ALL_EVENTS.copy(), T0, config)
-        SWARM_CONTINUE = [swarm.loc[~swarm['ID'].isin(OLD_EVENTS.ID)] for swarm in SWARM_CONTINUE]
-        SWARM_CONTINUE = [swarm for swarm in SWARM_CONTINUE if len(swarm)>0]
+    # New earthquakes, but not swarm-y
+    if len(swarms) == 0 and len(swarm_continue) == 0:
+        logger.warning("Earthquakes detected, but no new swarm actvity")
+        state = "OK"
+        state_message = f"{T0_str} (UTC) No new swarm actvity"
 
-        if len(SWARM_CONTINUE) > 0:
-            logger.info('Earthquakes detected. Continuation of swarm actvity')
-            state = 'WARNING'
-            v_list = [swarm.iloc[0].VOLCANO for swarm in SWARM_CONTINUE]
-            state_message = '{} (UTC) Ongoing swarm actvity at: {}'.format(T0.strftime('%Y-%m-%d %H:%M'), ', '.join(np.unique(v_list)))
+        # No new events to write
+        out_df = old_eq_df
 
-            MERGED_SWARMS = pd.concat(SWARM_CONTINUE, keys='ID', ignore_index=True).drop_duplicates('ID')
-            ALL_EVENTS = pd.concat([OLD_EVENTS, MERGED_SWARMS], keys='ID', ignore_index=True).drop_duplicates('ID')
-            ALL_EVENTS = ALL_EVENTS[ALL_EVENTS['Time'] > (T0 - config.DURATION).strftime('%Y-%m-%d %H:%M:%S')]
-            ALL_EVENTS = ALL_EVENTS.sort_values('Time')
-            ALL_EVENTS[['ID','Time','Latitude','Longitude','VOLCANO']].to_csv(config.outfile, index=False, sep='\t', float_format='%.3f')
-        else:
-            logger.warning('Earthquakes detected, but no new swarm actvity')
-            state = 'OK'
-            state_message = '{} (UTC) No new swarm actvity'.format(T0.strftime('%Y-%m-%d %H:%M'))
+    # New earthquakes aren't swarm-y by themselves, but continuation of ongoing swarm
+    elif len(swarms) == 0 and len(swarm_continue) > 0:
+        logger.info("Earthquakes detected. Continuation of swarm actvity")
+        state = "WARNING"
+        v_list = [swarm.iloc[0].v_name for swarm in swarm_continue]
+        v_list_txt = ", ".join(np.unique(v_list))
+        state_message = f"{T0_str} (UTC) Ongoing swarm actvity at: {v_list_txt}"
 
-            ALL_EVENTS = OLD_EVENTS[OLD_EVENTS['Time'] > (T0 - config.DURATION).strftime('%Y-%m-%d %H:%M:%S')]
-            ALL_EVENTS = ALL_EVENTS.sort_values('Time')
-            ALL_EVENTS[['ID','Time','Latitude','Longitude','VOLCANO']].to_csv(config.outfile, index=False, sep='\t', float_format='%.3f')
+        # Merge new and old swarm detects
+        merged_swarm = pd.concat(swarm_continue, keys="id", ignore_index=True).drop_duplicates("id")
+        out_df = pd.concat([old_eq_df, merged_swarm], keys="id", ignore_index=True).drop_duplicates("id")
 
-        messaging.icinga(config, state, state_message, send=icinga_flag)
-        return
+    else:
+        # remove duplicate or overlapping swarms
+        swarms = compare_swarms(swarms)
+
+        for swarm in swarms:
+            state = "CRITICAL"
+            volcano = swarm.iloc[0].v_name
+            state_message = f"{T0_str} (UTC) Swarm actvity at: {volcano}"
+
+            subject, message = create_message(swarm)
+            logger.info(subject)
+            logger.info(message)
+
+            #### Generate Figure ####
+            try:
+                filename = make_figure(swarm, T0, config, test=test_flag)
+                swarm_t1 = swarm.time.min().strftime("%Y%m%d_%H%M")
+                swarm_t2 = swarm.time.max().strftime("%Y%m%d_%H%M")
+                new_filename = f"{volcano}_M{swarm_t1}-{swarm_t2}.png"
+                filename = filename.rename(filename.parent / new_filename)
+            except Exception as e:
+                filename = []
+                logger.error("Problem making figure. Continue anyway")
+                logger.warning(e)
+                logger.warning(traceback.format_exc())
+
+            if test_flag:
+                messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
+
+            logger.info("Posting message to Mattermost...")
+            messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag, volcano=volcano)
+
+            if filename:
+                os.remove(filename)
+
+        # Merge new and old swarm detects
+        merged_swarm = pd.concat(swarms, keys="id", ignore_index=True).drop_duplicates("id")
+        out_df = pd.concat([old_eq_df, merged_swarm], keys="id", ignore_index=True).drop_duplicates("id")
 
 
-    # remove duplicate or overlapping swarms
-    SWARMS = compare_swarms(SWARMS)
-
-    # Combine old and new swarm detects. Write out all combined events within T0 - max(duration)
-    MERGED_SWARMS = pd.concat(SWARMS, keys='ID', ignore_index=True).drop_duplicates('ID')
-    ALL_EVENTS = pd.concat([OLD_EVENTS, MERGED_SWARMS], keys='ID', ignore_index=True).drop_duplicates('ID')
-    ALL_EVENTS = ALL_EVENTS[ALL_EVENTS['Time'] > (T0 - config.DURATION).strftime('%Y-%m-%d %H:%M:%S')]
-    ALL_EVENTS = ALL_EVENTS.sort_values('Time')
-    ALL_EVENTS[['ID','Time','Latitude','Longitude','VOLCANO']].to_csv(config.outfile, index=False, sep='\t', float_format='%.3f')
-
-    for swarm in SWARMS:
-        state = 'CRITICAL'
-        state_message = '{} (UTC) Swarm actvity at: {}'.format(T0.strftime('%Y-%m-%d %H:%M'), swarm.iloc[0].VOLCANO)
-
-        subject, message = create_message(swarm)
-        logger.info(subject)
-        logger.info(message)
-
-        #### Generate Figure ####
-        try:
-            # stations = get_swarm_stations(swarm)
-            filename = plot_event(swarm, T0, config, VOLCS, CAT)
-            new_filename = Path(os.environ["TMP_FIGURE_DIR"])
-            new_filename = new_filename / "{}_M{:.1f}_{}.png".format(swarm.iloc[0].Time.strftime("%Y%m%dT%H%M%S"),
-                                                 swarm.iloc[0].Magnitude,
-                                                 "".join(swarm.iloc[0].ID.split("/")[-2:]).lower())
-            os.rename(filename, new_filename)
-            filename = new_filename
-        except:
-            filename = []
-            logger.error('Problem making figure. Continue anyway')
-            b = traceback.format_exc()
-            err_message = ''.join('{}\n'.format(a) for a in b.splitlines())
-            logger.error(err_message)
-
-        # print('Sending message...')
-        # messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
-        logger.info('Posting message to Mattermost...')
-        messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
-
-        # Post to dedicated response channels for volcnoes listed in config file
-        # if 'mm_response_channels' in dir(config):
-        #     if swarm.iloc[0].VOLCANO in config.mm_response_channels.keys():
-        #         config.mattermost_channel_id = config.mm_response_channels[swarm.iloc[0].VOLCANO]
-        #         messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
-
-        if filename:
-            os.remove(filename)
-    
+    out_df = out_df[out_df["time"] > T_min]
+    out_df = out_df.sort_values("time")
+    processing.write_to_csv(out_df, config, outfile_cols)
     messaging.icinga(config, state, state_message, send=icinga_flag)
     
     return
 
 
-def get_extent(lat0, lon0, dist=20):
-
-    dlat = 1*(dist/111.1)
-    dlon = dlat/np.cos(lat0*np.pi/180)
-
-    latmin= lat0 - dlat
-    latmax= lat0 + dlat
-    lonmin= lon0 - dlon
-    lonmax= lon0 + dlon
-
-    return [lonmin, lonmax, latmin, latmax]
-
-
-def make_path(extent):
-    n = 20
-    aoi = Path(
-        list(zip(np.linspace(extent[0],extent[1], n), np.full(n, extent[3]))) + \
-        list(zip(np.full(n, extent[1]), np.linspace(extent[3], extent[2], n))) + \
-        list(zip(np.linspace(extent[1], extent[0], n), np.full(n, extent[2]))) + \
-        list(zip(np.full(n, extent[0]), np.linspace(extent[2], extent[3], n)))
-    )
-
-    return(aoi)
-
-#TODO Move this class to plotting:
-class ShadedReliefESRI(GoogleTiles):
-    # shaded relief
-    def _image_url(self, tile):
-        x, y, z = tile
-        url = ('https://server.arcgisonline.com/ArcGIS/rest/services/' \
-               'World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}.jpg').format(
-               z=z, y=y, x=x)
-        return url
-
-
-def plot_event(swarm, T0, config, VOLCS, CAT):
-    m.use('Agg')
-    n_blank = 4
-
-    channels = get_swarm_stations(swarm, CAT)
-    channels = channels.sort_values('count', ascending=False)
+def make_figure(swarm, T0, config, test=False):
 
     fig, ax = plt.subplot_mosaic(
-        [
-            ['map'],
-            ['stem']
-        ],
-        figsize=(4,5.5),
-        height_ratios=[3,1],
+        [["map"], ["stem"]],
+        figsize=(4, 5.5),
+        height_ratios=[3, 1],
         layout="constrained",
-        per_subplot_kw={"map":{"projection":ShadedReliefESRI().crs}}
     )
 
+    lat0 = swarm.latitude.mean()
+    lon0 = swarm.longitude.mean()
+
     #################### Add main map ####################
-    volcs = processing.volcano_distance(swarm.iloc[0].Longitude, swarm.iloc[0].Latitude, VOLCS)
-    volcs = volcs.sort_values('distance')
+    ax["map"], extent = plotting.make_map(
+        ax["map"],
+        lat0,
+        lon0,
+        basemap="hillshade",
+        xdist=getattr(config, "map_distance", 50),
+        ydist=getattr(config, "map_distance", 50)
+    )
+    plotting.map_ticks(ax["map"], extent, grid_kwargs="default", y_rotate=90)
+    ax["map"].tick_params(length=0)
+    plotting.add_volcanoes_to_map(ax["map"], extent, config)
 
-    # grid = plt.GridSpec(1, 1, wspace=0.05, hspace=0.6)
-    logger.info('Plotting main map...')
-    extent = get_extent(volcs.iloc[0].Latitude, volcs.iloc[0].Longitude, dist=15)
-    ax['map'].set_extent(extent)
-    ax['map'].add_image(ShadedReliefESRI(), 11)
-    lon_grid = [np.mean(extent[:2])-np.diff(extent[:2])[0]/4, np.mean(extent[:2])+np.diff(extent[:2])[0]/4]
-    lat_grid = [np.mean(extent[-2:])-np.diff(extent[-2:])[0]/4, np.mean(extent[-2:])+np.diff(extent[-2:])[0]/4]
-    gl = ax['map'].gridlines(draw_labels={"bottom": "x", "right": "y"},
-                       xlocs=lon_grid, ylocs=lat_grid,
-                       xformatter=LongitudeFormatter(number_format='.2f', direction_label=False),
-                       yformatter=LatitudeFormatter(number_format='.2f', direction_label=False),
-                       alpha=0.2, 
-                       color='gray', 
-                       linewidth=0.5,
-                       xlabel_style={'fontsize':6},
-                       ylabel_style={'fontsize':6})
+    try:
+        logger.info("Downloading stations that have picks")
+        CAT = Catalog()
+        for i, row in swarm.iterrows():
+            evt_url = f"{os.getenv('FDSN_URL')}eventid={row.id}"
+            CAT += downloading.download_hypocenter_xml(evt_url)
+        CAT = processing.addPhaseHint(CAT)
+        channels = processing.eq_picks_to_dataframe(CAT)
 
-    ax['map'].plot(volcs[:10].Longitude, volcs[:10].Latitude, '^', markerfacecolor='k', markersize=7, markeredgecolor='w', markeredgewidth=0.3, transform=cartopy.crs.PlateCarree())
-    ax['map'].plot(channels.Longitude, channels.Latitude, 's', markerfacecolor='dimgrey', markersize=4, markeredgecolor='k', markeredgewidth=0.6, transform=cartopy.crs.PlateCarree())
-
-    swarm = swarm.sort_values('Time')
-    time = date2num(swarm.Time)
-    map_hdl = ax['map'].scatter(swarm.Longitude.values, 
-                swarm.Latitude.values, 
-                s=40, 
-                c=time,
-                cmap='plasma', 
-                vmin=date2num((T0-swarm.iloc[0].param_duration).datetime), 
-                vmax=date2num(T0.datetime),
-                marker='o', 
-                edgecolors='k', 
-                linewidth=0.5, 
-                transform=cartopy.crs.PlateCarree(), 
-                zorder=1e4)
-
-    cbaxes = inset_axes(ax['map'], height="70%", width="3%", loc=6, borderpad=-1.1) 
-    cbar = plt.colorbar(map_hdl, cax=cbaxes, orientation='vertical')
-    cbaxes.yaxis.set_ticks_position('left')
-    cbar.set_ticks([date2num((T0-swarm.iloc[0].param_duration).datetime), date2num(T0.datetime)])
-    cbar.set_ticklabels(['{:.0f}\nhour\nago'.format(swarm.iloc[0].param_duration/3600.0), 'Now'])
-    cbar.ax.tick_params(labelsize=6)
-    
-    ax['map'].set_title('{} events\nFirst:     {} UTC\nLatest:  {} UTC'.format(len(swarm),
-                                                       swarm.Time.min().strftime('%Y-%m-%d %H:%M'), 
-                                                       swarm.Time.max().strftime('%Y-%m-%d %H:%M')),
-                  fontsize=8)
+        ax["map"].plot(
+            channels.Longitude,
+            channels.Latitude,
+            "s",
+            mfc="dimgrey",
+            ms=4,
+            mec="k",
+            mew=0.6,
+            transform=cartopy.crs.PlateCarree(),
+        )
+    except Exception as e:
+        logger.warning("Problem downloading station info")
+        logger.error(e)
+        logger.warning("Skip plotting stations on map.")
 
 
     ################### Add inset map ###################
     logger.info('Plotting inset map...')
-    extent2 = get_extent(volcs.iloc[0].Latitude, volcs.iloc[0].Longitude, dist=150)
-    CRS2 = cartopy.crs.AlbersEqualArea(central_longitude=np.mean(extent2[:2]), central_latitude=np.mean(extent[2:]), globe=None)
-    glb_ax = fig.add_axes([0.75, 0.84, 0.17, 0.17], projection=CRS2)
-    glb_ax.set_boundary(make_path(extent2), transform=cartopy.crs.Geodetic())
-    glb_ax.set_extent(extent2,cartopy.crs.Geodetic())
-    coast = cartopy.feature.GSHHSFeature(scale="intermediate", rasterized=True)
-    glb_ax.add_feature(coast, facecolor="lightgray", linewidth=0.1)
-    extent_lons=np.concatenate( (np.linspace(extent[0],extent[1],100),
-                                 extent[1]*np.ones(100),
-                                 np.linspace(extent[1],extent[0],100),
-                                 extent[0]*np.ones(100)
-                                )
-                              )
-    extent_lats=np.concatenate( (extent[2]*np.ones(100),
-                                 np.linspace(extent[2],extent[3],100),
-                                 extent[3]*np.ones(100),
-                                 np.linspace(extent[3],extent[2],100),
-                                )
-                              )
-    pointList = [sgeom.Point(x,y) for x,y in zip(extent_lons,extent_lats)]
-    poly = sgeom.Polygon([[p.x, p.y] for p in pointList])
-    glb_ax.add_geometries([poly], cartopy.crs.Geodetic(), facecolor='none', edgecolor='crimson', linewidth=.75,zorder=1e3)
-    #####################################################
+    ax_inset = fig.add_axes([0.75, 0.75, 0.2, 0.2])
+    ax_inset, inset_extent = plotting.make_map(ax_inset, lat0, lon0,
+                                    xdist=400,
+                                    ydist=300,
+                                    basemap="land",
+                                    projection="orthographic")
+    plotting.add_inset_polygon(ax_inset, extent)
 
-    mag_swarm = swarm[~swarm['Magnitude'].isnull()]
-    time = date2num(mag_swarm.Time)
-    markerline, stemlines, baseline = ax['stem'].stem(mag_swarm.Time, mag_swarm.Magnitude,
-                                                      linefmt='k-',
-                                                      markerfmt='k.',
-                                                      bottom=-5,
-                                                      )
+
+    ################### Make stem plot ###################
+    swarm = swarm.sort_values("time")
+    time = date2num(swarm.time)
+    map_hdl = ax["map"].scatter(
+        swarm.longitude.values,
+        swarm.latitude.values,
+        s=40,
+        c=time,
+        cmap="plasma",
+        vmin=date2num((T0 - swarm.iloc[0].param_duration).datetime),
+        vmax=date2num(T0.datetime),
+        marker="o",
+        edgecolors="k",
+        linewidth=0.5,
+        transform=cartopy.crs.PlateCarree(),
+        zorder=1e4,
+    )
+
+    mag_swarm = swarm[~swarm["mag"].isnull()]
+    time = date2num(mag_swarm.time)
+    markerline, stemlines, baseline = ax["stem"].stem(
+        mag_swarm.time,
+        mag_swarm.mag,
+        linefmt="k-",
+        markerfmt="k.",
+        bottom=-5,
+    )
     stemlines.set_linewidth(0.8)
-    ax['stem'].scatter(mag_swarm.Time, mag_swarm.Magnitude,
-                       s=30, 
-                       c=time,
-                       edgecolors='k',
-                       linewidth=0.8, 
-                       cmap='plasma', 
-                       vmin=date2num((T0-swarm.iloc[0].param_duration).datetime), 
-                       vmax=date2num(T0.datetime),
-                       zorder=10,
-                       clip_on=False,
-                       label='_nolegend_'
-                    )
-    ax['stem'].set_ylim(mag_swarm.Magnitude.min()-0.2,mag_swarm.Magnitude.max()+0.2)
+    ax["stem"].scatter(
+        mag_swarm.time,
+        mag_swarm.mag,
+        s=30,
+        c=time,
+        edgecolors="k",
+        linewidth=0.8,
+        cmap="plasma",
+        vmin=date2num((T0 - swarm.iloc[0].param_duration).datetime),
+        vmax=date2num(T0.datetime),
+        zorder=10,
+        clip_on=False,
+        label="_nolegend_",
+    )
+    ax["stem"].set_ylim(mag_swarm.mag.min() - 0.2, mag_swarm.mag.max() + 0.2)
+
+    no_mag_swarm = swarm[swarm["mag"].isnull()]
+    time = date2num(no_mag_swarm.time)
+    h_no_mag = ax["stem"].scatter(
+        no_mag_swarm.time,
+        np.ones_like(time) * ax["stem"].get_ylim()[0],
+        s=30,
+        c="gray",
+        edgecolors="k",
+        linewidth=0.8,
+        zorder=10,
+        clip_on=False,
+        label="No magnitude",
+    )
+
+    T1 = T0 - swarm.iloc[0].param_duration
+    T2 = T0
+    duration = swarm.iloc[0].param_duration
+    match duration:
+        case val if val <= 3600:
+            dt = "-10min"
+        case val if 3600 < val < 4*3600:
+            dt = "-30min"
+        case val if 4*3600 <= val < 12*3600:
+            dt = "-1h"
+        case val if val >= 12*3600:
+            dt = "-4h"
+
+    plotting.time_ticks(ax["stem"], T1.datetime, T2.datetime, dt, fmt="%Y-%m-%d\n%H:%M", fontsize=6, rotation_mode="anchor")
+    ax["stem"].tick_params(axis="x", which="major", pad=0)
+    ax["stem"].set_ylabel("Magnitude", fontsize=8)
+    ax["stem"].grid(axis="both", linewidth=0.2, linestyle="--")
+
+    if len(no_mag_swarm) > 0:
+        ax["stem"].legend(loc="upper right", markerscale=0.8, fontsize=6)
 
 
-    no_mag_swarm = swarm[swarm['Magnitude'].isnull()]
-    time = date2num(no_mag_swarm.Time)
-    h_no_mag = ax['stem'].scatter(no_mag_swarm.Time, np.ones_like(time)*ax['stem'].get_ylim()[0],
-                   s=30, 
-                   c='gray',
-                   edgecolors='k',
-                   linewidth=0.8, 
-                   zorder=10,
-                   clip_on=False,
-                   label='No magnitude'
-                )
+    ################### Add colorbar ###################
+    cbaxes = inset_axes(ax["map"], height="70%", width="4%", loc=6, borderpad=-1)
+    cbar = plt.colorbar(map_hdl, cax=cbaxes, orientation="vertical")
+    cbaxes.yaxis.set_ticks_position("left")
+    cbar.set_ticks([date2num((T0-config.DURATION).datetime), date2num(T0.datetime)])
+    h = np.floor(config.DURATION / 3600)
+    m = (config.DURATION/3600 - h) * 60
+    min_txt = f"\n{m:g} mins" if m > 0 else ""
+    ctick_lab = f"{h:g} hrs" + min_txt +"\nago"
+    cbar.set_ticklabels([ctick_lab, "Now"])
+    cbar.ax.tick_params(labelsize=6)
 
-    ax['stem'].set_xlim(date2num(T0-swarm.iloc[0].param_duration), date2num(T0))
-    ticks = [t.strftime('%Y-%m-%d\n%H:%M') for t in num2date(ax['stem'].get_xticks())]
+    N_evt = len(swarm)
+    volcano = swarm.iloc[0].v_name
+    T1 = swarm.time.min().strftime('%Y-%m-%d %H:%M')
+    T2 = swarm.time.max().strftime('%Y-%m-%d %H:%M')
+    ax["map"].set_title(
+        f"{N_evt} events at {volcano}\nFirst:     {T1} UTC\nLatest:  {T2} UTC",
+        fontsize=8,
+    )
 
-    ticks = [t.strftime('%Y-%m-%d\n%H:%M') if i % 2 !=0 else '' 
-             for i, t in enumerate(num2date(ax['stem'].get_xticks()))]
-
-
-    ax['stem'].set_xticklabels(ticks, rotation = 45, ha='right', rotation_mode="anchor", fontsize=6)
-    ax['stem'].tick_params(axis='x', which='major', pad=0)
-    ax['stem'].set_yticklabels(ax['stem'].get_yticks(), fontsize=6)
-    ax['stem'].set_ylabel('Magnitude')
-    ax['stem'].grid(axis='both', linewidth=0.2,linestyle='--')
-
-    if len(no_mag_swarm)>0:
-        ax['stem'].legend(loc='upper right', markerscale=0.8, fontsize=6)
-
-
-    jpg_file = plotting.save_file(fig, config, dpi=250)
+    jpg_file = plotting.save_file(fig, config, dpi=250, test=test)
     plt.close(fig)
 
     return jpg_file
 
 
-def get_swarm_stations(swarm, CAT):
-
-    SWM_CAT = Catalog()
-    for i, evt in swarm.iterrows():
-        eq = CAT.filter(f"time >= {evt.Time}", f"time <= {evt.Time}")
-        SWM_CAT += eq
-
-    # Add phase info to new events
-    try:
-        SWM_CAT = addPhaseHint(SWM_CAT)
-        flag = True
-    except:
-        logger.warning('Could not add phase type...')
-        flag = False
-
-    if flag:
-        NSLC = []
-        LATS = []
-        LONS = []
-        NS = []
-        NS_COUNT = []
-        for eq in SWM_CAT:
-            for p in eq.picks:
-                wid=p.waveform_id
-                net, sta, loc, chan = wid.id.split('.')
-                ns = '.'.join([net,sta])
-                NS_COUNT.append(ns)
-                if (ns not in NS):
-                    logger.info('Getting lat/lon info for {}'.format(wid.id))
-                    inventory = client.get_stations(network=net,
-                                                    station=sta,
-                                                    location=loc,
-                                                    channel=chan)
-                    NS.append(ns)
-                    NSLC.append(wid.id)
-                    LATS.append(inventory[0][0].latitude)
-                    LONS.append(inventory[0][0].longitude)
-                    STAS = pd.DataFrame({'NS':NS, 'NSLC':NSLC, 'Latitude':LATS, 'Longitude':LONS})
-    for ns in NS:
-        STAS.loc[STAS['NS']==ns, 'count'] = int(len(np.where(np.array(NS_COUNT)==ns)[0]))
-
-    return STAS
-
-
 def create_message(swarm):
 
-    tmin = pd.Timestamp(swarm.Time.min(), tz='UTC')
-    tmax = pd.Timestamp(swarm.Time.max(), tz='UTC')
+    tmin = pd.Timestamp(swarm.time.min(), tz="UTC")
+    tmax = pd.Timestamp(swarm.time.max(), tz="UTC")
     dt = tmax - tmin
-    hours = np.floor(dt.total_seconds()/3600)
-    minutes = np.round((dt.total_seconds() - hours*3600)/60)
+    hours = np.floor(dt.total_seconds() / 3600)
+    minutes = np.round((dt.total_seconds() - hours * 3600) / 60)
 
-    message = f'{len(swarm)} events in {hours:.0f}h {minutes:.0f}m'
-    message+= '\n\n***--- UTC ---***'
-    message+= f'\n**First:** {tmin.strftime("%Y-%m-%d %H:%M")}'
-    message+= f'\n**Last:** {tmax.strftime("%Y-%m-%d %H:%M")}'
+    message = f"{len(swarm)} events in {hours:.0f}h {minutes:.0f}m"
+    message += "\n\n***--- UTC ---***"
+    message += f"\n**First:** {tmin.strftime('%Y-%m-%d %H:%M')}"
+    message += f"\n**Last:** {tmax.strftime('%Y-%m-%d %H:%M')}"
 
-    tmin_local = tmin.tz_convert(os.environ['TIMEZONE'])
-    tmax_local = tmax.tz_convert(os.environ['TIMEZONE'])
+    tmin_local = tmin.tz_convert(os.environ["TIMEZONE"])
+    tmax_local = tmax.tz_convert(os.environ["TIMEZONE"])
 
-    message+= f'\n\n***--- {tmax_local.tzname()} ---***'
-    message+= f'\n**First:** {tmin_local.strftime("%Y-%m-%d %H:%M")}'
-    message+= f'\n**Last:** {tmax_local.strftime("%Y-%m-%d %H:%M")}'
+    message += f"\n\n***--- {tmax_local.tzname()} ---***"
+    message += f"\n**First:** {tmin_local.strftime('%Y-%m-%d %H:%M')}"
+    message += f"\n**Last:** {tmax_local.strftime('%Y-%m-%d %H:%M')}"
 
-    message+= f'\n\n**Magnitude range:** {swarm.Magnitude.min():.1f} - {swarm.Magnitude.max():.1f}'
-    num_nan_mags = len(np.where(np.isnan(swarm.Magnitude))[0])
+    message += f"\n\n**Magnitude range:** {swarm.mag.min():.1f} - {swarm.mag.max():.1f}"
+    num_nan_mags = len(np.where(np.isnan(swarm.mag))[0])
     if num_nan_mags == 1:
-        message+=f' ({num_nan_mags:.0f} event with unassigned magnitude)'
+        message += f" ({num_nan_mags:.0f} event with unassigned magnitude)"
     elif num_nan_mags > 1:
-        message+=f' ({num_nan_mags:.0f} events with unassigned magnitude)'
+        message += f" ({num_nan_mags:.0f} events with unassigned magnitude)"
 
-    message+= f'\n**Depth range:** {swarm.Depth.min():.1f} - {swarm.Depth.max():.1f} km'
-    num_nan_deps = len(np.where(np.isnan(swarm.Depth))[0])
+    message += (
+        f"\n**Depth range:** {swarm.depth.min():.1f} - {swarm.depth.max():.1f} km"
+    )
+    num_nan_deps = len(np.where(np.isnan(swarm.depth))[0])
     if num_nan_deps == 1:
-        message+=f' ({num_nan_deps:.0f} event with unassigned depth)'
+        message += f" ({num_nan_deps:.0f} event with unassigned depth)"
     elif num_nan_deps > 1:
-        message+=f' ({num_nan_deps:.0f} events with unassigned depth)'
+        message += f" ({num_nan_deps:.0f} events with unassigned depth)"
 
-    subject = f'Earthquake swarm at {swarm.iloc[0].VOLCANO}'
+    subject = f"Earthquake swarm at {swarm.iloc[0].v_name}"
 
     return subject, message
 
 
-def compare_swarms(SWARMS):
+def build_download_url(T0, config):
+
+    T2 = T0
+    T1 = T2 - config.DURATION
+    URL = '{}starttime={}&endtime={}&maxdepth={}&format=csv'.format(os.environ['FDSN_URL'],
+                                                                    T1.strftime('%Y-%m-%dT%H:%M:%S'),
+                                                                    T2.strftime('%Y-%m-%dT%H:%M:%S'),
+                                                                    config.MAXDEP)
+    return URL
+
+
+def check_swarm_continue(T0, config, old_eq_df, new_eq_df):
+
+    all_eq_df = pd.concat(
+        [old_eq_df, new_eq_df], keys="id", ignore_index=True
+    ).drop_duplicates("id")
+    swarm_continue = get_swarms(all_eq_df.copy(), T0, config)
+    swarm_continue = [swarm.loc[~swarm["id"].isin(old_eq_df.id)] for swarm in swarm_continue]
+    swarm_continue = [swarm for swarm in swarm_continue if len(swarm)>0]
+
+    return swarm_continue
+
+
+def compare_swarms(swarms):
     flag = True
-    TEST_SWARMS = SWARMS.copy()
+    test_swarms = swarms.copy()
     while flag:
-        SWARM_COMBOS = list(combinations(range(len(TEST_SWARMS)), 2))
+        SWARM_COMBOS = list(combinations(range(len(test_swarms)), 2))
 
         if len(SWARM_COMBOS) > 0:
             remove_swarm_ind = []
             flag_list = []
             for ind_combo in SWARM_COMBOS:
                 # check for duplicate swarm detections
-                if TEST_SWARMS[ind_combo[0]].equals(TEST_SWARMS[ind_combo[1]]):
-                    logger.info('found equals')
+                if test_swarms[ind_combo[0]].equals(test_swarms[ind_combo[1]]):
+                    logger.info("found equals")
                     flag_list.append(True)
-                    remove_swarm_ind.append(ind_combo[0])			
+                    remove_swarm_ind.append(ind_combo[0])
                     continue
 
                 # check for overlap, and keep the shortest duration event
-                int_df = pd.merge(TEST_SWARMS[ind_combo[0]], TEST_SWARMS[ind_combo[1]], how ='inner', on =['ID', 'ID'])
+                int_df = pd.merge(
+                    test_swarms[ind_combo[0]],
+                    test_swarms[ind_combo[1]],
+                    how="inner",
+                    on=["id", "id"],
+                )
                 if len(int_df) > 0:
-                    logger.info('overlap')
-                    dt0 = TEST_SWARMS[ind_combo[0]].Time.max() - TEST_SWARMS[ind_combo[0]].Time.min()
-                    dt1 = TEST_SWARMS[ind_combo[1]].Time.max() - TEST_SWARMS[ind_combo[1]].Time.min()
-                    remove_swarm_ind.append( ind_combo[np.argmax([dt0,dt1])] )
+                    logger.info("overlap")
+                    dt0 = (
+                        test_swarms[ind_combo[0]].Time.max()
+                        - test_swarms[ind_combo[0]].Time.min()
+                    )
+                    dt1 = (
+                        test_swarms[ind_combo[1]].Time.max()
+                        - test_swarms[ind_combo[1]].Time.min()
+                    )
+                    remove_swarm_ind.append(ind_combo[np.argmax([dt0, dt1])])
                     flag_list.append(True)
                 else:
-                    logger.info('no overlap')
+                    logger.info("no overlap")
                     flag_list.append(False)
 
             # update swarms list with duplicate/overlapping swarms removed
-            TEST_SWARMS = [TEST_SWARMS[x] for x in range(len(TEST_SWARMS)) if x not in remove_swarm_ind]
+            test_swarms = [
+                test_swarms[x]
+                for x in range(len(test_swarms))
+                if x not in remove_swarm_ind
+            ]
             flag = any(flag_list)
         else:
             flag = False
 
-    return TEST_SWARMS
+    return test_swarms
 
 
-def get_swarms(DF, T0, config):
+def get_swarms(df, T0, config):
 
     t_str_fmt = "%Y-%m-%d %H:%M:%S"
-    lat0 = DF.latitude.mean()
-    lon0 = DF.longitude.mean()
+    lat0 = df.latitude.mean()
+    lon0 = df.longitude.mean()
     ZN_LET = utm.latitude_to_zone_letter(lat0)
     ZN_NUM = utm.latlon_to_zone_number(lat0, lon0)
 
     east, north, *_ = utm.from_latlon(
-        DF.latitude, DF.longitude, force_zone_number=ZN_NUM, force_zone_letter=ZN_LET
+        df.latitude, df.longitude, force_zone_number=ZN_NUM, force_zone_letter=ZN_LET
     )
-    DF["x"] = east / 1000
-    DF["y"] = north / 1000
+    df["x"] = east / 1000
+    df["y"] = north / 1000
 
     SWARMS = []
     for params in config.swarm_parameters:
         # scale time to match distance
-        cat_df = DF.copy()[DF["time"] > (T0 - params["MAX_EVT_TIME"]).strftime(t_str_fmt)]
+        cat_df = df.copy()[df["time"] > (T0 - params["MAX_EVT_TIME"]).strftime(t_str_fmt)]
         if len(cat_df) == 0:
             continue
         t = cat_df.time
@@ -534,61 +462,3 @@ def get_swarms(DF, T0, config):
             SWARMS.append(df.copy())
 
     return SWARMS
-
-
-def addPhaseHint(cat):
-    for eq in cat:
-        # Loop over catalog
-        for pick in eq.picks:
-            # Loop over picks
-            # Go get phase hint
-            nowPickID = pick.resource_id
-            for arrival in eq.preferred_origin().arrivals:
-                nowArrID = arrival.pick_id
-                if nowPickID == nowArrID:
-                    pick.phase_hint=arrival.phase
-    return cat
-
-
-def catalog_to_dataframe(CAT, VOLCS):
-
-    LATS = []
-    LONS = []
-    DEPS = []
-    MAGS = []
-    TIME = []
-    ID   = []
-    RMS  = []
-    AZ_GAP = []
-    V_DIST = []
-    VOLCANO = []
-
-    for eq in CAT:
-        LATS.append(eq.preferred_origin().latitude)
-        LONS.append(eq.preferred_origin().longitude)
-        DEPS.append(eq.preferred_origin().depth/1000)
-        TIME.append(eq.preferred_origin().time.datetime)
-        try:
-            RMS.append(eq.preferred_origin().quality.standard_error)
-        except:
-            RMS.append(1e2)
-        try:
-            AZ_GAP.append(eq.preferred_origin().quality.azimuthal_gap)
-        except:
-            AZ_GAP.append(360)
-        if eq.preferred_magnitude():
-            MAGS.append(eq.preferred_magnitude().mag)
-        else:
-            MAGS.append(np.nan)
-        evid = eq.resource_id.id
-        ID.append(evid)
-
-        volcs = processing.volcano_distance(eq.preferred_origin().longitude, eq.preferred_origin().latitude, VOLCS)
-        volcs = volcs.sort_values('distance')
-        V_DIST.append(volcs.iloc[0].distance)
-        VOLCANO.append(volcs.iloc[0].Volcano)
-
-    cat_df = pd.DataFrame({'Time': TIME, 'Latitude':LATS, 'Longitude':LONS, 'Depth':DEPS, 'Magnitude':MAGS, 'ID':ID, 'V_DIST':V_DIST, 'VOLCANO':VOLCANO})
-    cat_df['Time'] = pd.to_datetime(cat_df['Time'])
-
-    return cat_df

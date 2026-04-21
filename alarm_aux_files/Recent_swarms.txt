@@ -1,1 +1,1 @@
-id,time,latitude,longitude,v_name
+id,time,latitude,longitude,depth,mag,v_name

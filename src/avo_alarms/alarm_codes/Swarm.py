@@ -245,7 +245,7 @@ def make_figure(swarm, T0, config, test=False):
 
     no_mag_swarm = swarm[swarm["mag"].isnull()]
     time = date2num(no_mag_swarm.time)
-    h_no_mag = ax["stem"].scatter(
+    ax["stem"].scatter(
         no_mag_swarm.time,
         np.ones_like(time) * ax["stem"].get_ylim()[0],
         s=30,

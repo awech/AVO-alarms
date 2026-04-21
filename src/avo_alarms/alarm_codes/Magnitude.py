@@ -35,6 +35,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     )
     logger.info(f"{T0_str}\nDownloading events...")
     catalog_df = downloading.download_hypocenters_csv(URL)
+
     if catalog_df is None: # Error pulling events
         state = "WARNING"
         state_message = f"{T0_str} (UTC) FDSN connection error"
@@ -126,13 +127,11 @@ def process_event(evt_url, config, test=False):
 
     try:
         filename = plot_event(eq, volcs, config, test=test)
-        fig_dir = Path(os.getenv("TMP_FIGURE_DIR"))
         eq_time = origin.time.strftime("%Y%m%dT%H%M%S")
         eq_mag = eq.preferred_magnitude().mag
         eq_id = "".join(eq.resource_id.id.split("/")[-2:]).lower()
-        new_filename = fig_dir / f"{eq_time}_M{eq_mag:.1f}_{eq_id}{filename.suffix}"
-        os.rename(filename, new_filename)
-        filename = new_filename
+        new_filename = f"{eq_time}_M{eq_mag:.1f}_{eq_id}{filename.suffix}"
+        filename.rename(filename.parent / new_filename)
     except Exception as e:
         filename = []
         logger.error("Problem making figure. Continue anyway")

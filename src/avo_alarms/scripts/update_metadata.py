@@ -2,7 +2,7 @@ import os
 
 from dotenv import load_dotenv
 
-from ..utils.processing import update_stationXML
+from ..utils.downloading import download_station_xml
 from ..utils.setup_utils import setup_root_logger
 
 load_dotenv()
@@ -15,7 +15,7 @@ def main():
     else:
         setup_root_logger()
 
-    update_stationXML()
+    download_station_xml()
 
 
 if __name__ == "__main__":

@@ -1,6 +1,8 @@
+import os
 import sys
 
 from ..utils.messaging import icinga
+from ..utils.setup_utils import setup_root_logger
 
 
 def config():
@@ -12,6 +14,13 @@ def main():
     alarm_name = sys.argv[1].replace("_", " ")
     config.icinga_service_name = alarm_name
     config.alarm_name = alarm_name
+
+    # log info if run from cron
+    if os.getenv("FROMCRON") == "yep":
+        setup_root_logger(log_dir=os.environ.get("LOGS_DIR"), config_name=alarm_name)
+    else:
+        setup_root_logger()
+
 
     state = "OK"
     state_message = "Empty alarm service"

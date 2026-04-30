@@ -427,15 +427,12 @@ def download_vaa_from_api():
     return vaa_id_list
 
 
-def download_mesonet_vaa_list(T0, force=False):
-    if force:
-        T0 = UTCDateTime("2026-04-09")
+def download_mesonet_vaa_list(T0):
+    logger.info(
+        f"Reading in alerts from mesonet api .json file for {T0.strftime('%Y-%m-%d')}"
+    )
 
-    logger.info("Reading in alerts from mesonet api .json file")
-
-    vaa_url = os.getenv("VAA_URL") + f"&date={T0.strftime("%Y-%m-%d")}"
-    vaa_url = "https://mesonet.agron.iastate.edu/api/1/nws/afos/list.json?pil=VAA"
-    vaa_url = f"{vaa_url}&date={T0.strftime("%Y-%m-%d")}"
+    vaa_url = os.getenv("VAA_URL") + f"&date={T0.strftime('%Y-%m-%d')}"
 
     attempt = 1
     max_tries = 3
@@ -445,9 +442,12 @@ def download_mesonet_vaa_list(T0, force=False):
             response = requests.get(vaa_url, timeout=10, verify=False)
             data = response.json()
             vaa_id_list = pd.DataFrame(data["data"])
-            vaa_id_list = vaa_id_list.drop(columns=["index", "count"])
+            if not vaa_id_list.empty:
+                vaa_id_list = vaa_id_list["text_link"].to_frame()
+            else:
+                vaa_id_list["text_link"] = ""
             break
-        except Exception:		
+        except Exception:
             logger.warning('Page error on attempt number {:g}'.format(attempt))
             attempt += 1	
             if attempt == max_tries:

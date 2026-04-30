@@ -1,22 +1,17 @@
 import os
 import re
-import sys
 import traceback
 import warnings
-from pathlib import Path
 
-import cartopy
-import matplotlib as m
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import requests
-from cartopy.mpl.gridliner import LATITUDE_FORMATTER, LONGITUDE_FORMATTER
-from matplotlib.path import Path as mpath
+from cartopy import crs as ccrs
 from obspy import UTCDateTime
 from obspy.geodetics.base import gps2dist_azimuth
 
-from avo_alarms.utils import messaging, plotting, processing, downloading
+from avo_alarms.utils import downloading, messaging, plotting, processing
 from avo_alarms.utils.setup_utils import get_logger
 
 warnings.filterwarnings("ignore")
@@ -24,12 +19,19 @@ warnings.filterwarnings("ignore")
 logger = get_logger(__name__)
 
 
-def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
+def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force_flag=False):
 
     logger.info(T0)
     T0_str = T0.strftime("%Y-%m-%d %H:%M")
+    outfile_cols = ["time", "id"]
 
-    vaa_id_list = downloading.download_vaa_from_api()
+    if force_flag:
+        T0 = UTCDateTime("2026-03-09 17:05")
+
+    # download yesterday & today (mesonet api uses calendar date queries)
+    vaa_id_list_1 = downloading.download_mesonet_vaa_list(T0 - 86400)
+    vaa_id_list_2 = downloading.download_mesonet_vaa_list(T0)
+    vaa_id_list = pd.concat([vaa_id_list_1, vaa_id_list_2])
 
     if vaa_id_list is None:
         logger.warning("Page error.")
@@ -38,80 +40,64 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True):
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 
-    VAAS_FOUND = []
-    for vaa_id in vaa_id_list:
+    vaas_found = []
+    for i, vaa_id in vaa_id_list.iterrows():
         vaa = process_vaa_id(vaa_id)
-        if UTCDateTime(vaa["DTG"]) > T0 - config.duration:
-            VAAS_FOUND.append(vaa)
+        vaas_found.append(vaa)
+    vaas_df = pd.DataFrame(vaas_found)
 
-    if len(VAAS_FOUND) == 0:
+    if "time" in vaas_df.columns:
+        T1 = T0 - config.duration
+        T1 = pd.to_datetime(T1.datetime).tz_localize("UTC")
+        T2 = pd.to_datetime(T0.datetime).tz_localize("UTC")
+        vaas_df = vaas_df[vaas_df["time"] >= T1]
+        vaas_df = vaas_df[vaas_df["time"] <= T2]
+
+
+    if len(vaas_df) == 0:
         state = "OK"
-        state_message = f"{T0_str} (UTC) No new SIGMETs"
+        state_message = f"{T0_str} (UTC) No new VAAs"
+        processing.write_to_csv(vaas_df, config, outfile_cols)
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 
+    vaas_df = vaas_df.sort_values("time")
+    vaas_df = vaas_df.drop_duplicates(subset="id")
+    new_vaas_df, vaas_df = processing.compare_to_old_events(vaas_df, config.outfile, outfile_cols)
+    
+    for i, row in new_vaas_df.iterrows():
+        logger.info("New VAA detected")
 
-    OLD_VAAS = pd.read_csv(config.outfile)
-    VAAS_FOUND.reverse()
-
-    for vaa in VAAS_FOUND:
-
-        if vaa['VAA_ID'] in OLD_VAAS.ID.to_list():
-            logger.info('Old VAA detected')
-            state='WARNING'
-            state_message='{} (UTC) Old VAA detected'.format(T0.strftime('%Y-%m-%d %H:%M'))
-            utils.icinga2_state(config,state,state_message)	
-            continue
-
-        else:
-            logger.info('New VAA detected')
-
-            OLD_VAAS = pd.concat([OLD_VAAS, pd.DataFrame({'ID':[vaa['VAA_ID']]})], ignore_index=True)
-            OLD_VAAS.to_csv(config.outfile, index=False)
-
-            lons_0, lats_0, level, time, direction = process_polygons(vaa, 'OBS VA CLD')
-            lons_6, lats_6, level, time, direction = process_polygons(vaa, 'FCST VA CLD +6HR')
-            lons_12, lats_12, level, time, direction = process_polygons(vaa, 'FCST VA CLD +12HR')
-            lons_18, lats_18, level, time, direction = process_polygons(vaa, 'FCST VA CLD +18HR')
-
-            LONS = np.concatenate((lons_0, lons_6, lons_12, lons_18))
-            LATS = np.concatenate((lats_0, lats_6, lats_12, lats_18))
-
-            if len(LONS)>1:
-                #### Generate Figure ####
-                try:
-                    filename = make_map(vaa, LONS, LATS, config)
-                except:
-                    filename = []
-                    logger.error('Problem making figure. Continue anyway')
-                    b = traceback.format_exc()
-                    err_message = ''.join('{}\n'.format(a) for a in b.splitlines())
-                    logger.error(err_message)
-            else:
-                filename = []
-                
-            subject, message = create_message(vaa)
-            # logger.info('Sending message...')
-            # messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
-            logger.info('Posting to mattermost...')
-            messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
-
-            # delete the file you just sent
-            if filename:
-                os.remove(filename)
-
-            state = 'CRITICAL'
-            state_message = f'{T0.strftime("%Y-%m-%d %H:%M")} (UTC) New {subject}'
+        try:
+            filename = make_map(row, config, test=test_flag)
+        except Exception as e:
+            ## TODO filename still hase "SIGMET" in it
+            filename = []
+            logger.error("Problem making figure. Continue anyway")
+            logger.error(e)
+            logger.error(traceback.format_exc())
             
-            messaging.icinga(config, state, state_message, send=icinga_flag)
+        subject, message = create_message(row)
 
+        if force_flag:
+            logger.info("Sending message...")
+            messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
 
-def read_VAA_api():
-    response = requests.get(os.environ["VAA_URL"], timeout=10, verify=False)
-    data = response.json()
+        logger.info("Checking mattermost send...")
+        messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
 
-    vaa_list = data["@graph"]
-    return vaa_list
+        # delete the file you just sent
+        if filename:
+            os.remove(filename)
+
+        state = "CRITICAL"
+        state_message = f"{T0.strftime('%Y-%m-%d %H:%M')} (UTC) New {subject}"
+        
+        messaging.icinga(config, state, state_message, send=icinga_flag)
+
+    if not force_flag:
+        processing.write_to_csv(vaas_df, config, columns=outfile_cols)
+        
 
 
 def get_extent(LONS, LATS):
@@ -135,66 +121,55 @@ def get_extent(LONS, LATS):
     return [lonmin, lonmax, latmin, latmax]
 
 
-def make_path(extent):
-    n = 20
-    aoi = mpath      (
-        list(zip(np.linspace(extent[0],extent[1], n), np.full(n, extent[3]))) + \
-        list(zip(np.full(n, extent[1]), np.linspace(extent[3], extent[2], n))) + \
-        list(zip(np.linspace(extent[1], extent[0], n), np.full(n, extent[2]))) + \
-        list(zip(np.full(n, extent[0]), np.linspace(extent[2], extent[3], n)))
-    )
-
-    return(aoi)
-
-
 def process_polygons(vaa, field):
     lats = []
     lons = []
-    level = ''
-    time = ''
-    direction = ''
+    flight_level_txt = ""
 
     if field not in vaa:
-        return lons, lats, level, time, direction
+        return lons, lats, flight_level_txt
 
-    obs_text = vaa[field].replace('\n', ' ')
+    if not isinstance(vaa[field], str):
+        return lons, lats, flight_level_txt
 
-    if 'VA NOT IDENTIFIABLE ' in obs_text:
-        return lons, lats, level, time, direction
+    
+    obs_text = vaa[field].replace("\n", " ")
 
-    if 'FL' in obs_text:
+    if "VA NOT IDENTIFIABLE " in obs_text:
+        return lons, lats, flight_level_txt
 
-        time_pattern = re.compile(r'\S+/\S+Z')
-        lvl_pattern = re.compile(r'\S+/FL\S+')
-        move_pattern = re.compile(r'MOV.+')
-
-        level = lvl_pattern.findall(obs_text)
-        time = time_pattern.findall(obs_text)
-        direction = move_pattern.findall(obs_text)
-        if level:
-            level = level[0]
+    if "FL" in obs_text:
+        lvl_pattern = re.compile(r".*\S+/FL\S+")
+        time_and_level = lvl_pattern.findall(obs_text)
+        if time_and_level:
+            time_and_level = time_and_level[0]
         else:
-            level = ''
-        if time:
-            time = time[0]
-        else:
-            time = ''
-        if direction:
-            direction = direction[0]
-        else:
-            direction = ''
+            time_and_level = ""
 
-        tmp_text = obs_text.replace(level, '')
-        tmp_text = tmp_text.replace(time, '')
-        tmp_text = tmp_text.replace(direction, '')
-        lat_lon_txt_pairs = tmp_text.split(' - ')
+        tmp_text = obs_text.replace(time_and_level, "")
+        lat_lon_txt_pairs = tmp_text.split(" - ")
 
         for pr in lat_lon_txt_pairs:
             tmp_lat, tmp_lon = text_to_latlon(pr)
             lats.append(tmp_lat)
             lons.append(tmp_lon)
 
-    return lons, lats, level, time, direction
+        if time_and_level:
+            level = time_and_level.split(" ")[-1].split("/")
+            flight_levels = np.array([])
+            for fl in level:
+                if fl == "SFC":
+                    height = 0
+                elif "FL" in fl:
+                    height = float(fl.split("FL")[-1]) * 100
+                else:
+                    height = np.nan
+                flight_levels = np.append(flight_levels, height)
+
+        if np.nan not in flight_levels:
+            flight_level_txt = f"{flight_levels[0]:,g} - {flight_levels[1]:,g} ft"
+
+    return lons, lats, flight_level_txt
 
 
 def text_to_latlon(latlon_txt):
@@ -222,104 +197,109 @@ def text_to_latlon(latlon_txt):
 
 def process_vaa_id(vaa_id):
 
-    page = requests.get(vaa_id["@id"], timeout=10, verify=False)
-    vaa_info = page.json()["productText"].split("\n\n")
+    page = requests.get(vaa_id["text_link"], timeout=10, verify=False)
+    vaa_info = page.text.split("\n\n")
 
     vaa = dict()
 
-    rows = ['DTG',
-            'VAAC',
-            'VOLCANO',
-            'PSN',
-            'AREA',
-            'SUMMIT ELEV',
-            'ADVISORY NR',
-            'INFO SOURCE',
-            'AVIATION COLOR CODE',
-            'ERUPTION DETAILS',
-            'OBS VA DTG',
-            'OBS VA CLD',
-            'FCST VA CLD +6HR',
-            'FCST VA CLD +12HR',
-            'FCST VA CLD +18HR',
-            'RMK',
-            'NXT ADVISORY']
+    rows = [
+        "DTG",
+        "VAAC",
+        "VOLCANO",
+        "PSN",
+        "AREA",
+        "SUMMIT ELEV",
+        "ADVISORY NR",
+        "INFO SOURCE",
+        "AVIATION COLOR CODE",
+        "ERUPTION DETAILS",
+        "OBS VA DTG",
+        "OBS VA CLD",
+        "FCST VA CLD +6HR",
+        "FCST VA CLD +12HR",
+        "FCST VA CLD +18HR",
+        "RMK",
+        "NXT ADVISORY",
+        "id",
+        "time",
+    ]
 
-    vaa['header'] = vaa_info[0]
-    
+    vaa["header"] = vaa_info[0]
+
     for row in rows:
         for line in vaa_info:
             if row + ":" in line and "VA " + row + ":" not in line:
-                vaa[row] = line.split(": ")[-1].replace("\n\n", " ")
+                line_txt = line.split(": ")[-1].replace("\n\n", " ")
+                line_txt = line_txt.replace("=\n", "")
+                vaa[row] = line_txt
 
-    vaa["VAA_ID"] = "{}_{}".format(vaa["DTG"], vaa["VOLCANO"].split(" ")[0])
+    vaa["time"] = pd.to_datetime(vaa["DTG"])
+
+    volcano = re.findall(r"\D+", vaa["VOLCANO"])[0]
+    vaa["id"] = f"{vaa['DTG']}-{volcano.strip()}"
 
     return vaa
 
 
-def make_map(vaa, LONS, LATS, config):
-    # FIX map from test on 2026-02-20 was terrible
-    m.use('Agg')
+def make_map(vaa, config, test=False):
+
+    lons_0, lats_0, level_0 = process_polygons(vaa, "OBS VA CLD")
+    lons_6, lats_6, level_6 = process_polygons(vaa, "FCST VA CLD +6HR")
+    lons_12, lats_12, level_12 = process_polygons(vaa, "FCST VA CLD +12HR")
+    lons_18, lats_18, level_18 = process_polygons(vaa, "FCST VA CLD +18HR")
+
+    LONS = np.concatenate((lons_0, lons_6, lons_12, lons_18))
+    LATS = np.concatenate((lats_0, lats_6, lats_12, lats_18))
+    LEVELS = np.array([level_0, level_6, level_12, level_18])
+
+    n_levels = len(np.unique(LEVELS[LEVELS != ""]))
+
+    if len(LONS) == 0 or len(LATS) == 0:
+        logger.warning("No polygons to plot. Not generating figure.")
+        return []
+
     v_lat, v_lon = text_to_latlon(vaa['PSN'])
     LONS = np.append(LONS, v_lon)
     LATS = np.append(LATS, v_lat)
     extent = get_extent(LONS, LATS)
 
-    fig = plt.figure(figsize=(4,4))
+    fig, ax = plt.subplots(figsize=(3.5, 3.5), layout="constrained")
 
-    CRS2 = cartopy.crs.AlbersEqualArea(central_longitude=np.mean(extent[:2]), central_latitude=np.mean(extent[2:]), globe=None)
-    ax1 = plt.subplot(111, projection=CRS2)
-    ax1.set_boundary(make_path(extent), transform=cartopy.crs.Geodetic())
-    ax1.set_extent(extent, cartopy.crs.Geodetic())
-    coast = cartopy.feature.GSHHSFeature(scale="intermediate", rasterized=True)
-    ax1.add_feature(coast, facecolor="lightgray", linewidth=0.2)
-    ax1.set_facecolor('powderblue')
+    ax, extent = plotting.make_map(
+        ax, v_lat, v_lon, basemap="land", extent=extent, projection="orthographic"
+    )
+    ax.coastlines(lw=0.2)
 
-    lon_grid = [np.mean(extent[:2])-np.diff(extent[:2])[0]/4, np.mean(extent[:2])+np.diff(extent[:2])[0]/4]
-    lat_grid = [np.mean(extent[-2:])-np.diff(extent[-2:])[0]/4, np.mean(extent[-2:])+np.diff(extent[-2:])[0]/4]
+    plotting.map_ticks(ax, extent, grid_kwargs="default")
+    ax.plot(v_lon, v_lat, "^", mfc="k", mec="w", ms=6, transform=ccrs.Geodetic())
 
-    gl = ax1.gridlines(draw_labels=True, xlocs=lon_grid, ylocs=lat_grid,
-                       alpha=0.5, 
-                       color='k',
-                       linestyle='--', 
-                       linewidth=0.5)
-
-    gl.xlabels_top = False
-    gl.ylabels_left = False
-    gl.xformatter = LONGITUDE_FORMATTER
-    gl.yformatter = LATITUDE_FORMATTER
-    gl.xlabel_style = {'size': 6}
-    gl.ylabel_style = {'size': 6}
-
-    lons_0, lats_0, level, time, direction = process_polygons(vaa, 'OBS VA CLD')
-    lons_6, lats_6, level, time, direction = process_polygons(vaa, 'FCST VA CLD +6HR')
-    lons_12, lats_12, level, time, direction = process_polygons(vaa, 'FCST VA CLD +12HR')
-    lons_18, lats_18, level, time, direction = process_polygons(vaa, 'FCST VA CLD +18HR')
-
+    t_form = ccrs.PlateCarree()
     if lons_0:
-        ax1.plot(lons_0, lats_0, '-', color='firebrick', linewidth=2, label='Observed', transform=cartopy.crs.Geodetic(), zorder=100)
+        lvl_txt = f"\n({level_0:,g} asl)" if n_levels > 1 else ""
+        ax.plot(lons_0, lats_0, '-', c='firebrick', lw=1.5, label=f'Observed{lvl_txt}', transform=t_form, zorder=100)
     if lons_6:
-        ax1.plot(lons_6, lats_6, '--', color='orangered', linewidth=1.5, label='6H Forecast', transform=cartopy.crs.Geodetic(), zorder=99)
+        lvl_txt = f"\n({level_6:,g} asl)" if n_levels > 1 else ""
+        ax.plot(lons_6, lats_6, '--', c='orangered', lw=1.25, label='6H Forecast', transform=t_form, zorder=99)
     if lons_12:
-        ax1.plot(lons_12, lats_12, '--', color='orange', linewidth=1.25, label='12H Forecast', transform=cartopy.crs.Geodetic(), zorder=98)
+        lvl_txt = f"\n({level_12:,g} asl)" if n_levels > 1 else ""
+        ax.plot(lons_12, lats_12, '--', c='orange', lw=1, label='12H Forecast', transform=t_form, zorder=98)
     if lons_18:
-        ax1.plot(lons_18, lats_18, '-.', color='goldenrod', linewidth=1.0, label='18H Forecast', transform=cartopy.crs.Geodetic(), zorder=97)
+        lvl_txt = f"\n({level_18:,g} asl)" if n_levels > 1 else ""
+        ax.plot(lons_18, lats_18, '-.', c='goldenrod', lw=0.75, label='18H Forecast', transform=t_form, zorder=97)
 
-    ax1.plot(v_lon, v_lat, 'w^', markerfacecolor='k', markersize=8, transform=cartopy.crs.PlateCarree())
 
-    ax1.legend(fontsize=6, loc='lower left')
+    ax.legend(fontsize=6, loc='lower left')
 
-    volcano_name = ''.join(vaa['VOLCANO'].split(' ')[:-1]).title()
-    vaa_time = UTCDateTime(vaa['DTG']).strftime('%Y-%m-%d %H:%M')
+    volcano_name = "".join(vaa["VOLCANO"].split(" ")[:-1]).title()
+    vaa_time = UTCDateTime(vaa["DTG"]).strftime("%Y-%m-%d %H:%M")
 
-    lvl_pattern = re.compile(r'/FL\S+')
-    vaa_height = 100*float(lvl_pattern.findall(vaa['OBS VA CLD'])[0].split('FL')[-1])
-    # ax1.set_title('{} VAA to {:,} ft\n{}'.format(, )
-    ax1.set_title(f'{volcano_name} VAA to {vaa_height:,.0f} ft \n{vaa_time}', fontsize=10)
+    ax.set_title(
+        f"{volcano_name} VAA\n{level_0}\n{vaa_time}", fontsize=10
+    )
     plt.tight_layout()
 
-    logger.info('Saving figure...')
-    jpg_file = plotting.save_file(fig, config, dpi=250)
+    logger.info("Saving figure...")
+    jpg_file = plotting.save_file(fig, config, dpi=300, test=test)
     plt.close(fig)
 
     return jpg_file
@@ -327,26 +307,27 @@ def make_map(vaa, LONS, LATS, config):
 
 def create_message(vaa):
 
-    volcano_name = ''.join(vaa['VOLCANO'].split(' ')[:-1]).title()
+    volcano_name = "".join(vaa["VOLCANO"].split(" ")[:-1]).title()
     subject = f'{volcano_name} Volcanic Ash Advisory'
 
-    t=pd.Timestamp(UTCDateTime(vaa['DTG']).datetime,tz='UTC')
-    t_local=t.tz_convert(os.environ['TIMEZONE'])
-    Local_time_text = '{} {}'.format(t_local.strftime('%Y-%m-%d %H:%M'),t_local.tzname())
-    UTC_time_text = '{} UTC'.format(t.strftime('%Y-%m-%d %H:%M'))
+    t = UTCDateTime(vaa["DTG"])
+    time_txt = messaging.format_timestring(t)
 
     try:
-        lvl_pattern = re.compile(r'/FL\S+')
-        vaa_height = 100*float(lvl_pattern.findall(vaa['OBS VA CLD'])[0].split('FL')[-1])
-        message = f'VAA to {vaa_height:,.0f} ft\n{UTC_time_text}\n{Local_time_text}\n\n#### *Original Message*\n'
-    except:
-        message = f'Volcanic Ash Advisory\n{UTC_time_text}\n{Local_time_text}\n\n#### *Original Message*\n'
+        lons_0, lats_0, level_0 = process_polygons(vaa, "OBS VA CLD")
+        message = f"VAA {level_0}\n{time_txt}\n\n#### *Original Message*\n"
+    except Exception as e:
+        logger.warning("Error generating message contents")
+        logger.error(e)
+        message = f"Volcanic Ash Advisory\n{time_txt}\n\n#### *Original Message*\n"
     
     for key in vaa.keys():
-        if key not in ['header', 'VAA_ID']:
-            message+=f'**{key}:** {vaa[key].replace("\n", " ")}\n'
+        if key not in ["header", "id", "time"]:
+            if isinstance(vaa[key], str):
+                key_str = vaa[key].replace('\n', ' ')
+                message += f"**{key}:** {key_str}\n"
 
-    message = message.replace('\r\n', ' ')
+    message = message.replace("\r\n", " ")
 
     return subject, message
 

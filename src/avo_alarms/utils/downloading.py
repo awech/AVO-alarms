@@ -137,7 +137,7 @@ def download_hypocenter_xml(URL):
     return CAT
 
 
-def download_waveforms(nslc_list, T1, T2, fill_value=0):
+def download_waveforms(nslc_list, T1, T2, fill_value=0, iris=False):
     """_summary_
 
     Parameters
@@ -169,34 +169,26 @@ def download_waveforms(nslc_list, T1, T2, fill_value=0):
 
     st = Stream()
 
-    t_test1 = UTCDateTime.now()
-    for nslc in nslc_list:
-        # NSLC format: Network.Station.Location.Channel
-        net, sta, loc, chan = nslc.split(".")
-        
-        # TODO set up some default client. Maybe from .env? 
+    # TODO set up some default client. Maybe from .env? 
+    if iris:
+        import ssl
+        ssl._create_default_https_context = ssl._create_unverified_context
+        client = FDSN_Client("IRIS")
+    else:
         client = EW_Client(
             os.environ["WINSTON_HOST"],
             int(os.environ["WINSTON_PORT"]),
             timeout=int(os.environ["TIMEOUT"]),
         )
-        if net in ["HV", "AM"]:
-            client = EW_Client(
-                os.environ["NEIC_HOST"],
-                int(os.environ["NEIC_PORT"]),
-                timeout=int(os.environ["TIMEOUT"]),
-            )
 
+
+    start = time.time()
+    for nslc in nslc_list:
         try:
-            tr = client.get_waveforms(
-                net,
-                sta,
-                loc,
-                chan,
-                T1,
-                T2,
-                cleanup=True,
-            )
+            if iris:
+                tr = client.get_waveforms(*nslc.split("."), T1, T2)
+            else:
+                tr = client.get_waveforms(*nslc.split("."), T1, T2, cleanup=True)
             if len(tr) > 1:
                 logger.info("{:.0f} traces for {}".format(len(tr), nslc))
                 if fill_value == 0 or fill_value is None:
@@ -218,11 +210,11 @@ def download_waveforms(nslc_list, T1, T2, fill_value=0):
                 logger.info("Merging gappy data...")
                 tr.merge(fill_value=fill_value)
         except Exception:
-            logger.warning(f"Error grabbing data for {sta}, filling with zeros")
+            logger.warning(f"Error grabbing data for {nslc}, filling with zeros")
             tr = Stream()
         # if no data, create a blank trace for that channel
         if not tr:
-            logger.warning(f"No data for {sta}. Filling with zeros")
+            logger.warning(f"No data for {nslc}. Filling with zeros")
             tr = Trace()
             tr.id = nslc
             tr.stats["sampling_rate"] = 100
@@ -231,7 +223,7 @@ def download_waveforms(nslc_list, T1, T2, fill_value=0):
                 int((T2 - T1) * tr.stats["sampling_rate"]), dtype="int32"
             )
         st += tr
-    logger.info("{} seconds".format(UTCDateTime.now() - t_test1))
+    logger.info(f"{time.time() - start} seconds")
 
     logger.info("Detrending data...")
     st.detrend("demean")

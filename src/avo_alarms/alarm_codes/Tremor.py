@@ -30,17 +30,15 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     nslc = NSLC["nslc"].tolist()
     t1 = T0 - 1.5 * config.window_length - config.taper
     t2 = T0 + config.taper
-    ## BUG - temporary hack to test on old data
-    st = downloading.download_iris_waveforms(nslc, t1, t2, fill_value=0)
-    ## BUG end
+    st = downloading.download_waveforms(nslc, t1, t2, fill_value=0)
     st = processing.add_metadata(st)
     
     ##### check for enough data #####
     if qc_checks(st) < config.min_sta:
         state_message = f"{state_message} - Data missing!"
         state = "WARNING"
-        # messaging.icinga(config, state, state_message, send=icinga_flag)
-        # return
+        messaging.icinga(config, state, state_message, send=icinga_flag)
+        return
 
     ######## preprocess data ########
     band_env, high_env, band = preprocess(st, config, t1, t2)

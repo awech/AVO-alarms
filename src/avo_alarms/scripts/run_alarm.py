@@ -9,8 +9,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from ..utils import messaging
-from ..utils.setup_utils import (
+from avo_alarms.utils import messaging
+from avo_alarms.utils.setup_utils import (
     get_logger,
     load_config,
     setup_root_logger,

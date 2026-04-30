@@ -16,8 +16,8 @@ from matplotlib.dates import date2num, num2date
 from matplotlib.path import Path as mpath
 from matplotlib.colors import LinearSegmentedColormap
 from obspy import UTCDateTime as utc
-from .setup_utils import get_logger, load_volcano_list
-from . import processing
+from avo_alarms.utils.setup_utils import get_logger, load_volcano_list
+from avo_alarms.utils import processing
 
 logger = get_logger(__name__)
 m.use("Agg")

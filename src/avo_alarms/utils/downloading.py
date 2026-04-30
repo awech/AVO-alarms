@@ -19,7 +19,7 @@ from obspy.clients.earthworm import Client as EW_Client
 from obspy.clients.fdsn import Client as FDSN_Client
 from obspy.io.quakeml.core import Unpickler
 
-from .setup_utils import get_logger, load_volcano_list
+from avo_alarms.utils.setup_utils import get_logger, load_volcano_list
 
 load_dotenv()
 urllib3.disable_warnings()

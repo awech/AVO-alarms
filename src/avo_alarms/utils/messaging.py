@@ -16,7 +16,7 @@ import urllib3
 import yaml
 from mattermostdriver import Driver
 
-from .setup_utils import get_logger
+from avo_alarms.utils.setup_utils import get_logger
 
 logger = get_logger(__name__)
 

@@ -346,6 +346,8 @@ def post_mattermost(config, subject, body, attachment=None, send=False, test=Fal
         logger.info("Not posting anything to Mattermost")
         return ""
 
+    logger.info("Posting to mattermost...")
+
     channel_id = os.environ["MATTERMOST_DEFAULT_CHANNEL_ID"]
     if hasattr(config, "mattermost_channel_id"):
         channel_id = config.mattermost_channel_id      

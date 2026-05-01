@@ -220,13 +220,16 @@ def plot_event(eq, volcs, config, n_stations=8, test=False):
         t.clipbox = ax["map"].bbox
 
     plotting.add_scale_bar(ax["map"], 10, txt_yoffset=0.01)
-    ax["map"].set_title('{}\nM{:.1f}, {:.1f} km from {}\nDepth: {:.1f} km'.format(origin.time.strftime('%Y-%m-%d %H:%M:%S'),
-                                                               eq.preferred_magnitude().mag,
-                                                               volcs.iloc[0].distance,
-                                                               volcs.iloc[0].Volcano,
-                                                               origin.depth/1000,
-                                                               ),
-                        fontsize=8)
+    ax["map"].set_title(
+        "{}\nM{:.1f}, {:.1f} km from {}\nDepth: {:.1f} km".format(
+            origin.time.strftime("%Y-%m-%d %H:%M:%S"),
+            eq.preferred_magnitude().mag,
+            volcs.iloc[0].distance,
+            volcs.iloc[0].Volcano,
+            origin.depth / 1000,
+        ),
+        fontsize=8,
+    )
 
     ax_inset = fig.add_axes([0.66, 0.80, 0.12, 0.12])
     ax_inset, _ = plotting.make_map(

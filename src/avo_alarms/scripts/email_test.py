@@ -14,8 +14,8 @@ def main():
         setup_root_logger(log_dir=os.environ.get("LOGS_DIR"), config_name="Email_test")
     else:
         setup_root_logger()
-    logger = get_logger(__name__)
 
+    logger = get_logger(__name__)
     logger.info("Sending email test alert")
 
     T0 = UTCDateTime.now() - 3600 * 9

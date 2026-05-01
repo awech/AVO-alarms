@@ -63,7 +63,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         logger.info("No lightning detected")
         state = "OK"
         state_message = f"{T0_str} (UTC) No new strokes detected"
-        strokes_df.to_csv(config.outfile, index=False)
+        strokes_df.write_to_csv(strokes_df, config, outfile_columns)
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 

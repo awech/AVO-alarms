@@ -223,7 +223,7 @@ def download_waveforms(nslc_list, T1, T2, fill_value=0, iris=False):
                 int((T2 - T1) * tr.stats["sampling_rate"]), dtype="int32"
             )
         st += tr
-    logger.info(f"{time.time() - start} seconds")
+    logger.info(f"{time.time() - start:.2f} seconds")
 
     logger.info("Detrending data...")
     st.detrend("demean")

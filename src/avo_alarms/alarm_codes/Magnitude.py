@@ -1,7 +1,6 @@
 import os
 import traceback
 import warnings
-from pathlib import Path
 
 import cartopy.crs as ccrs
 import matplotlib.pyplot as plt

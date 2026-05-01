@@ -131,7 +131,7 @@ def process_event(evt_url, config, test=False):
         eq_mag = eq.preferred_magnitude().mag
         eq_id = "".join(eq.resource_id.id.split("/")[-2:]).lower()
         new_filename = f"{eq_time}_M{eq_mag:.1f}_{eq_id}{filename.suffix}"
-        filename.rename(filename.parent / new_filename)
+        filename = filename.rename(filename.parent / new_filename)
     except Exception as e:
         filename = []
         logger.error("Problem making figure. Continue anyway")

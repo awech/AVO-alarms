@@ -53,7 +53,10 @@ def main():
         keep_file = Path(os.getenv("LOGS_DIR")) / ".keep"
         keep_file.touch(exist_ok=True)
         # TODO: add default lock & logs directories. Set even if not in .env file
-        lock_dir = os.getenv("LOGS_DIR")
+        if "LOCK_DIR" in os.environ:
+            lock_dir = os.getenv("LOCK_DIR")
+        else:
+            lock_dir = os.getenv("LOGS_DIR")
     else:
         setup_root_logger()
         lock_dir = Path.home() / ".tmp" / "alarms"

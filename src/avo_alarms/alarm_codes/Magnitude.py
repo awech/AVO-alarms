@@ -32,7 +32,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         f"&maxdepth={config.MAXDEP}"
         f"&format=csv"
     )
-    logger.info(f"{T0_str}\nDownloading events...")
+    logger.info(f"Downloading events...")
     catalog_df = downloading.download_hypocenters_csv(URL)
 
     if catalog_df is None: # Error pulling events

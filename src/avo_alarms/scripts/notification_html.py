@@ -6,80 +6,103 @@ import pandas as pd
 import yaml
 from dotenv import load_dotenv
 
+from avo_alarms.utils.setup_utils import get_logger, setup_root_logger, LockFile
+
 load_dotenv()
 
 def main():
-    home_dir = Path(os.environ["HOME_DIR"])
-    with open(home_dir / "distribution.yml", "r") as file:
-        distribution = yaml.safe_load(file)
-    alarms = [alarm for alarm in distribution if alarm not in ["USERS", "Error"]]
-    users = []
-    for alarm in alarms:
-        users += distribution[alarm]
-    A = pd.DataFrame(index=alarms, columns=np.unique(users))
-    for alarm in alarms:
-        A.loc[alarm, distribution[alarm]] = "x"
+    # Log and set lock directory based on cron status
+    if os.getenv("FROMCRON") == "yep":
+        setup_root_logger(log_dir=os.environ.get("LOGS_DIR"), config_name="Notification_HTML")
+        lock_dir = os.getenv("LOCK_DIR", os.getenv("LOGS_DIR"))
+    else:
+        setup_root_logger()
+        lock_dir = Path.home() / ".tmp" / "alarms"
 
-    def highlight_vals(val):
-        string = "font-family: Helvetica; "
-        if val == "x":
-            string += "background-color: #8CDD81; text-align: center; color: #3B5323; font-weight: bold; border-radius: 5px;"
-        return string
+    logger = get_logger(__name__)
+    logger.info("Generating notification HTML")
+    try:
+        lock = LockFile(lock_dir, "Notification_HTML")
+        lock.acquire()
+    except RuntimeError as e:
+        logger.warning(str(e))
+        return
 
-    A = A.replace(np.nan, " ", regex=True)
-    B = A.copy().T
-    B = B.style.set_table_styles([
-            {'selector': 'th', 'props': 
-                [
-                    ('font-weight', 'bold'),
-                    ('font-family', 'Helvetica'),
-                ]},
-            {'selector': 'thead tr th:not(:first-child)', 'props':
-                [
-                    ('background-color', 'whitesmoke'),
-                    ('vertical-align', 'middle'),
-                    ('padding-bottom', '5px'),
-                    ('padding-left', '10px'),
-                    ('padding-right', '10px')           
-                ]},
-            {'selector': 'td:first-child, th:first-child', 'props':
-                [
-                    ('text-align', 'right'),
-                    ('padding-left', '10px'),
-                    ('padding-right', '10px'),
-                    ('background-color', 'whitesmoke')
-                ]},
+    try:
+        home_dir = Path(os.environ["HOME_DIR"])
+        with open(home_dir / "distribution.yml", "r") as file:
+            distribution = yaml.safe_load(file)
+        alarms = [alarm for alarm in distribution if alarm not in ["USERS", "Error"]]
+        users = []
+        for alarm in alarms:
+            users += distribution[alarm]
+        A = pd.DataFrame(index=alarms, columns=np.unique(users))
+        for alarm in alarms:
+            A.loc[alarm, distribution[alarm]] = "x"
 
-        ])
-    B = B.map(highlight_vals)
+        def highlight_vals(val):
+            string = "font-family: Helvetica; "
+            if val == "x":
+                string += "background-color: #8CDD81; text-align: center; color: #3B5323; font-weight: bold; border-radius: 5px;"
+            return string
 
-    html_output = B.to_html()
-    # Add a <style> block to the HTML string to center the table using CSS
-    centered_html = f"""
-    <html>
-    <head>
-    <style>
-        table {{
-            margin-left: auto;
-            margin-right: auto;
-            /* Optional: also center text within cells */
-            text-align: center;
-        }}
-        th {{
-            text-align: center;
-        }}
-    </style>
-    </head>
-    <body>
-    {html_output}
-    </body>
-    </html>
-    """
+        A = A.replace(np.nan, " ", regex=True)
+        B = A.copy().T
+        B = B.style.set_table_styles([
+                {'selector': 'th', 'props': 
+                    [
+                        ('font-weight', 'bold'),
+                        ('font-family', 'Helvetica'),
+                    ]},
+                {'selector': 'thead tr th:not(:first-child)', 'props':
+                    [
+                        ('background-color', 'whitesmoke'),
+                        ('vertical-align', 'middle'),
+                        ('padding-bottom', '5px'),
+                        ('padding-left', '10px'),
+                        ('padding-right', '10px')           
+                    ]},
+                {'selector': 'td:first-child, th:first-child', 'props':
+                    [
+                        ('text-align', 'right'),
+                        ('padding-left', '10px'),
+                        ('padding-right', '10px'),
+                        ('background-color', 'whitesmoke')
+                    ]},
 
-    # You can save this to an HTML file and open it in a browser
-    out_file = Path(os.environ["HOME_DIR"]) / "www" / "index.html"
-    with open(out_file, "w") as f:
-        f.write(centered_html)
+            ])
+        B = B.map(highlight_vals)
+
+        html_output = B.to_html()
+        # Add a <style> block to the HTML string to center the table using CSS
+        centered_html = f"""
+        <html>
+        <head>
+        <style>
+            table {{
+                margin-left: auto;
+                margin-right: auto;
+                /* Optional: also center text within cells */
+                text-align: center;
+            }}
+            th {{
+                text-align: center;
+            }}
+        </style>
+        </head>
+        <body>
+        {html_output}
+        </body>
+        </html>
+        """
+
+        # You can save this to an HTML file and open it in a browser
+        out_file = Path(os.environ["HOME_DIR"]) / "www" / "index.html"
+        with open(out_file, "w") as f:
+            f.write(centered_html)
+        logger.info("Notification HTML generated successfully")
+    finally:
+        lock.release()
 
 
 if __name__ == "__main__":

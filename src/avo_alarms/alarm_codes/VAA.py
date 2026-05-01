@@ -31,7 +31,10 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     # download yesterday & today (mesonet api uses calendar date queries)
     vaa_id_list_1 = downloading.download_mesonet_vaa_list(T0 - 86400)
     vaa_id_list_2 = downloading.download_mesonet_vaa_list(T0)
-    vaa_id_list = pd.concat([vaa_id_list_1, vaa_id_list_2])
+    if vaa_id_list_1 is not None and vaa_id_list_2 is not None:
+        vaa_id_list = pd.concat([vaa_id_list_1, vaa_id_list_2])
+    else:
+        vaa_id_list = None
 
     if vaa_id_list is None:
         logger.warning("Page error.")

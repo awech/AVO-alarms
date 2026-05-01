@@ -398,8 +398,8 @@ def get_cimss_image(soup, alert, config):
                     out.write(bits)
 
 
-def download_vaa_from_api():
-
+def download_vaa_from_nws_api():
+    ## this is currently not implemented. Testing out mesonet as preferred option
     attempt = 1
     max_tries = 3
     vaa_id_list = None

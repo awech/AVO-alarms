@@ -78,7 +78,7 @@ def main():
         # e.g., it would set Nsta=0 for RSAM or relax all infrasound parameters
         logger.info("Running alarm in test mode")
 
-    logger.info(f"---- Running {args.config} at {args.time} ----")
+    logger.info(f"---- Running {args.config} at {args.time.strftime('%Y-%m-%d %H:%M:%S')} ----")
 
     try:
         # load the config file from args

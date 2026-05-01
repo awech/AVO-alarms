@@ -52,7 +52,7 @@ class StderrToLogger(io.TextIOBase):
 
 
 # TODO consider adding function that reads config and .env and sets all defaults
-
+# TODO should include alarm distribution .yml files, datasource, icinga, logging, lockfile directories
 
 def load_config(config_name):
     """

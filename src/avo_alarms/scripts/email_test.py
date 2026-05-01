@@ -4,8 +4,8 @@ from pathlib import Path
 
 from obspy import UTCDateTime
 
-from ..utils.messaging import send_alert
-from ..utils.setup_utils import get_logger, setup_root_logger
+from avo_alarms.utils.messaging import send_alert
+from avo_alarms.utils.setup_utils import get_logger, setup_root_logger
 
 
 def main():

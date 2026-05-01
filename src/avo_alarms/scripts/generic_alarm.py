@@ -1,8 +1,8 @@
 import os
 import sys
 
-from ..utils.messaging import icinga
-from ..utils.setup_utils import setup_root_logger
+from avo_alarms.utils.messaging import icinga
+from avo_alarms.utils.setup_utils import setup_root_logger
 
 
 def config():

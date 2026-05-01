@@ -253,7 +253,7 @@ def download_lightning(force=False):
                 )
             )
             strokes_df = pd.DataFrame(data["lightning"])
-            if len(strokes_df) > 1:
+            if len(strokes_df) >= 1:
                 column_rename = {
                     "lightningLatitude": "latitude",
                     "lightningLongitude": "longitude",

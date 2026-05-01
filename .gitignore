@@ -12,6 +12,6 @@ logs/*.lock
 phonebook.yml
 .env
 
-.vscode/
+.vscode/*
 
 .gitlab-ci.yml

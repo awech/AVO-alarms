@@ -107,10 +107,11 @@ def main():
         lock.release()
 
     end = time.time()
-    logger.info(f"[{end - start:.2f} seconds to complete alarm]")
     sep_string = "\n-----------------------------------------\n"
     sep_string+= "\n-----------------------------------------"
-    logger.info(sep_string)
+    logger.info(f"[{end - start:.2f} seconds to complete alarm]{sep_string}")
+    
+    # logger.info(sep_string)
 
 if __name__ == "__main__":
     main()

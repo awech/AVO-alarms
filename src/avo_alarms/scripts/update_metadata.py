@@ -2,8 +2,8 @@ import os
 
 from dotenv import load_dotenv
 
-from ..utils.downloading import download_station_xml
-from ..utils.setup_utils import setup_root_logger
+from avo_alarms.utils.downloading import download_station_xml
+from avo_alarms.utils.setup_utils import setup_root_logger
 
 load_dotenv()
 

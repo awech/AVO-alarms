@@ -6,6 +6,7 @@
 - [x] Numerous folders with .py scripts that are much more simple and grouped by their tasks
 - [ ] add `pyproject.toml` file
 - [x] change `main.py` to be run as exectuable
+- [ ] add memory to RSAM and Infrasound alarms
 - [ ] change all `string{}.format()` to fstring
 - [x] change all SCNL to NSLC!
 - [ ] Get dependencies up to date. Make all effort to minimize

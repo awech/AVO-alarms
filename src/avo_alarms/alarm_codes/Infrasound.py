@@ -123,7 +123,11 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         state = "WARNING"
 
     if state == "CRITICAL":
-
+        ## TODO
+        ## inf_df = pd.read(outfile)
+        ## inf_df = inf_df[inf_df["time"] > T0 - config.duration]
+        ## but wait...need to check id and volcano too
+        ## if len(inf_df) < config.n_alerts:
         try:
             logger.info("generating figure")
             filename = make_figure(st, volcano, T0, config, mx_pressure, test=test_flag)
@@ -159,6 +163,10 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         # delete the file you just sent
         if filename:
             os.remove(filename)
+
+        ## inf_df = pd.append(inf_df, {"time":....})
+        ## inf_df.to_csv(outfile, index=False)
+
 
     # send heartbeat status message to icinga
     messaging.icinga(config, state, state_message, send=icinga_flag)

@@ -467,7 +467,7 @@ def download_SO2():
             attempt += 1
             table = None
 
-    return table
+    return table, soup
 
 
 def download_station_xml():

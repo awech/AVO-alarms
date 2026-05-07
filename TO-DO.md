@@ -4,12 +4,12 @@
 
 - [x] Organize file structure better - like a python package
 - [x] Numerous folders with .py scripts that are much more simple and grouped by their tasks
-- [ ] add `pyproject.toml` file
+- [x] add `pyproject.toml` file
 - [x] change `main.py` to be run as exectuable
 - [ ] add memory to RSAM and Infrasound alarms
-- [ ] change all `string{}.format()` to fstring
+- [x] change all `string{}.format()` to fstring
 - [x] change all SCNL to NSLC!
-- [ ] Get dependencies up to date. Make all effort to minimize
+- [x] Get dependencies up to date. Make all effort to minimize
 - [ ] sort out cartopy/basemap kerfuffle --> modernize to just use cartopy
 - [ ] utilize one map making function
 - [ ] make effort to use `subplot_mosaic` for panel plots 
@@ -17,7 +17,7 @@
 - [x] move configs to external repository
 - [x] implement default "all" message distribution
 - [ ] allow for distribution/phonebook to be environment variables
-- [ ] edit notifications html script to use yml files
+- [x] edit notifications html script to use yml files
 - [ ] move distribution file to configs repository as (maybe) .yml
 - [x] implement Python logger
 - [ ] add defaults to infrasound parameters that then can be overwritten if need be (`vmin`, `vmax`, `min_pa`)
@@ -56,4 +56,4 @@
 - [x] implement new file lock strategy
 - [x] Spin up VM for back up and testing
 - [x] start fresh with miniforge for venv
-- [ ] change all instances of string filepaths to pathlib objects for OS agnostic alarm running. 
+- [x] change all instances of string filepaths to pathlib objects for OS agnostic alarm running. 

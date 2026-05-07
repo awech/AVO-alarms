@@ -1,4 +1,4 @@
-import os, sys
+import os
 import requests
 import pandas as pd
 from obspy import UTCDateTime
@@ -8,8 +8,6 @@ import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 import traceback
 import re
-from pathlib import Path
-
 
 from avo_alarms.utils import messaging, plotting, processing, downloading
 from avo_alarms.utils.setup_utils import get_logger, load_volcano_list
@@ -20,7 +18,7 @@ logger = get_logger(__name__)
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force_flag=False):
 
     T0_str = T0.strftime('%Y-%m-%d %H:%M')
-    table = downloading.download_SO2()
+    table, soup = downloading.download_SO2()
 
     if table is None:
         state = "WARNING"
@@ -58,10 +56,10 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         # SZA    = table[4].split(':')[-1].split('deg')[0].replace(' ','')
         # SO2max = table[5].split(':')[-1].split('DU')[0].replace(' ','')
         # S02ht  = table[6].split(':')[-1].split('km')[0].replace(' ','')
-    except:
+    except Exception:
         logger.warning('Page error.')
         state = 'WARNING'
-        state_message = '{} (UTC) webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
+        state_message = f"{T0_str} (UTC) webpage error"
         messaging.icinga(config, state, state_message, send=icinga_flag)	
         return	
 
@@ -74,18 +72,18 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         logger.info('Downloading image')
         try:
             get_so2_images(soup, config)
-        except:
+        except Exception:
             logger.warning('Problem downloading images.')
 
         logger.info('Trying to make figure attachment')
         try:
             filename = plot_fig(config)
             logger.info('Figure generated successfully')
-        except:
+        except Exception:
             filename = []
             logger.error('Problem making figure. Continue anyway')
             b = traceback.format_exc()
-            err_message = ''.join('{}\n'.format(a) for a in b.splitlines())
+            err_message = ''.join(f'{a}\n' for a in b.splitlines())
             logger.error(err_message)
             pass
 
@@ -107,14 +105,13 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         if filename:
             os.remove(filename)
 
-        state_message = '{} (UTC) SO2 detection!'.format(T0.strftime('%Y-%m-%d %H:%M'))
+        state_message = f"{T0_str} (UTC) SO2 detection!"
         state = 'CRITICAL'
     elif volcs.distance.min() < config.max_distance and not new_time:
-        state_message = '{} (UTC) Old SO2 detection! [{}]'.format(T0.strftime('%Y-%m-%d %H:%M'),
-                                                                UTCDateTime(date + time).strftime('%Y-%m-%d %H:%M'))
+        state_message = f"{T0_str} (UTC) Old SO2 detection! [{UTCDateTime(date + time).strftime('%Y-%m-%d %H:%M')}]"
         state = 'WARNING'
     else:
-        state_message='{} (UTC) No new SO2 detections'.format(T0.strftime('%Y-%m-%d %H:%M'))
+        state_message=f"{T0_str} (UTC) No new SO2 detections"
         state='OK'
 
     # send heartbeat status message to icinga
@@ -125,7 +122,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
 
 def time_check(date, time, config):
     t_current = UTCDateTime(date + time)
-    t_file = open(r'{}'.format(config.outfile), 'r')
+    t_file = open(config.outfile, 'r')
     t_last = UTCDateTime(t_file.read())
     t_file.close()
     return t_last != t_current
@@ -190,7 +187,7 @@ def plot_fig(config):
 
 
 def update_timestamp(date, time, config):
-    t_file = open(r'{}'.format(config.outfile), 'w+')
+    t_file = open(config.outfile, 'w+')
     t_file.write(str(UTCDateTime(date + time)))
     t_file.close()
 
@@ -202,10 +199,10 @@ def create_message(date, time, table, config, volcs):
 
     t = pd.Timestamp(UTCDateTime(date + time).datetime, tz='UTC')
     t_local = t.tz_convert(os.environ['TIMEZONE'])
-    Local_time_text = '{} {}'.format(t_local.strftime('%Y-%m-%d %H:%M'), t_local.tzname())
-    UTC_time_text = '{} UTC'.format(t.strftime('%Y-%m-%d %H:%M'))
+    Local_time_text = f"{t_local.strftime('%Y-%m-%d %H:%M')} {t_local.tzname()}"
+    UTC_time_text = f"{t.strftime('%Y-%m-%d %H:%M')} UTC"
 
-    message = '{}\n{}\n\n'.format(UTC_time_text, Local_time_text)
+    message = f'{UTC_time_text}\n{Local_time_text}\n\n'
     message+= '\n'.join(table[2:])
     # message = message.replace('     ',' ')
     # message = message.replace('   ',' ')
@@ -214,9 +211,9 @@ def create_message(date, time, table, config, volcs):
 
     v_text = ''
     for i,row in volcs.sort_values('distance')[:3].iterrows():
-        v_text = '{}{} ({:.0f} km), '.format(v_text, row.Volcano, row.distance)
+        v_text = f"{v_text}{row.Volcano} ({row.distance:.0f} km), "
     v_text=v_text.replace('_', ' ')
-    message = '{}\n\nNearest volcanoes: {}\n'.format(message, v_text[:-2])
-    message+= '\n{}'.format(os.environ['SACS_URL'])
+    message = f"{message}\n\nNearest volcanoes: {v_text[:-2]}\n"
+    message+= f"\n{os.environ['SACS_URL']}"
 
     return subject, message

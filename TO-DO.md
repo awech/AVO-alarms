@@ -10,9 +10,9 @@
 - [x] change all `string{}.format()` to fstring
 - [x] change all SCNL to NSLC!
 - [x] Get dependencies up to date. Make all effort to minimize
-- [ ] sort out cartopy/basemap kerfuffle --> modernize to just use cartopy
-- [ ] utilize one map making function
-- [ ] make effort to use `subplot_mosaic` for panel plots 
+- [x] sort out cartopy/basemap kerfuffle --> modernize to just use cartopy
+- [x] utilize one map making function
+- [x] make effort to use `subplot_mosaic` for panel plots 
 - [ ] use os.getenv() instead of os.environ[] where appropriate
 - [x] move configs to external repository
 - [x] implement default "all" message distribution

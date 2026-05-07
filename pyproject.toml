@@ -1,18 +1,15 @@
 [build-system]
-requires = [
-    "setuptools>61.0",
-    "wheel"
-]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "avo-alarms"
-dynamic = ["version"]
-authors = [{name = "Aaron Wech", email = "awech@usgs.gov"}]
+version = "0.1.0"
 description = "Various volcano monitoring alarms."
 readme = "README.md"
-license = { text = "CC0-1.0" }
 requires-python = ">=3.10"
+authors = [{name = "Aaron Wech", email = "awech@usgs.gov"}]
+license = {file = "LICENSE"}
 dependencies = [
     "obspy",
     "pandas",
@@ -38,7 +35,6 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
-    "License :: CC0 1.0 Universal (CC0 1.0)",
 ]
 keywords = ["volcano", "geophysics", "monitoring"]
 
@@ -57,13 +53,5 @@ generic-alarm = "avo_alarms.scripts.generic_alarm:main"
 update-metadata = "avo_alarms.scripts.update_metadata:main"
 update-html = "avo_alarms.scripts.notification_html:main"
 
-[tool.setuptools.dynamic]
-version = {attr = "avo_alarms.__version__"}
-
-[tool.setuptools.packages.find]
-where = ["src"]
-
-[tool.setuptools.package-data]
-avo_alarms = ["utils/alarms.mplstyle"]
-
-[project.urls]
+[tool.hatch.build.targets.wheel]
+packages = ["src/avo_alarms"]

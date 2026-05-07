@@ -1,6 +1,0 @@
-[console_scripts]
-email-test = avo_alarms.scripts.email_test:main
-generic-alarm = avo_alarms.scripts.generic_alarm:main
-run-alarm = avo_alarms.scripts.run_alarm:main
-update-html = avo_alarms.scripts.notification_html:main
-update-metadata = avo_alarms.scripts.update_metadata:main

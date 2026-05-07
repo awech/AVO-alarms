@@ -16,3 +16,8 @@ phonebook.yml
 .vscode/*
 
 .gitlab-ci.yml
+
+*.egg-info/
+.eggs/
+build/
+dist/

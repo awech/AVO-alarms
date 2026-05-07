@@ -14,7 +14,6 @@ from pathlib import Path
 import requests
 import urllib3
 import yaml
-from mattermostdriver import Driver
 
 from avo_alarms.utils.setup_utils import get_logger
 
@@ -233,6 +232,8 @@ def connect_mattermost():
     mattermostdriver.Driver
         Authenticated Mattermost driver instance
     """
+    from mattermostdriver import Driver
+    
     mm = Driver(
         {
             "url": os.environ["MATTERMOST_SERVER_URL"],

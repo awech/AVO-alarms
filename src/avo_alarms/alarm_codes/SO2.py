@@ -1,9 +1,7 @@
 import os, sys
 import requests
-from bs4 import BeautifulSoup
 import pandas as pd
 from obspy import UTCDateTime
-from PIL import Image
 from urllib.parse import urlparse, urljoin
 import matplotlib as m
 import matplotlib.image as mpimg
@@ -152,6 +150,7 @@ def get_so2_images(soup, config):
                     out.write(bits)
 
         gif = config.img_file.replace('.png', str(i+1)+'.gif')
+        from PIL import Image
         img = Image.open(gif)
         img.save(gif.replace('gif', 'png'), 'png', optimize=True, quality=300)
         os.remove(gif)

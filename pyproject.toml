@@ -16,10 +16,15 @@ requires-python = ">=3.10"
 dependencies = [
     "obspy",
     "pandas",
-    "jinja2",
     "pyyaml",
     "cartopy",
-    "cmcrameri"
+    "cmcrameri",
+    "matplotlib",
+    "numpy",
+    "python-dotenv",
+    "utm",
+    "scikit-learn",
+    "requests"
 ]
 classifiers = [
     # How mature is this project? Common values are
@@ -36,6 +41,14 @@ classifiers = [
     "License :: CC0 1.0 Universal (CC0 1.0)",
 ]
 keywords = ["volcano", "geophysics", "monitoring"]
+
+[project.optional-dependencies]
+avo = [
+    "beautifulsoup4",
+    "enveloc",
+    "pillow",
+    "mattermostdriver"
+]
 
 [project.scripts]
 run-alarm = "avo_alarms.scripts.run_alarm:main"

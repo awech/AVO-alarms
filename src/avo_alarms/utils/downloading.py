@@ -12,7 +12,6 @@ import numpy as np
 import pandas as pd
 import requests
 import urllib3
-from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from obspy import Catalog, Stream, Trace, UTCDateTime
 from obspy.clients.earthworm import Client as EW_Client
@@ -349,6 +348,7 @@ def download_pilot_reports(T0, config):
 
 
 def scrape_cimss_alert(alert):
+    from bs4 import BeautifulSoup
 
     attempt = 1
     max_tries = 3
@@ -449,6 +449,7 @@ def download_mesonet_vaa_list(T0):
 
 
 def download_SO2():
+    from bs4 import BeautifulSoup
 
     logger.info("Reading SACS SO2 webpage")
     attempt = 1

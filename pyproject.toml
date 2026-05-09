@@ -43,7 +43,8 @@ avo = [
     "beautifulsoup4",
     "enveloc",
     "pillow",
-    "mattermostdriver"
+    "mattermostdriver",
+    "openpyxl"
 ]
 
 [project.scripts]
@@ -52,6 +53,7 @@ email-test = "avo_alarms.scripts.email_test:main"
 generic-alarm = "avo_alarms.scripts.generic_alarm:main"
 update-metadata = "avo_alarms.scripts.update_metadata:main"
 update-html = "avo_alarms.scripts.notification_html:main"
+list-alerts = "avo_alarms.scripts.list_alerts:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/avo_alarms"]

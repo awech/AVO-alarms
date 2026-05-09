@@ -6,7 +6,7 @@ import cartopy.crs as ccrs
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from avo_alarms.utils import messaging, plotting, processing, downloading
+from avo_alarms.utils import messaging, plotting, processing, downloading, alarming
 from avo_alarms.utils.setup_utils import get_logger, load_volcano_list
 
 logger = get_logger(__name__)
@@ -19,7 +19,6 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     T0_str = T0.strftime('%Y-%m-%d %H:%M')
     T2 = T0
     T1 = T2 - config.DURATION
-    outfile_columns = ["time", "id"]
     if force_flag:
         logger.warning("Forcing trigger by setting MAGMIN = -5")
         config.MAGMIN = -5
@@ -32,7 +31,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         f"&maxdepth={config.MAXDEP}"
         f"&format=csv"
     )
-    logger.info(f"Downloading events...")
+    logger.info("Downloading events...")
     catalog_df = downloading.download_hypocenters_csv(URL)
 
     if catalog_df is None: # Error pulling events
@@ -61,22 +60,18 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 
-    # Read in old events. Filter to new events. Write out old and new events.
-    new_events_df, catalog_df = processing.compare_to_old_events(
-        catalog_df, config.outfile, outfile_columns, unique_id_col="id"
-    )
+    # Compare old and new events
+    N_new, N_old = alarming.check_new_event_ids(catalog_df["id"])
+    logger.info(f"Found {N_new} new and {N_old} old earthquakes")
 
-    # No new events to process
-    if len(new_events_df) == 0:
-        processing.write_to_csv(catalog_df, config, outfile_columns)
-        logger.warning("Earthquakes detected, but already processed in previous run")
-        state = "WARNING"
-        state_message = f"{T0_str} (UTC) Old event detected"
-        messaging.icinga(config, state, state_message, send=icinga_flag)
-        return
-
-    logger.info(f"{len(new_events_df)} new events found. Looping through events...")
-    for i, row in new_events_df.iterrows():
+    for i, row in catalog_df.iterrows():
+        if alarming.already_processed(config, row.id):
+            logger.warning("Earthquakes detected, but already processed")
+            state = "OK"
+            state_message = f"{T0_str} (UTC) Old event detected"
+            messaging.icinga(config, state, state_message, send=icinga_flag)
+            continue
+        
         logger.info(f"Processing event {row.id}")
         evt_url = f"{os.getenv('FDSN_URL')}eventid={row.id}"
         subject, message, attachment, eq, volcs = process_event(evt_url, config, test=test_flag)
@@ -93,8 +88,15 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
             attachment=attachment,
             send=mm_flag,
             test=test_flag,
-            volcano=volcs.iloc[0].Volcano,
+            volcano=row.v_name,
         )
+        alarming.record_send(
+                config,
+                T0,
+                volcano=row.v_name,
+                event_id=row.id,
+                test=test_flag,
+            )
 
         # delete the file you just sent
         if attachment:
@@ -104,8 +106,8 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         eq_str = eq.preferred_origin().time.strftime("%Y-%m-%d %H:%M:%S")
         state_message = f"{eq_str} (UTC) {subject}"
 
-    if not force_flag:
-        processing.write_to_csv(catalog_df, config, outfile_columns)
+    # if not force_flag:
+    #     processing.write_to_csv(catalog_df, config, outfile_columns)
     messaging.icinga(config, state, state_message, send=icinga_flag)
 
 

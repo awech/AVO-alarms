@@ -10,7 +10,7 @@ from obspy.geodetics.base import gps2dist_azimuth
 from obspy.signal.cross_correlation import correlate, xcorr_max
 from pandas import DataFrame
 
-from avo_alarms.utils import messaging, processing, plotting, downloading
+from avo_alarms.utils import messaging, processing, plotting, downloading, alarming
 from avo_alarms.utils.setup_utils import get_logger
 
 logger = get_logger(__name__)
@@ -123,11 +123,11 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         state = "WARNING"
 
     if state == "CRITICAL":
-        ## TODO
-        ## inf_df = pd.read(outfile)
-        ## inf_df = inf_df[inf_df["time"] > T0 - config.duration]
-        ## but wait...need to check id and volcano too
-        ## if len(inf_df) < config.n_alerts:
+        if not alarming.can_send(config, volcano=volcano['volcano'], T0=T0):
+            logger.warning(f"Rate limit: skipping alarm {config.alarm_name} at {volcano['volcano']}")
+            state_message = f"{state_message} (alarm skipped due to rate limit)"
+            messaging.icinga(config, state, state_message, send=icinga_flag)
+            return
         try:
             logger.info("generating figure")
             filename = make_figure(st, volcano, T0, config, mx_pressure, test=test_flag)
@@ -160,6 +160,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         messaging.send_alert(
             config.alarm_name, subject, message, attachment=filename, test=test_flag
         )
+        alarming.record_send(config, T0, volcano=volcano['volcano'], test=test_flag)
         # delete the file you just sent
         if filename:
             os.remove(filename)

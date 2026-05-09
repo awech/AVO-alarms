@@ -10,7 +10,7 @@ import numpy as np
 from obspy import UTCDateTime as utc
 from obspy.geodetics.base import gps2dist_azimuth
 
-from avo_alarms.utils import downloading, messaging, plotting, processing
+from avo_alarms.utils import downloading, messaging, plotting, processing, alarming
 from avo_alarms.utils.setup_utils import get_logger, load_volcano_list
 
 logger = get_logger(__name__)
@@ -21,7 +21,6 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
 
     T0_str = T0.strftime("%Y-%m-%d %H:%M")
     max_distance = getattr(config, "max_distance", 25)
-    outfile_columns = ["time", "NOAA_id", "vv_id"]
     
     logger.info("Reading in alerts from volcview api .json file")
     cimss_df = downloading.download_cimss_vv_api()
@@ -37,30 +36,26 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     cimss_df = processing.check_ignore_volcano(cimss_df)
     cimss_df = cimss_df[cimss_df["keep"]]
 
+    N_new, N_old = alarming.check_new_event_ids(cimss_df["NOAA_id"])
+    logger.info(f"Found {N_new} new and {N_old} old alerts")
+
     if force_flag:
         logger.warning(
             "Attempting to force trigger by grabbing most recent (even if already processed)"
         )
-        new_alerts_df = cimss_df[:1]
-    else:
-        new_alerts_df, cimss_df = processing.compare_to_old_events(
-            cimss_df, config.outfile, outfile_columns, unique_id_col="NOAA_id"
-        )
-
-    if len(new_alerts_df) == 0:
-        if len(cimss_df) > 0:
-            logger.info("NOAA CIMSS alerts found have already been processed")
-        processing.write_to_csv(cimss_df, config, outfile_columns)
-        state = "OK"
-        state_message = f"{T0_str} (UTC) No new recent NOAA CIMSS alerts"
-        messaging.icinga(config, state, state_message, send=icinga_flag)
-        return
+        cimss_df = cimss_df[:1]
 
 
     default_mm_id = config.mattermost_channel_id
 
     logger.info("Looping through alerts...")
-    for _, alert in new_alerts_df.iterrows():
+    for _, alert in cimss_df.iterrows():
+
+        if alarming.already_processed(config, alert.NOAA_id):
+            logger.info("NOAA CIMSS found have already been processed")
+            state = "OK"
+            state_message = f"{T0_str} (UTC) No new recent NOAA CIMSS alerts"
+            continue
 
         logger.info(f"--- New Alert! ---\n{alert}")
         logger.info("Scraping images and info from NOAA CIMSS page...")
@@ -104,6 +99,13 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         messaging.cimss_mm_channels(alert, config, subject, message, filename, test_flag, mm_flag)
         # change mm channel id back to default
         config.mattermost_channel_id = default_mm_id
+        alarming.record_send(
+                config,
+                T0,
+                volcano=alert.v_name,
+                event_id=alert.NOAA_id,
+                test=test_flag,
+            )
 
         state = "CRITICAL"
         state_message = f"{T0_str} (UTC) {subject}"
@@ -111,8 +113,8 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         if filename:
             os.remove(filename)
 
-        if not force_flag:
-            processing.write_to_csv(cimss_df, config, outfile_columns)
+        # if not force_flag:
+        #     processing.write_to_csv(cimss_df, config, outfile_columns)
 
     messaging.icinga(config, state, state_message, send=icinga_flag)
 

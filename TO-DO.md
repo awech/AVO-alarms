@@ -18,10 +18,12 @@
 - [x] implement default "all" message distribution
 - [ ] allow for distribution/phonebook to be environment variables
 - [x] edit notifications html script to use yml files
+- [ ] convert configs to .yml
 - [ ] move distribution file to configs repository as (maybe) .yml
 - [x] implement Python logger
 - [ ] add defaults to infrasound parameters that then can be overwritten if need be (`vmin`, `vmax`, `min_pa`)
 - [ ] implement a 'kill' switch - probably from config file
+- [ ] change volcano list file to csv. Possibly need separate AVO xlsx file.
 
 ## :test_tube: Tests
 - [x] sort out `test_flag` vs possible `force` flag

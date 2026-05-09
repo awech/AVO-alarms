@@ -290,7 +290,7 @@ def download_cimss_vv_api():
         try:
             result = os.popen(
                 f"curl --connect-timeout 5 --max-time 20 -H 'username:{usr}' -H 'password:{pwd}' -X GET {url}"
-            ).read()
+            )
             cimss_df = pd.read_json(result)
             break
         except Exception as e:

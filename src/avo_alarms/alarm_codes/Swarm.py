@@ -12,7 +12,7 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from obspy import Catalog
 from sklearn.cluster import DBSCAN
 
-from avo_alarms.utils import downloading, messaging, plotting, processing
+from avo_alarms.utils import downloading, messaging, plotting, processing, alarming
 from avo_alarms.utils.setup_utils import get_logger
 
 logger = get_logger(__name__)
@@ -22,12 +22,10 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
 
     # Download the event data
     T0_str = T0.strftime("%Y-%m-%d %H:%M")
-    outfile_cols = ["id", "time", "latitude", "longitude", "depth", "mag", "v_name"]
 
     config.DURATION = np.array([swm['MAX_EVT_TIME'] for swm in config.swarm_parameters]).max()
     logger.info(f"Downloading events {config.DURATION:g}s before {T0_str}")
     URL = build_download_url(T0, config)
-    T_min = (T0 - config.DURATION).strftime("%Y-%m-%d %H:%M:%S")
     eq_df = downloading.download_hypocenters_csv(URL)
 
     # Error pulling events
@@ -51,11 +49,21 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 
-    # Read in old events. Filter to new events
-    new_eq_df, eq_df = processing.compare_to_old_events(
-        eq_df, config.outfile, outfile_cols, "id"
+    new_eq_df, eq_df = alarming.filter_dataframe(eq_df, id_column="event_id", test=test_flag, table="swarm")
+    table_name = alarming.resolve_table_name(test_flag, table="swarm")
+    db_conn = alarming.get_conn(test=test_flag, table="swarm")
+    old_eq_df = pd.read_sql_query(
+        f"SELECT * FROM {table_name}",
+        db_conn,
+        parse_dates=["time"],
+        dtype={
+            "latitude": float,
+            "longitude": float,
+        },
     )
-    old_eq_df = pd.read_csv(config.outfile, parse_dates=["time"])
+    old_eq_df['time'] = old_eq_df['time'].dt.tz_localize(None)
+    old_eq_df['v_name'] = old_eq_df['volcano']
+
 
     # No new earthquakes
     if len(new_eq_df) == 0:
@@ -74,9 +82,8 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         logger.warning("Earthquakes detected, but no new swarm actvity")
         state = "OK"
         state_message = f"{T0_str} (UTC) No new swarm actvity"
-
-        # No new events to write
-        out_df = old_eq_df
+        messaging.icinga(config, state, state_message, send=icinga_flag)
+        return
 
     # New earthquakes aren't swarm-y by themselves, but continuation of ongoing swarm
     elif len(swarms) == 0 and len(swarm_continue) > 0:
@@ -86,10 +93,8 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         v_list_txt = ", ".join(np.unique(v_list))
         state_message = f"{T0_str} (UTC) Ongoing swarm actvity at: {v_list_txt}"
 
-        # Merge new and old swarm detects
-        merged_swarm = pd.concat(swarm_continue, keys="id", ignore_index=True).drop_duplicates("id")
-        out_df = pd.concat([old_eq_df, merged_swarm], keys="id", ignore_index=True).drop_duplicates("id")
-
+        # Merge continued detects into one DataFrame
+        merged_swarm = pd.concat(swarm_continue, ignore_index=True).drop_duplicates("event_id")
     else:
         # remove duplicate or overlapping swarms
         swarms = compare_swarms(swarms)
@@ -121,18 +126,16 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
 
             logger.info("Posting message to Mattermost...")
             messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag, volcano=volcano)
+            # swarm_id = f"{volcano}-{T0_str}"
+            alarming.record_send(config, T0, volcano, event_id=None, test=test_flag)
 
             if filename:
                 os.remove(filename)
 
-        # Merge new and old swarm detects
-        merged_swarm = pd.concat(swarms, keys="id", ignore_index=True).drop_duplicates("id")
-        out_df = pd.concat([old_eq_df, merged_swarm], keys="id", ignore_index=True).drop_duplicates("id")
+        # Merge swarms into single DataFrame
+        merged_swarm = pd.concat(swarms, ignore_index=True).drop_duplicates("event_id")
 
-
-    out_df = out_df[out_df["time"] > T_min]
-    out_df = out_df.sort_values("time")
-    processing.write_to_csv(out_df, config, outfile_cols)
+    alarming.record_swarm_event_ids(merged_swarm, test=test_flag)
     messaging.icinga(config, state, state_message, send=icinga_flag)
     
     return
@@ -361,13 +364,16 @@ def build_download_url(T0, config):
     return URL
 
 
-def check_swarm_continue(T0, config, old_eq_df, new_eq_df):
+def check_swarm_continue(T0, config, old_eq_df, new_eq_df, col_key="event_id"):
 
-    all_eq_df = pd.concat(
-        [old_eq_df, new_eq_df], keys="id", ignore_index=True
-    ).drop_duplicates("id")
+    tmp_new_df = new_eq_df.copy()
+    drop_columns = [col for col in tmp_new_df if col not in old_eq_df.columns]
+    tmp_new_df = tmp_new_df.drop(columns=drop_columns)
+    all_eq_df = pd.concat([old_eq_df, tmp_new_df], ignore_index=True).drop_duplicates(
+        col_key
+    )
     swarm_continue = get_swarms(all_eq_df.copy(), T0, config)
-    swarm_continue = [swarm.loc[~swarm["id"].isin(old_eq_df.id)] for swarm in swarm_continue]
+    swarm_continue = [swarm.loc[~swarm[col_key].isin(old_eq_df[col_key])] for swarm in swarm_continue]
     swarm_continue = [swarm for swarm in swarm_continue if len(swarm)>0]
 
     return swarm_continue
@@ -426,7 +432,9 @@ def compare_swarms(swarms):
     return test_swarms
 
 
-def get_swarms(df, T0, config):
+def get_swarms(DF, T0, config):
+
+    df = DF.copy()
 
     t_str_fmt = "%Y-%m-%d %H:%M:%S"
     lat0 = df.latitude.mean()

@@ -61,19 +61,19 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         return
 
     # Compare old and new events
-    N_new, N_old = alarming.check_new_event_ids(catalog_df["id"], test=test_flag)
+    N_new, N_old = alarming.check_new_event_ids(catalog_df["event_id"], test=test_flag)
     logger.info(f"Found {N_new} new and {N_old} old earthquakes")
 
     for i, row in catalog_df.iterrows():
-        if alarming.already_processed(config, row.id, test=test_flag):
+        if alarming.already_processed(config, row.event_id, test=test_flag):
             logger.warning("Earthquakes detected, but already processed")
             state = "OK"
             state_message = f"{T0_str} (UTC) Old event detected"
             messaging.icinga(config, state, state_message, send=icinga_flag)
             continue
         
-        logger.info(f"Processing event {row.id}")
-        evt_url = f"{os.getenv('FDSN_URL')}eventid={row.id}"
+        logger.info(f"Processing event {row.event_id}")
+        evt_url = f"{os.getenv('FDSN_URL')}eventid={row.event_id}"
         subject, message, attachment, eq, volcs = process_event(evt_url, config, test=test_flag)
 
         logger.info("Sending message...")
@@ -94,7 +94,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
                 config,
                 T0,
                 volcano=row.v_name,
-                event_id=row.id,
+                event_id=row.event_id,
                 test=test_flag,
             )
 

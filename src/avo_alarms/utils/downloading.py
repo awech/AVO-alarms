@@ -93,6 +93,7 @@ def download_hypocenters_csv(URL):
                 catalog_df["time"] = catalog_df.apply(lambda x: UTCDateTime(x.time).strftime("%Y-%m-%d %H:%M:%S.%f"), axis=1)
                 catalog_df["time"] = pd.to_datetime(catalog_df["time"])
             success = True
+            catalog_df = catalog_df.rename(columns={"id": "event_id"})
             break
         except Exception as e:
             logger.warning(f"Error downloading earthquake data on attempt {attempt}: {e}")

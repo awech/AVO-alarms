@@ -24,9 +24,14 @@ def iso_utc(dt: datetime):
     )
 
 
-def resolve_table_name(test):
+def resolve_table_name(test, table=None):
     """Decide which table to use based on boolean test flag."""
-    return "test_sent_events" if test else "sent_events"
+    if table == "swarm":
+        return "test_swarm_table" if test else "swarm_table"
+    elif table == "tremor":
+        return "test_tremor_table" if test else "tremor_table"
+    else:
+        return "test_sent_events" if test else "sent_events"
 
 
 # ---- DB setup ----
@@ -47,10 +52,76 @@ def init_db(conn, test=False):
     conn.execute("PRAGMA journal_mode=WAL;")  # optional, improves concurrency
 
 
-def get_conn(test=False):
+def init_swarm_db(conn, test=False):
+    table_name = "test_swarm_table" if test else "swarm_table"
+
+    table_query = f"""
+        CREATE TABLE IF NOT EXISTS {table_name} (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_id TEXT NOT NULL,
+            time TEXT NOT NULL,   -- ISO-8601 UTC, e.g., 2026-05-07T23:45:00Z
+            latitude REAL NOT NULL,
+            longitude REAL NOT NULL,
+            depth REAL NOT NULL,
+            mag REAL NOT NULL,
+            volcano TEXT NOT NULL
+        );
+    """
+    conn.execute(table_query)
+    conn.execute("PRAGMA journal_mode=WAL;")  # optional, improves concurrency
+
+
+def record_swarm_event_ids(swarm_df, test=False):
+
+    table_name = resolve_table_name(test, table="swarm")
+    conn = get_conn(test=test, table="swarm")
+    try:
+        for i, row in swarm_df.iterrows():
+            conn.execute(
+                f"""
+                INSERT INTO {table_name} (event_id, time, latitude, longitude, depth, mag, volcano)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    row.event_id,
+                    (iso_utc(row.time.to_pydatetime())),
+                    row.latitude,
+                    row.longitude,
+                    row.depth,
+                    row.mag,
+                    row.v_name,
+                ),
+            )
+    finally:
+        conn.close()
+
+
+def init_tremor_db(conn, test=False):
+    table_name = "test_tremor_table" if test else "tremor_table"
+
+    table_query = f"""
+        CREATE TABLE IF NOT EXISTS {table_name} (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_id TEXT NOT NULL,   -- ISO-8601 UTC, e.g., 2026-05-07T23:45:00Z
+            time TEXT NOT NULL,       -- ISO-8601 UTC, e.g., 2026-05-07T23:45:00Z
+            latitude REAL NOT NULL,
+            longitude REAL NOT NULL,
+            depth REAL NOT NULL
+        );
+    """
+    conn.execute(table_query)
+    conn.execute("PRAGMA journal_mode=WAL;")  # optional, improves concurrency
+
+
+def get_conn(test=False, table=None):
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = sqlite3.connect(DB_PATH, timeout=10, isolation_level=None)  # autocommit
-    init_db(conn, test=test)
+    if table == "swarm":
+        init_swarm_db(conn, test=test)
+    elif table == "tremor":
+        init_tremor_db(conn, test=test)
+    else:
+        init_db(conn, test=test)
     return conn
 
 
@@ -123,7 +194,7 @@ def can_send(config, volcano="*", T0=None, test=False):
         conn.close()
 
 
-def check_new_event_ids(event_ids, test=False):
+def check_new_event_ids(event_ids, test=False, table=None):
     """
     Return True if ANY of the provided event_ids are NOT already present in the DB.
     Return False if all are already in the DB.
@@ -134,7 +205,7 @@ def check_new_event_ids(event_ids, test=False):
         return 0, 0  # nothing to check => nothing new
 
     placeholders = ", ".join("?" for _ in candidate_ids)
-    table_name = resolve_table_name(test)
+    table_name = resolve_table_name(test, table=table)
     conn = get_conn(test=test)  # your existing connection helper
     try:
         rows = conn.execute(
@@ -323,18 +394,38 @@ def remove_alarm_ids(alarm_id, t_start, t_end, test=False):
     return
 
 
-def filter_dataframe(df, id_column="id", test=False):
+def filter_dataframe(df, id_column="id", test=False, table=None):
 
     if id_column not in df.columns:
-        raise ValueError(f"all_df must have an '{id_column}' column")
+        raise ValueError(f"DataFrame must have an '{id_column}' column")
 
     # Ensure string comparison consistency (your DB stores TEXT for event_id)
-    ids = df["id"].astype(str)
+    ids = df[id_column].astype(str)
 
-    table_name = resolve_table_name(test)
-    conn = get_conn(test=test)
+    table_name = resolve_table_name(test, table=table)
+    conn = get_conn(test=test, table=table)
 
     sql_query = f"SELECT event_id FROM {table_name} WHERE event_id IS NOT NULL"
+    try:
+        cur = conn.execute(sql_query)
+        event_ids_in_db = {row[0] for row in cur.fetchall()}  # build a Python set for fast membership tests
+
+        # Anti-join via boolean mask
+        mask_not_in_db = ~ids.isin(event_ids_in_db)
+        new_df = df.loc[mask_not_in_db].copy()
+        return new_df, df
+
+    finally:
+        conn.close()
+
+def select_dataframe(test=False, table=None):
+
+
+
+    table_name = resolve_table_name(test, table=table)
+    conn = get_conn(test=test, table=table)
+
+    sql_query = f"SELECT (*) FROM {table_name}"
     try:
         cur = conn.execute(sql_query)
         event_ids_in_db = {row[0] for row in cur.fetchall()}  # build a Python set for fast membership tests

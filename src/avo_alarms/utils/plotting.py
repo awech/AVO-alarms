@@ -314,9 +314,16 @@ def add_volcanoes_to_map(ax, extent, config, c1="forestgreen", c2="darkseagreen"
             **kwargs)
 
 
-def add_scale_bar(ax, length_km, location=(0.1, 0.05), txt_yoffset=0.02):
+def add_scale_bar(ax, length_km, location=(0.1, 0.05), txt_yoffset=0.02, extent=None):
+
     # 1. Get current map extent to find positioning
-    lon0, lon1, lat0, lat1 = ax.get_extent(ccrs.PlateCarree())
+    # TODO fix bug when lon0=-180, lon1=180 when spanning dateline
+    # added `extent` argument as quick bandaid, but should be implemented wholesale
+    if not extent:
+        lon0, lon1, lat0, lat1 = ax.get_extent(ccrs.PlateCarree())
+    else:
+        lon0, lon1, lat0, lat1 = extent
+
     sb_lon = lon0 + (lon1 - lon0) * location[0]
     sb_lat = lat0 + (lat1 - lat0) * location[1]
 

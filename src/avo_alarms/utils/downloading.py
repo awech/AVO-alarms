@@ -514,7 +514,7 @@ def download_station_xml():
                 level="response",
                 starttime=UTCDateTime.utcnow(),
             )
-        time.sleep(0.5)
+        time.sleep(0.25)
 
     out_file = Path(os.environ["HOME_DIR"]) / "alarm_aux_files" / "stations.xml"
     tmp_outfile = out_file.with_suffix(".tmp")

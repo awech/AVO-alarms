@@ -4,7 +4,7 @@
   <Sender>IRIS-DMC</Sender>
   <Module>ObsPy 1.4.1</Module>
   <ModuleURI>https://www.obspy.org</ModuleURI>
-  <Created>2026-05-01T22:27:51.759396Z</Created>
+  <Created>2026-05-12T18:59:10.314801Z</Created>
   <Network code="AK" startDate="1987-01-01T00:00:00.000000Z" restrictedStatus="open">
     <Description>Alaska Regional Network ()</Description>
     <Identifier type="DOI">10.7914/SN/AK

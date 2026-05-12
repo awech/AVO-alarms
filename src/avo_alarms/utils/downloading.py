@@ -481,7 +481,7 @@ def download_SO2():
 def download_station_xml():
     """Download and update station metadata XML file from IRIS."""
 
-    client = FDSN_Client("IRIS")
+    client = IRIS_client()
 
     files = list(Path(os.environ["CONFIGS_DIR"]).glob("*RSAM*.py", case_sensitive=False))
     files += list(Path(os.environ["CONFIGS_DIR"]).glob("*Tremor*.py", case_sensitive=False))
@@ -522,7 +522,7 @@ def download_station_xml():
                 level="response",
                 starttime=UTCDateTime.utcnow(),
             )
-        time.sleep(0.5)
+        time.sleep(0.25)
 
     out_file = Path(os.environ["HOME_DIR"]) / "alarm_aux_files" / "stations.xml"
     tmp_outfile = out_file.with_suffix(".tmp")

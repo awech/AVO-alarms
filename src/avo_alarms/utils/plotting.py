@@ -39,8 +39,8 @@ class ShadedReliefESRI(GoogleTiles):
         x, y, z = tile
         url = (
             "https://server.arcgisonline.com/ArcGIS/rest/services/"
-            "World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}.jpg"
-        ).format(z=z, y=y, x=x)
+            f"World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}.jpg"
+        )
         return url
 
 

@@ -28,13 +28,17 @@ logger = get_logger(__name__)
 
 
 def IRIS_client():
+
+    import ssl
+    ssl._create_default_https_context = ssl._create_unverified_context
+    
     attempt = 1
     while attempt <= 3:
         try:
-            client = FDSN_Client("IRIS")
+            client = FDSN_Client("EARTHSCOPE")
             break
         except Exception as e:
-            logger.warning(f"IRIS client connection attempt {attempt} failed: {e}")
+            logger.warning(f"Earthscope client connection attempt {attempt} failed: {e}")
             time.sleep(2)
             attempt += 1
             client = None
@@ -189,7 +193,7 @@ def download_waveforms(nslc_list, T1, T2, fill_value=0, iris=False):
             else:
                 tr = client.get_waveforms(*nslc.split("."), T1, T2, cleanup=True)
             if len(tr) > 1:
-                logger.info("{:.0f} traces for {}".format(len(tr), nslc))
+                logger.info(f"{len(tr):.0f} traces for {nslc}")
                 if fill_value == 0 or fill_value is None:
                     tr.detrend("demean")
                     tr.taper(max_percentage=0.01)
@@ -309,19 +313,22 @@ def download_pilot_reports(T0, config):
 
     T2 = T0
     T1 = T2 - config.duration
-    t1 = "&year1={}&month1={}&day1={}&hour1={}&minute1={}".format(
-        T1.strftime("%Y"),
-        T1.strftime("%m"),
-        T1.strftime("%d"),
-        T1.strftime("%H"),
-        T1.strftime("%M"),
+    t1 = (
+        f"&year1={T1.strftime('%Y')}"
     )
-    t2 = "&year2={}&month2={}&day2={}&hour2={}&minute2={}".format(
-        T2.strftime("%Y"),
-        T2.strftime("%m"),
-        T2.strftime("%d"),
-        T2.strftime("%H"),
-        T2.strftime("%M"),
+    t1 = (
+        f"&year1={T1.strftime('%Y')}"
+        f"&month1={T1.strftime('%m')}"
+        f"&day1={T1.strftime('%d')}"
+        f"&hour1={T1.strftime('%H')}"
+        f"&minute1={T1.strftime('%M')}"
+    )
+    t2 = (
+        f"&year1={T2.strftime('%Y')}"
+        f"&month1={T2.strftime('%m')}"
+        f"&day1={T2.strftime('%d')}"
+        f"&hour1={T2.strftime('%H')}"
+        f"&minute1={T2.strftime('%M')}"
     )
     pirep_url = f"{os.getenv('PIREP_URL')}?fmt=shp{t1}{t2}"
 
@@ -411,10 +418,10 @@ def download_vaa_from_nws_api():
             vaa_id_list = data["@graph"]
             break
         except Exception:		
-            logger.warning('Page error on attempt number {:g}'.format(attempt))
+            logger.warning(f"Page error on attempt number {attempt:g}")
             attempt += 1	
             if attempt == max_tries:
-                logger.error(f'Problem connecting to VAA API after {max_tries} attempts')
+                logger.error(f"Problem connecting to VAA API after {max_tries} attempts")
                 
     return vaa_id_list
 
@@ -440,7 +447,7 @@ def download_mesonet_vaa_list(T0):
                 vaa_id_list["text_link"] = ""
             break
         except Exception:
-            logger.warning('Page error on attempt number {:g}'.format(attempt))
+            logger.warning(f"Page error on attempt number {attempt:g}")
             attempt += 1	
             if attempt == max_tries:
                 logger.error(f'Problem connecting to VAA API after {max_tries} attempts')

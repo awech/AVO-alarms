@@ -351,10 +351,13 @@ def build_download_url(T0, config):
 
     T2 = T0
     T1 = T2 - config.DURATION
-    URL = '{}starttime={}&endtime={}&maxdepth={}&format=csv'.format(os.environ['FDSN_URL'],
-                                                                    T1.strftime('%Y-%m-%dT%H:%M:%S'),
-                                                                    T2.strftime('%Y-%m-%dT%H:%M:%S'),
-                                                                    config.MAXDEP)
+    URL = (
+        f"{os.environ['FDSN_URL']}"
+        f"starttime={T1.strftime('%Y-%m-%dT%H:%M:%S')}"
+        f"&endtime={T2.strftime('%Y-%m-%dT%H:%M:%S')}"
+        f"&maxdepth={config.MAXDEP}"
+        "&format=csv"
+    )
     return URL
 
 

@@ -24,25 +24,33 @@ def iso_utc(dt: datetime):
     )
 
 
+def resolve_table_name(test):
+    """Decide which table to use based on boolean test flag."""
+    return "test_sent_events" if test else "sent_events"
+
+
 # ---- DB setup ----
-def init_db(conn):
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS sent_events (
+def init_db(conn, test=False):
+    table_name = resolve_table_name(test)
+    table_query = f"""
+        CREATE TABLE IF NOT EXISTS {table_name} (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             alarm_id TEXT NOT NULL,
             event_id TEXT,
             volcano TEXT,
             process_time TEXT NOT NULL,   -- ISO-8601 UTC, e.g., 2026-05-07T23:45:00Z
-            send_time TEXT NOT NULL,   -- ISO-8601 UTC, e.g., 2026-05-07T23:45:00Z
-            test BOOLEAN NOT NULL DEFAULT FALSE
+            send_time TEXT NOT NULL   -- ISO-8601 UTC, e.g., 2026-05-07T23:45:00Z
         );
-    """)
+    """
+
+    conn.execute(table_query)
     conn.execute("PRAGMA journal_mode=WAL;")  # optional, improves concurrency
 
-def get_conn():
+
+def get_conn(test=False):
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = sqlite3.connect(DB_PATH, timeout=10, isolation_level=None)  # autocommit
-    init_db(conn)
+    init_db(conn, test=test)
     return conn
 
 
@@ -54,29 +62,32 @@ def record_send(config, T0, volcano=None, event_id=None, test=False):
     if hasattr(config, "VOLCANO_NAME"):
         volcano = config.VOLCANO_NAME
 
-    conn = get_conn()
-    conn.execute("BEGIN IMMEDIATE;")
+    if not isinstance(event_id, list):
+        event_id = [event_id]
+
+    table_name = resolve_table_name(test)
+    conn = get_conn(test=test)
     try:
-        conn.execute(
-            """
-            INSERT INTO sent_events(alarm_id, process_time, send_time, volcano, event_id, test)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (config.alarm_name, process_time, send_time, volcano, event_id, test),
-        )
-        conn.execute("COMMIT;")
+        for ev_id in event_id:
+            conn.execute(
+                f"""
+                INSERT INTO {table_name} (alarm_id, process_time, send_time, volcano, event_id)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (config.alarm_name, process_time, send_time, volcano, ev_id)
+            )
     finally:
         conn.close()
 
 
-def can_send(config, volcano="*", T0=None):
+def can_send(config, volcano="*", T0=None, test=False):
 
     WINDOW_SECONDS = 3600
     N_ALERTS = 3
 
     if hasattr(config, "ALERT_MEMORY"):
         WINDOW_SECONDS = config.ALERT_MEMORY
-    
+
     if hasattr(config, "MAX_ALERTS"):
         N_ALERTS = config.MAX_ALERTS
 
@@ -84,21 +95,22 @@ def can_send(config, volcano="*", T0=None):
         now = now_utc()
     else:
         now = T0.datetime
-        
+
     cutoff_iso = iso_utc(now - timedelta(seconds=WINDOW_SECONDS))
     now_iso = iso_utc(now)
 
+    table_name = resolve_table_name(test)
     base_sql = f"""
-            SELECT COUNT(*)
-            FROM sent_events
-            WHERE alarm_id = '{config.alarm_name}'
-            AND process_time >= '{cutoff_iso}'
-            AND process_time <= '{now_iso}'
-        """
+                SELECT COUNT(*)
+                FROM {table_name}
+                WHERE alarm_id = '{config.alarm_name}'
+                AND process_time >= '{cutoff_iso}'
+                AND process_time <= '{now_iso}'
+                """
     if volcano != "*":
         base_sql += f" AND volcano = '{volcano}'"
 
-    conn = get_conn()
+    conn = get_conn(test=test)
     try:
         (cnt,) = conn.execute(base_sql).fetchone()
 
@@ -106,17 +118,12 @@ def can_send(config, volcano="*", T0=None):
             return True
         else:
             return False
-    except Exception:
-        try:
-            conn.execute("ROLLBACK;")
-        except Exception:
-            pass
-        raise
+
     finally:
         conn.close()
 
 
-def check_new_event_ids(event_ids):
+def check_new_event_ids(event_ids, test=False):
     """
     Return True if ANY of the provided event_ids are NOT already present in the DB.
     Return False if all are already in the DB.
@@ -127,12 +134,13 @@ def check_new_event_ids(event_ids):
         return 0, 0  # nothing to check => nothing new
 
     placeholders = ", ".join("?" for _ in candidate_ids)
-    conn = get_conn()  # your existing connection helper
+    table_name = resolve_table_name(test)
+    conn = get_conn(test=test)  # your existing connection helper
     try:
         rows = conn.execute(
             f"""
             SELECT event_id
-            FROM sent_events
+            FROM {table_name}
             WHERE event_id IN ({placeholders})
             """,
             tuple(candidate_ids),
@@ -145,39 +153,36 @@ def check_new_event_ids(event_ids):
         conn.close()
 
 
-def already_processed(config, evid):
+def already_processed(config, evid, test=False):
 
+    table_name = resolve_table_name(test)
     base_sql = f"""
-            SELECT COUNT(*)
-            FROM sent_events
-            WHERE alarm_id = '{config.alarm_name}'
-            AND event_id = '{evid}'
-        """
+                SELECT COUNT(*)
+                FROM {table_name}
+                WHERE alarm_id = '{config.alarm_name}'
+                AND event_id = '{evid}'
+                """
 
-    conn = get_conn()
+    conn = get_conn(test=test)
     try:
         (cnt,) = conn.execute(base_sql).fetchone()
         if cnt > 0:
             return True
         else:
             return False
-    except Exception:
-        try:
-            conn.execute("ROLLBACK;")
-        except Exception:
-            pass
-        raise
     finally:
         conn.close()
 
 
-def list_all_alarm_ids():
-    conn = get_conn()
+def list_all_alarm_ids(test=False):
+    table_name = resolve_table_name(test)
+    print(f"Entries for {table_name} table")
+    conn = get_conn(test=test)
     try:
         rows = conn.execute(
-            """
+            f"""
             SELECT DISTINCT alarm_id
-            FROM sent_events
+            FROM {table_name}
             ORDER BY alarm_id ASC;
             """
         ).fetchall()
@@ -197,10 +202,12 @@ def list_all_alarm_ids():
         conn.close()
 
 
-def filtered_list(query_dict):
+def filtered_list(query_dict, test=False):
 
-    headers = ["id", "alarm_id", "process_time", "send_time", "volcano", "event_id", "test"]
-    query = f"SELECT {', '.join(headers)} FROM sent_events WHERE "
+    table_name = resolve_table_name(test)
+
+    headers = ["id", "alarm_id", "process_time", "send_time", "volcano", "event_id"]
+    query = f"SELECT {', '.join(headers)} FROM {table_name} WHERE "
 
     need_and = False
     if "alarm_id" in query_dict.keys():
@@ -230,13 +237,6 @@ def filtered_list(query_dict):
         else:
             query += f"process_time <= '{t2}' "
         need_and = True
-    if "test" in query_dict.keys():
-        test_flag = query_dict["test"]
-        if need_and:
-            query += f"AND test = {test_flag} "
-        else:
-            query += f"test = {test_flag} "
-        need_and = True
     if "event_id" in query_dict.keys():
         evid = query_dict["event_id"]
         if need_and:
@@ -248,37 +248,38 @@ def filtered_list(query_dict):
         
     query += "ORDER BY process_time DESC;"
 
-    conn = get_conn()
+    print(f"Entries for {resolve_table_name(test)} table")
+    conn = get_conn(test=test)
     try:
-        rows = conn.execute(query
-        ).fetchall()
-
+        rows = conn.execute(query).fetchall()
         if not rows:
             print("  (none)")
         else:
             print(tabulate(rows, headers=headers, tablefmt="fancy_grid"))
-
     finally:
         conn.close()
 
     return rows
 
 
-def list_alarm_entries(alarm_id=None):
+def list_alarm_entries(alarm_id=None, test=False):
 
     if isinstance(alarm_id, str):
         alarm_ids = [alarm_id]
     else:
         alarm_ids = list_all_alarm_ids()
 
-    headers = ["alarm_id", "process_time", "send_time", "volcano", "event_id", "test"]
-    conn = get_conn()
+    headers = ["alarm_id", "process_time", "send_time", "volcano", "event_id"]
+
+    table_name = resolve_table_name(test)
+    print(f"Entries for {table_name} table")
+    conn = get_conn(test=test)
     try:
         for alarm_id in alarm_ids:
             rows = conn.execute(
                 f"""
                 SELECT {', '.join(headers)}
-                FROM sent_events
+                FROM {table_name}
                 WHERE alarm_id = '{alarm_id}'
                 ORDER BY process_time DESC;
                 """
@@ -295,7 +296,7 @@ def list_alarm_entries(alarm_id=None):
         conn.close()
 
 
-def remove_alarm_ids(alarm_id, t_start, t_end):
+def remove_alarm_ids(alarm_id, t_start, t_end, test=False):
     if isinstance(t_start, str):
         t_start = pd.to_datetime(t_start)
         t_start = t_start.to_pydatetime()
@@ -305,11 +306,12 @@ def remove_alarm_ids(alarm_id, t_start, t_end):
         t_end = t_end.to_pydatetime()
         t_end = iso_utc(t_end)
 
+    table_name = resolve_table_name(test)
     try:
-        conn = get_conn()
+        conn = get_conn(test=test)
         conn.execute(
             f"""
-            DELETE FROM sent_events
+            DELETE FROM {table_name}
             WHERE alarm_id = '{alarm_id}'
             AND process_time >= '{t_start}'
             AND process_time <= '{t_end}';
@@ -319,3 +321,28 @@ def remove_alarm_ids(alarm_id, t_start, t_end):
         conn.close()
 
     return
+
+
+def filter_dataframe(df, id_column="id", test=False):
+
+    if id_column not in df.columns:
+        raise ValueError(f"all_df must have an '{id_column}' column")
+
+    # Ensure string comparison consistency (your DB stores TEXT for event_id)
+    ids = df["id"].astype(str)
+
+    table_name = resolve_table_name(test)
+    conn = get_conn(test=test)
+
+    sql_query = f"SELECT event_id FROM {table_name} WHERE event_id IS NOT NULL"
+    try:
+        cur = conn.execute(sql_query)
+        event_ids_in_db = {row[0] for row in cur.fetchall()}  # build a Python set for fast membership tests
+
+        # Anti-join via boolean mask
+        mask_not_in_db = ~ids.isin(event_ids_in_db)
+        new_df = df.loc[mask_not_in_db].copy()
+        return new_df, df
+
+    finally:
+        conn.close()

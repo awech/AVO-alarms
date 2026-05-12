@@ -300,7 +300,7 @@ def plot_fig(alert, config, test=False):
 
     plotting.map_ticks(ax["map"], extent, grid_kwargs="default")
     plotting.add_volcanoes_to_map(ax["map"], extent, config, linewidths=0.1)
-    plotting.add_scale_bar(ax["map"], 25, txt_yoffset=0.02)
+    plotting.add_scale_bar(ax["map"], 25, txt_yoffset=0.02, extent=extent)
 
     # draw rectangle on inset map
     ax_inset = fig.add_axes([0.66, 0.25, 0.15, 0.15])

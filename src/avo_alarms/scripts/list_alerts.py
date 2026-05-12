@@ -33,6 +33,13 @@ def parse_args():
         required=False,
     )
     parser.add_argument(
+        "-t",
+        "--test",
+        action="store_true",
+        help="Flag to query `test_sent_events` table. Defaults to False",
+        required=False,
+    )
+    parser.add_argument(
         "-s",
         "--starttime",
         type=str,
@@ -106,7 +113,7 @@ def main():
         query_dict.update({"volcano": v_name})
 
     print("\n")
-    alarming.filtered_list(query_dict)
+    alarming.filtered_list(query_dict, test=args.test)
     print("\n")
 
     return

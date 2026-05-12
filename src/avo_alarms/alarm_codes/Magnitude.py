@@ -61,11 +61,11 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         return
 
     # Compare old and new events
-    N_new, N_old = alarming.check_new_event_ids(catalog_df["id"])
+    N_new, N_old = alarming.check_new_event_ids(catalog_df["id"], test=test_flag)
     logger.info(f"Found {N_new} new and {N_old} old earthquakes")
 
     for i, row in catalog_df.iterrows():
-        if alarming.already_processed(config, row.id):
+        if alarming.already_processed(config, row.id, test=test_flag):
             logger.warning("Earthquakes detected, but already processed")
             state = "OK"
             state_message = f"{T0_str} (UTC) Old event detected"
@@ -222,16 +222,18 @@ def plot_event(eq, volcs, config, n_stations=8, test=False):
         t.clipbox = ax["map"].bbox
 
     plotting.add_scale_bar(ax["map"], 10, txt_yoffset=0.01)
-    ax["map"].set_title(
-        "{}\nM{:.1f}, {:.1f} km from {}\nDepth: {:.1f} km".format(
-            origin.time.strftime("%Y-%m-%d %H:%M:%S"),
-            eq.preferred_magnitude().mag,
-            volcs.iloc[0].distance,
-            volcs.iloc[0].Volcano,
-            origin.depth / 1000,
-        ),
-        fontsize=8,
-    )
+
+    eq_t = origin.time.strftime("%Y-%m-%d %H:%M:%S")
+    eq_mag = eq.preferred_magnitude().mag
+    eq_dist = volcs.iloc[0].distance
+    volc = volcs.iloc[0].Volcano
+    eq_depth = origin.depth / 1000
+    title_str = (
+        f"{eq_t}\n"
+        f"M{eq_mag:.1f}, {eq_dist:.1f} km from {volc}\n"
+        f"Depth: {eq_depth:.1f} km"
+        )
+    ax["map"].set_title(title_str, fontsize=8)
 
     ax_inset = fig.add_axes([0.66, 0.80, 0.12, 0.12])
     ax_inset, _ = plotting.make_map(

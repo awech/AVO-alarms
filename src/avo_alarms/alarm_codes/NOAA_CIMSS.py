@@ -36,7 +36,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     cimss_df = processing.check_ignore_volcano(cimss_df)
     cimss_df = cimss_df[cimss_df["keep"]]
 
-    N_new, N_old = alarming.check_new_event_ids(cimss_df["NOAA_id"])
+    N_new, N_old = alarming.check_new_event_ids(cimss_df["NOAA_id"], test=test_flag)
     logger.info(f"Found {N_new} new and {N_old} old alerts")
 
     if force_flag:
@@ -51,7 +51,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     logger.info("Looping through alerts...")
     for _, alert in cimss_df.iterrows():
 
-        if alarming.already_processed(config, alert.NOAA_id):
+        if alarming.already_processed(config, alert.NOAA_id, test=test_flag):
             logger.info("NOAA CIMSS found have already been processed")
             state = "OK"
             state_message = f"{T0_str} (UTC) No new recent NOAA CIMSS alerts"
@@ -269,8 +269,10 @@ def plot_fig(alert, config, test=False):
         height_ratios=[1.1, 1.1, 1]
     )
 
-    title_str = "{} UTC\n{}\nMethod: {}".format(
-        str(alert.object_date_time), alert.alert_header.capitalize(), alert.method
+    title_str = (
+        f"{str(alert.object_date_time)} UTC\n"
+        f"{alert.alert_header.capitalize()}\n"
+        f"Method: {alert.method}"
     )
     ax["img1"].set_title(title_str, fontsize=8)
     

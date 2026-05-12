@@ -91,7 +91,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         state = "OK"
 
     if state == "CRITICAL":
-        if not alarming.can_send(config, T0=T0):
+        if not alarming.can_send(config, T0=T0, test=test_flag):
             logger.warning(f"Rate limit: skipping alarm {config.alarm_name}")
             state_message = f"{state_message} (alarm skipped due to rate limit)"
             messaging.icinga(config, state, state_message, send=icinga_flag)

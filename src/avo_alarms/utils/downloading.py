@@ -522,9 +522,12 @@ def download_station_xml():
                 level="response",
                 starttime=UTCDateTime.utcnow(),
             )
+        time.sleep(0.5)
 
-    write_path = Path(os.environ["HOME_DIR"]) / "alarm_aux_files" / "stations.xml"
-    inventory.write(write_path, format="STATIONXML")
+    out_file = Path(os.environ["HOME_DIR"]) / "alarm_aux_files" / "stations.xml"
+    tmp_outfile = out_file.with_suffix(".tmp")
+    inventory.write(tmp_outfile, format="STATIONXML")
+    os.replace(tmp_outfile, out_file)
 
     logger.info("^^^^^^ Finished Updating Metadata ^^^^^^")
     return

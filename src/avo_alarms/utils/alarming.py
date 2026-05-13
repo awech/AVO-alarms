@@ -57,8 +57,7 @@ def init_swarm_db(conn, test=False):
 
     table_query = f"""
         CREATE TABLE IF NOT EXISTS {table_name} (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            event_id TEXT NOT NULL,
+            event_id TEXT PRIMARY KEY NOT NULL,
             time TEXT NOT NULL,   -- ISO-8601 UTC, e.g., 2026-05-07T23:45:00Z
             latitude REAL NOT NULL,
             longitude REAL NOT NULL,
@@ -79,7 +78,7 @@ def record_swarm_event_ids(swarm_df, test=False):
         for i, row in swarm_df.iterrows():
             conn.execute(
                 f"""
-                INSERT INTO {table_name} (event_id, time, latitude, longitude, depth, mag, volcano)
+                INSERT OR IGNORE INTO {table_name} (event_id, time, latitude, longitude, depth, mag, volcano)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
@@ -97,20 +96,42 @@ def record_swarm_event_ids(swarm_df, test=False):
 
 
 def init_tremor_db(conn, test=False):
-    table_name = "test_tremor_table" if test else "tremor_table"
-
+    table_name = resolve_table_name(test, table="tremor")
     table_query = f"""
         CREATE TABLE IF NOT EXISTS {table_name} (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            event_id TEXT NOT NULL,   -- ISO-8601 UTC, e.g., 2026-05-07T23:45:00Z
             time TEXT NOT NULL,       -- ISO-8601 UTC, e.g., 2026-05-07T23:45:00Z
             latitude REAL NOT NULL,
             longitude REAL NOT NULL,
-            depth REAL NOT NULL
+            depth REAL NOT NULL,
+            volcano REAL NOT NULL,
+            PRIMARY KEY (time, volcano)
         );
     """
     conn.execute(table_query)
     conn.execute("PRAGMA journal_mode=WAL;")  # optional, improves concurrency
+
+
+def record_tremor_event_ids(tremor_df, test=False):
+
+    table_name = resolve_table_name(test, table="tremor")
+    conn = get_conn(test=test, table="tremor")
+    try:
+        for i, row in tremor_df.iterrows():
+            conn.execute(
+                f"""
+                INSERT OR IGNORE INTO {table_name} (time, latitude, longitude, depth, volcano)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    (iso_utc(row.time.to_pydatetime())),
+                    row.latitude,
+                    row.longitude,
+                    row.depth,
+                    row.volcano,
+                ),
+            )
+    finally:
+        conn.close()
 
 
 def get_conn(test=False, table=None):
@@ -406,26 +427,6 @@ def filter_dataframe(df, id_column="id", test=False, table=None):
     conn = get_conn(test=test, table=table)
 
     sql_query = f"SELECT event_id FROM {table_name} WHERE event_id IS NOT NULL"
-    try:
-        cur = conn.execute(sql_query)
-        event_ids_in_db = {row[0] for row in cur.fetchall()}  # build a Python set for fast membership tests
-
-        # Anti-join via boolean mask
-        mask_not_in_db = ~ids.isin(event_ids_in_db)
-        new_df = df.loc[mask_not_in_db].copy()
-        return new_df, df
-
-    finally:
-        conn.close()
-
-def select_dataframe(test=False, table=None):
-
-
-
-    table_name = resolve_table_name(test, table=table)
-    conn = get_conn(test=test, table=table)
-
-    sql_query = f"SELECT (*) FROM {table_name}"
     try:
         cur = conn.execute(sql_query)
         event_ids_in_db = {row[0] for row in cur.fetchall()}  # build a Python set for fast membership tests

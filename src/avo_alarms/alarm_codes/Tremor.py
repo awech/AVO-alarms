@@ -9,7 +9,7 @@ from obspy import UTCDateTime
 from obspy.signal.filter import envelope
 
 from avo_alarms.alarm_codes import RSAM
-from avo_alarms.utils import downloading, messaging, processing
+from avo_alarms.utils import downloading, messaging, processing, alarming
 from avo_alarms.utils.setup_utils import get_logger
 
 logger = get_logger(__name__)
@@ -23,7 +23,18 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     if os.getenv("FROMCRON") == "yep":
         time.sleep(getattr(config, "latency") + getattr(config, "taper"))
 
-    tremor_df = pd.read_csv(config.catalog_file, parse_dates=["time"])
+    table_name = alarming.resolve_table_name(test_flag, table="tremor")
+    db_conn = alarming.get_conn(test=test_flag, table="tremor")
+    tremor_df = pd.read_sql_query(
+        f"SELECT * FROM {table_name}",
+        db_conn,
+        parse_dates=["time"],
+        dtype={
+            "latitude": float,
+            "longitude": float,
+        },
+    )
+    tremor_df['time'] = tremor_df['time'].dt.tz_localize(None)
 
     ######### download data #########
     NSLC = pd.DataFrame.from_dict(config.NSLC)
@@ -68,10 +79,13 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     ##### merge new event with old events #####
     locs_dict = {
         "time": [pd.to_datetime(location.starttime.datetime) for location in loc.events],
-        "lat": loc.get_lats(),
-        "lon": loc.get_lons(),
+        "latitude": loc.get_lats(),
+        "longitude": loc.get_lons(),
+        "depth": loc.get_depths(),
     }
-    tremor_df = pd.concat([tremor_df, pd.DataFrame(locs_dict)])
+    new_tremor_df = pd.DataFrame(locs_dict)
+    new_tremor_df["volcano"] = config.volcano
+    tremor_df = pd.concat([tremor_df, new_tremor_df]).drop_duplicates("time")
     T1 = pd.to_datetime((T0 - config.duration).datetime)
     T2 = pd.to_datetime(T0.datetime)
     tremor_df = tremor_df.drop_duplicates(subset="time")
@@ -112,9 +126,17 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
             logger.info(state_message)
         # elevated seismicity + new events
         else:
+
             logger.info("Elevated Seismicity. New event(s) detected!")
             state_message = f"{state_message} Tremor/Swarm detection! {duration_text} {recency_text}"
             state = "CRITICAL"
+
+            if not alarming.can_send(config, T0=T0, test=test_flag):
+                logger.warning(f"Rate limit: skipping alarm {config.alarm_name}")
+                state_message = f"{state_message} (alarm skipped due to rate limit)"
+                messaging.icinga(config, state, state_message, send=icinga_flag)
+                return
+
             #### Generate Figure ####
             try:
                 logger.info("Making figure")
@@ -138,13 +160,14 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
                 logger.error(traceback.format_exc())
                 
             messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
+            alarming.record_send(config, T0, volcano=config.volcano, test=test_flag)
             # delete the file you just sent
             if filename:
                 os.remove(filename)
     #################################
 
-    # update catalog file 
-    tremor_df.to_csv(config.catalog_file, float_format="%.4f", index=False)
+    # update catalog in the database
+    alarming.record_tremor_event_ids(tremor_df, test=test_flag)
 
     # update icinga
     messaging.icinga(config, state, state_message, send=icinga_flag)

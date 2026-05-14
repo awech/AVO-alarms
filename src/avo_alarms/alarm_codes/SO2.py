@@ -1,9 +1,7 @@
 import os
 import requests
-import pandas as pd
 from obspy import UTCDateTime
 from urllib.parse import urlparse, urljoin
-import matplotlib as m
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 import traceback

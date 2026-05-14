@@ -154,7 +154,7 @@ def plot_fig(pirep_row, config, test=False):
         ax, pirep_row.lat, pirep_row.lon, xdist=X_DIST, ydist=Y_DIST, basemap="highres"
     )
     plotting.map_ticks(ax, extent, grid_kwargs="default")
-    plotting.add_scale_bar(ax, 50, txt_yoffset=0.01)
+    plotting.add_scale_bar(ax, 50, txt_yoffset=0.01, extent=extent)
 
     plotting.add_volcanoes_to_map(ax, extent, config)
     ax.plot(

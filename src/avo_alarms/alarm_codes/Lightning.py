@@ -220,7 +220,7 @@ def plot_fig(df, config, T0, test=False):
     plotting.map_ticks(ax, extent, grid_kwargs="default")
     plotting.add_volcanoes_to_map(ax, extent, config, c1="k", c2="grey", linewidths=0.1)
     ax.plot(lon0, lat0, "^", mfc="k", mec="w", ms=6, transform=ccrs.Geodetic())
-    plotting.add_scale_bar(ax, 15, txt_yoffset=0.01)
+    plotting.add_scale_bar(ax, 15, txt_yoffset=0.01, extent=extent)
 
     map_hdl = ax.scatter(df.longitude.values,
                             df.latitude.values,

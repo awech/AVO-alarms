@@ -165,6 +165,7 @@ def make_figure(swarm, T0, config, test=False):
     plotting.map_ticks(ax["map"], extent, grid_kwargs="default", y_rotate=90)
     ax["map"].tick_params(length=0)
     plotting.add_volcanoes_to_map(ax["map"], extent, config)
+    plotting.add_scale_bar(ax["map"], 10, txt_yoffset=0.01, extent=extent)
 
     try:
         logger.info("Downloading stations that have picks")

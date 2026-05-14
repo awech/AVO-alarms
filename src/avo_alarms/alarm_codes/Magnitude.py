@@ -221,7 +221,7 @@ def plot_event(eq, volcs, config, n_stations=8, test=False):
         t = ax["map"].annotate(row.NS.split('.')[-1], (row.Longitude, row.Latitude), xytext=(10,10), textcoords="offset pixels", fontsize=6, transform=ccrs.Geodetic())
         t.clipbox = ax["map"].bbox
 
-    plotting.add_scale_bar(ax["map"], 10, txt_yoffset=0.01)
+    plotting.add_scale_bar(ax["map"], 10, txt_yoffset=0.01, extent=extent)
 
     eq_t = origin.time.strftime("%Y-%m-%d %H:%M:%S")
     eq_mag = eq.preferred_magnitude().mag

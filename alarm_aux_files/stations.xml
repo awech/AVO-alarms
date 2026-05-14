@@ -2,9 +2,9 @@
 <FDSNStationXML xmlns="http://www.fdsn.org/xml/station/1" schemaVersion="1.2">
   <Source>IRIS-DMC</Source>
   <Sender>IRIS-DMC</Sender>
-  <Module>ObsPy 1.4.1</Module>
+  <Module>ObsPy 1.5.0</Module>
   <ModuleURI>https://www.obspy.org</ModuleURI>
-  <Created>2026-05-01T22:27:51.759396Z</Created>
+  <Created>2026-05-14T19:00:14.696535Z</Created>
   <Network code="AK" startDate="1987-01-01T00:00:00.000000Z" restrictedStatus="open">
     <Description>Alaska Regional Network ()</Description>
     <Identifier type="DOI">10.7914/SN/AK
@@ -23388,11 +23388,9 @@
             <Frequency>1.0</Frequency>
             <InputUnits>
               <Name>Pa</Name>
-              <Description>None</Description>
             </InputUnits>
             <OutputUnits>
               <Name>counts</Name>
-              <Description>None</Description>
             </OutputUnits>
           </InstrumentSensitivity>
           <Stage number="1">
@@ -23965,11 +23963,9 @@
             <Frequency>1.0</Frequency>
             <InputUnits>
               <Name>Pa</Name>
-              <Description>None</Description>
             </InputUnits>
             <OutputUnits>
               <Name>counts</Name>
-              <Description>None</Description>
             </OutputUnits>
           </InstrumentSensitivity>
           <Stage number="1">
@@ -24542,11 +24538,9 @@
             <Frequency>1.0</Frequency>
             <InputUnits>
               <Name>Pa</Name>
-              <Description>None</Description>
             </InputUnits>
             <OutputUnits>
               <Name>counts</Name>
-              <Description>None</Description>
             </OutputUnits>
           </InstrumentSensitivity>
           <Stage number="1">
@@ -25119,11 +25113,9 @@
             <Frequency>1.0</Frequency>
             <InputUnits>
               <Name>Pa</Name>
-              <Description>None</Description>
             </InputUnits>
             <OutputUnits>
               <Name>counts</Name>
-              <Description>None</Description>
             </OutputUnits>
           </InstrumentSensitivity>
           <Stage number="1">
@@ -25696,11 +25688,9 @@
             <Frequency>1.0</Frequency>
             <InputUnits>
               <Name>Pa</Name>
-              <Description>None</Description>
             </InputUnits>
             <OutputUnits>
               <Name>counts</Name>
-              <Description>None</Description>
             </OutputUnits>
           </InstrumentSensitivity>
           <Stage number="1">
@@ -26273,11 +26263,9 @@
             <Frequency>1.0</Frequency>
             <InputUnits>
               <Name>Pa</Name>
-              <Description>None</Description>
             </InputUnits>
             <OutputUnits>
               <Name>counts</Name>
-              <Description>None</Description>
             </OutputUnits>
           </InstrumentSensitivity>
           <Stage number="1">

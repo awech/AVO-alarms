@@ -21,7 +21,8 @@ dependencies = [
     "python-dotenv",
     "utm",
     "scikit-learn",
-    "requests"
+    "requests",
+    "tabulate",
 ]
 classifiers = [
     # How mature is this project? Common values are

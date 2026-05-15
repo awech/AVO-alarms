@@ -26,8 +26,8 @@ def run_alarm(config, T0):
 		except:
 			if attempt == max_tries:
 				print('Page error.')
-				state = 'WARNING'
-				state_message = '{} (UTC) webpage error'.format(T0.strftime('%Y-%m-%d %H:%M'))
+				state = 'OK'
+				state_message = '{} (UTC) webpage missing'.format(T0.strftime('%Y-%m-%d %H:%M'))
 				utils.icinga2_state(config, state, state_message)
 				return
 			print('Page error on attempt number {:g}'.format(attempt))

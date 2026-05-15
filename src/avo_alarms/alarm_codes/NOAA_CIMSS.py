@@ -38,6 +38,8 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
 
     N_new, N_old = alarming.check_new_event_ids(cimss_df["NOAA_id"], test=test_flag)
     logger.info(f"Found {N_new} new and {N_old} old alerts")
+    state = "OK"
+    state_message = f"{T0_str} (UTC) No new recent NOAA CIMSS alerts"
 
     if force_flag:
         logger.warning(

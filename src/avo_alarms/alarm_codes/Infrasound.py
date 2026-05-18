@@ -19,8 +19,13 @@ logger = get_logger(__name__)
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force_flag=False):
 
     if os.getenv("FROMCRON") == "yep":
+        if config.latency < 30:
         time.sleep(config.latency)
-    state_message=f'{T0.strftime("%Y-%m-%d %H:%M")} (UTC) {config.alarm_name}'
+        else:
+            dt = math.ceil(config.latency / 60) * 60
+            T0 = T0 - dt
+            logger.info(f"Backing up {dt} seconds to align with minute marks")
+    state_message=f"{T0.strftime('%Y-%m-%d %H:%M')} (UTC) {config.alarm_name}"
 
     #### download data ####
     NSLC = DataFrame.from_dict(config.NSLC)

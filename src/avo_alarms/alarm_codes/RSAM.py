@@ -1,3 +1,4 @@
+import math
 import os
 import time
 import traceback
@@ -6,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from pandas import DataFrame
 
-from avo_alarms.utils import messaging, plotting, processing, downloading, alarming
+from avo_alarms.utils import alarming, downloading, messaging, plotting, processing
 from avo_alarms.utils.setup_utils import get_logger
 
 logger = get_logger(__name__)
@@ -15,7 +16,13 @@ logger = get_logger(__name__)
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force_flag=False):
 
     if os.getenv("FROMCRON") == "yep":
-        time.sleep(config.latency)
+        if config.latency < 30:
+            time.sleep(config.latency)
+        else:
+            dt = math.ceil(config.latency / 60) * 60
+            T0 = T0 - dt
+            logger.info(f"Backing up {dt} seconds to align with minute marks")
+    state_message=f"{T0.strftime('%Y-%m-%d %H:%M')} (UTC) {config.alarm_name}"
 
     if force_flag:
         logger.warning("Forcing trigger by setting min_sta = 0")

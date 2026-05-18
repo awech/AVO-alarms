@@ -1,3 +1,4 @@
+import math
 import os
 import time
 import traceback
@@ -21,7 +22,14 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     state_message = f"{T0_str} (UTC)"
 
     if os.getenv("FROMCRON") == "yep":
-        time.sleep(getattr(config, "latency") + getattr(config, "taper"))
+        if config.latency < 30:
+            time.sleep(getattr(config, "latency") + getattr(config, "taper"))
+        else:
+            dt = math.ceil(config.latency / 60) * 60
+            T0 = T0 - dt
+            logger.info(f"Backing up {dt} seconds to align with minute marks")
+
+    state_message=f"{T0.strftime('%Y-%m-%d %H:%M')} (UTC) {config.alarm_name}"
 
     table_name = alarming.resolve_table_name(test_flag, table="tremor")
     db_conn = alarming.get_conn(test=test_flag, table="tremor")

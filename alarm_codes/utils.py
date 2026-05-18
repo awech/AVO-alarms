@@ -114,6 +114,8 @@ def download_hypocenters(URL):
 
 
 def icinga2_state(config,state,state_message):
+	## TODO fix this
+	# return
 	import requests, json
 	import urllib3
 	urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -207,6 +209,7 @@ def update_stationXML():
 			inventory = client.get_stations(station=sta, network=net, channel=chan, location=loc, level='response', starttime=UTCDateTime.utcnow())
 		else:
 			inventory += client.get_stations(station=sta, network=net, channel=chan, location=loc, level='response', starttime=UTCDateTime.utcnow())
+		time.sleep(0.5)	
 
 	inventory.write(os.environ['HOME_DIR']+'/alarm_aux_files/stations.xml',format='STATIONXML')
 

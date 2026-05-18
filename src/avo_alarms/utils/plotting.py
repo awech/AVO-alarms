@@ -701,10 +701,12 @@ def default_colormap(infrasound=False):
     return color_map
 
 
-def plot_spectrogram(ax, tr, sr=25, colormap=default_colormap(), infrasound=False):
+def plot_spectrogram(ax, tr, sr=25, colormap=default_colormap()):
 
-    if infrasound:
+    label_color = "black"
+    if tr.stats.channel in ["BDF", "HDF", "EDH"]:
         colormap = default_colormap(infrasound=True)
+        label_color = "red"
 
     tr.spectrogram(
         title="",
@@ -725,6 +727,7 @@ def plot_spectrogram(ax, tr, sr=25, colormap=default_colormap(), infrasound=Fals
         multialignment="center",
         horizontalalignment="right",
         verticalalignment="center",
+        color=label_color,
     )
     ax.yaxis.set_ticks_position("right")
     ax.tick_params("y", labelsize=4)

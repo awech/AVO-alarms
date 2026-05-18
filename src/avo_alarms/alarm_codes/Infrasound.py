@@ -1,3 +1,4 @@
+import math
 import os
 import time
 import traceback
@@ -20,7 +21,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
 
     if os.getenv("FROMCRON") == "yep":
         if config.latency < 30:
-        time.sleep(config.latency)
+            time.sleep(config.latency)
         else:
             dt = math.ceil(config.latency / 60) * 60
             T0 = T0 - dt
@@ -407,7 +408,7 @@ def make_figure(st, volcano, T0, config, mx_pressure, test=False):
     ################# plot infrasound #################
     
     ##### plot stack spectrogram #####
-    plotting.plot_spectrogram(ax["stack_spec"], stack, infrasound=True)
+    plotting.plot_spectrogram(ax["stack_spec"], stack)
     ax["stack_spec"].set_title(config.alarm_name + " Alarm: " + volcano["volcano"] + " detection!")
     ax["stack_spec"].set_xticks([])
 
@@ -425,6 +426,7 @@ def make_figure(st, volcano, T0, config, mx_pressure, test=False):
             multialignment="center",
             horizontalalignment="right",
             verticalalignment="center",
+            color="red",
         )
 
     min_stamp = round(t_infra_win / 60)

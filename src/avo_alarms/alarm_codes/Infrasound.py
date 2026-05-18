@@ -138,7 +138,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
             filename=None
 
         subject, message = create_message(
-            t1, t2, config, volcano, azimuth, d_Azimuth, velocity, mx_pressure
+            t1, t2, st, volcano, azimuth, d_Azimuth, velocity, mx_pressure
         )
 
         try:
@@ -452,7 +452,7 @@ def make_figure(st, volcano, T0, config, mx_pressure, test=False):
     return jpg_file
 
 
-def create_message(t1, t2, config, volcano, azimuth, d_Azimuth, velocity, mx_pressure):
+def create_message(t1, t2, st, volcano, azimuth, d_Azimuth, velocity, mx_pressure):
     # create the subject line
     subject = f"{volcano['volcano']} Airwave Detection"
 
@@ -468,8 +468,8 @@ def create_message(t1, t2, config, volcano, azimuth, d_Azimuth, velocity, mx_pre
     if "traveltime" in volcano:
         calc_tt = volcano["traveltime"]
     if ("v_lat" in volcano) & calc_tt:
-        lat0 = np.mean([nslc_entry["sta_lat"] for nslc_entry in config.NSLC])
-        lon0 = np.mean([nslc_entry["sta_lon"] for nslc_entry in config.NSLC])
+        lat0 = np.mean([tr.stats.coordinates.latitude for tr in st])
+        lon0 = np.mean([tr.stats.coordinates.longitude for tr in st])
         travel_time = UTCDateTime(
             gps2dist_azimuth(lat0, lon0, volcano["v_lat"], volcano["v_lon"])[0] / 333
         )

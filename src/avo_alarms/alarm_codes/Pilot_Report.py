@@ -29,6 +29,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     pirep_df = processing.find_nearest_volcano(pirep_df, lon_col="lon", lat_col="lat")
     pirep_df = pirep_df[pirep_df["v_distance"] < config.max_distance]
 
+    ## BUG 'PROD_ID' is not entirely unique. See events at 2026-05-21 17:08 and 17:09
     N_new, N_old = alarming.check_new_event_ids(pirep_df["PROD_ID"], test=test_flag)
     logger.info(f"Found {N_new} new and {N_old} old PIREPS")
 

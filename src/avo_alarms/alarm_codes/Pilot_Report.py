@@ -18,9 +18,8 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     T0_str = T0.strftime("%Y-%m-%d %H:%M")
     
     state, archive = downloading.download_pilot_reports(T0, config)
+    state_message = f"{T0_str} (UTC) No new pilot reports"
     if archive is None:
-        if state == "OK":
-            state_message = f"{T0_str} (UTC) No new pilot reports"
         if state == "WARNING":
             state_message = f"{T0_str} (UTC) PIREP API error. Cannot retrieve shape file"
         messaging.icinga(config, state, state_message, send=icinga_flag)

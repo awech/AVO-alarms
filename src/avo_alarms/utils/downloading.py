@@ -314,9 +314,7 @@ def download_pilot_reports(T0, config):
 
     T2 = T0
     T1 = T2 - config.duration
-    t1 = (
-        f"&year1={T1.strftime('%Y')}"
-    )
+
     t1 = (
         f"&year1={T1.strftime('%Y')}"
         f"&month1={T1.strftime('%m')}"
@@ -325,11 +323,11 @@ def download_pilot_reports(T0, config):
         f"&minute1={T1.strftime('%M')}"
     )
     t2 = (
-        f"&year1={T2.strftime('%Y')}"
-        f"&month1={T2.strftime('%m')}"
-        f"&day1={T2.strftime('%d')}"
-        f"&hour1={T2.strftime('%H')}"
-        f"&minute1={T2.strftime('%M')}"
+        f"&year2={T2.strftime('%Y')}"
+        f"&month2={T2.strftime('%m')}"
+        f"&day2={T2.strftime('%d')}"
+        f"&hour2={T2.strftime('%H')}"
+        f"&minute2={T2.strftime('%M')}"
     )
     pirep_url = f"{os.getenv('PIREP_URL')}?fmt=shp{t1}{t2}"
 

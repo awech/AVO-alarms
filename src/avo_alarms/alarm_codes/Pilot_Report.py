@@ -16,7 +16,7 @@ logger = get_logger(__name__)
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force_flag=False):
 
     T0_str = T0.strftime("%Y-%m-%d %H:%M")
-    
+
     state, archive = downloading.download_pilot_reports(T0, config)
     state_message = f"{T0_str} (UTC) No new pilot reports"
     if archive is None:
@@ -31,7 +31,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
 
     N_new, N_old = alarming.check_new_event_ids(pirep_df["PROD_ID"], test=test_flag)
     logger.info(f"Found {N_new} new and {N_old} old PIREPS")
-    
+
     if force_flag:
         pirep_df = pirep_df[:1]
     else:
@@ -70,13 +70,14 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         if row.URGENT == "T" or force_flag:
             state = "CRITICAL"
             messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
-            alarming.record_send(
-                config,
-                T0,
-                volcano=row.v_name,
-                event_id=row.PROD_ID,
-                test=test_flag,
-            )
+
+        alarming.record_send(
+            config,
+            T0,
+            volcano=row.v_name,
+            event_id=row.PROD_ID,
+            test=test_flag,
+        )
         # delete the file you just sent
         if filename:
             os.remove(filename)

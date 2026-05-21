@@ -331,7 +331,7 @@ def create_message(vaa):
         message = f"Volcanic Ash Advisory\n{time_txt}\n\n#### *Original Message*\n"
     
     for key in vaa.keys():
-        if key not in ["header", "id", "time"]:
+        if key not in ["header", "id", "time", "v_name"]:
             if isinstance(vaa[key], str):
                 key_str = vaa[key].replace('\n', ' ')
                 message += f"**{key}:** {key_str}\n"

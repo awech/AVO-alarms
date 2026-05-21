@@ -472,6 +472,7 @@ def download_SO2():
             time.sleep(2)
             attempt += 1
             table = None
+            soup = None
 
     return table, soup
 

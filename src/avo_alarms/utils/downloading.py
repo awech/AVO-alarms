@@ -333,8 +333,9 @@ def download_pilot_reports(T0, config):
 
     state = "OK"
     archive = None
+    tmp_zipfile = Path("tmp_files") / "pireps.zip"
     try:
-        with open(config.zipfile, "wb") as f:
+        with open(tmp_zipfile, "wb") as f:
             resp = requests.get(pirep_url, verify=False, timeout=10)
             f.write(resp.content)
     except Exception:
@@ -342,13 +343,13 @@ def download_pilot_reports(T0, config):
         state = "WARNING"
         return state, archive
 
-    if zipfile.is_zipfile(config.zipfile):
-        archive = zipfile.ZipFile(config.zipfile, "r")
+    if zipfile.is_zipfile(tmp_zipfile):
+        archive = zipfile.ZipFile(tmp_zipfile, "r")
         logger.info("New pilot reports from API call")
     else:
         logger.info("No new pilot reports from API call")
 
-    os.remove(config.zipfile)
+    os.remove(tmp_zipfile)
 
     return state, archive
 
@@ -523,7 +524,7 @@ def download_station_xml():
             )
         time.sleep(0.25)
 
-    out_file = Path(os.environ["HOME_DIR"]) / "alarm_aux_files" / "stations.xml"
+    out_file = Path(os.environ["STATION_XML"])
     tmp_outfile = out_file.with_suffix(".tmp")
     inventory.write(tmp_outfile, format="STATIONXML")
     os.replace(tmp_outfile, out_file)

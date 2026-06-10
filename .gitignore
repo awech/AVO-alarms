@@ -21,5 +21,3 @@ dist/
 
 alarm_aux_files/*.db*
 alarm_aux_files/*.xlsx
-
-tmp_files/*

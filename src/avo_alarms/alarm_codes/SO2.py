@@ -126,6 +126,7 @@ def get_so2_images(soup, config):
     base_url = "://".join(urlparse(os.environ["SACS_URL"])[:2])
     imgs = soup.find_all("img")
     img_files = []
+    img_file_name = Path("tmp_files/sacs_out_.png")
     for im in imgs:
         if "/alert" in im.get("src"):
             img_files.append(urljoin(base_url, im.get("src")))
@@ -134,16 +135,16 @@ def get_so2_images(soup, config):
         r = requests.get(image, verify=False, timeout=10)
         if r.status_code == 200:
             with open(
-                config.img_file.replace(".png", str(i + 1) + ".gif"), "wb"
+                Path(str(img_file_name).replace(".png", str(i + 1) + ".gif")), "wb"
             ) as out:
                 for bits in r.iter_content():
                     out.write(bits)
 
-        gif = config.img_file.replace(".png", str(i + 1) + ".gif")
+        gif = Path(str(img_file_name).replace(".png", str(i + 1) + ".gif"))
         from PIL import Image
 
         img = Image.open(gif)
-        img.save(gif.replace("gif", "png"), "png", optimize=True, quality=300)
+        img.save(gif.with_suffix("png"), "png", optimize=True, quality=300)
         os.remove(gif)
 
 
@@ -151,8 +152,9 @@ def plot_fig(config):
 
     plt.figure(figsize=(3, 4.4))
 
-    tmp_file1 = config.img_file.replace(".png", "1.png")
-    tmp_file2 = config.img_file.replace(".png", "2.png")
+    img_file_name = Path("tmp_files/sacs_out_.png")
+    tmp_file1 = Path(str(img_file_name).replace(".png", "1.png"))
+    tmp_file2 = Path(str(img_file_name).replace(".png", "2.png"))
     img1 = mpimg.imread(tmp_file1)
     img2 = mpimg.imread(tmp_file2)
 

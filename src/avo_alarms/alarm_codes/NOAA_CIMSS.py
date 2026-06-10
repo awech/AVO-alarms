@@ -279,8 +279,9 @@ def plot_fig(alert, config, test=False):
     ax["img1"].set_title(title_str, fontsize=8)
     
     # read in images downloaded from NOAA/CIMSS webpage
-    tmp_file1 = Path(str(config.img_file).replace(".png", "1.png"))
-    tmp_file2 = Path(str(config.img_file).replace(".png", "2.png"))
+    img_file = Path("tmp_files/noaa_out_.png")
+    tmp_file1 = Path(str(img_file).replace(".png", "1.png"))
+    tmp_file2 = Path(str(img_file).replace(".png", "2.png"))
     img1 = mpimg.imread(tmp_file1)
     img2 = mpimg.imread(tmp_file2)
 

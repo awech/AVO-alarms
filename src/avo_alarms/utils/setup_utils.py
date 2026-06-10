@@ -114,6 +114,21 @@ def load_config(config_name):
     
     return config
 
+# TODO implement snippet below to set infrasound defaults
+# def update_config():
+# df = load_volcano_list()
+
+# for i, volc in enumerate(config.VOLCANO):
+#     if "v_lat" not in volc or "v_lon" not in volc:
+#         print("updating")
+#         v_name = volc["volcano"]
+#         v_row = df[df["Volcano"] == v_name].squeeze()
+#         tmp_dict = {"volcano": v_row["Volcano"], "v_lon": v_row.Longitude.item(), "v_lat":v_row.Latitude.item()}
+#         config.VOLCANO[i].update(tmp_dict)
+#     if "vmin" not in volc:
+#         config.VOLCANO[i].update({"vmin": 0.28})
+#     if "vmax" not in volc:
+#         config.VOLCANO[i].update({"vmax": 0.45})
 
 def load_volcano_list(volcano_file=None):
     """

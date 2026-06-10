@@ -1,3 +1,4 @@
+import math
 import os
 import time
 import traceback
@@ -6,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from pandas import DataFrame
 
-from avo_alarms.utils import messaging, plotting, processing, downloading
+from avo_alarms.utils import alarming, downloading, messaging, plotting, processing
 from avo_alarms.utils.setup_utils import get_logger
 
 logger = get_logger(__name__)
@@ -15,7 +16,13 @@ logger = get_logger(__name__)
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force_flag=False):
 
     if os.getenv("FROMCRON") == "yep":
-        time.sleep(config.latency)
+        if config.latency < 30:
+            time.sleep(config.latency)
+        else:
+            dt = math.ceil(config.latency / 60) * 60
+            T0 = T0 - dt
+            logger.info(f"Backing up {dt} seconds to align with minute marks")
+    state_message=f"{T0.strftime('%Y-%m-%d %H:%M')} (UTC) {config.alarm_name}"
 
     if force_flag:
         logger.warning("Forcing trigger by setting min_sta = 0")
@@ -91,6 +98,11 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         state = "OK"
 
     if state == "CRITICAL":
+        if not alarming.can_send(config, T0=T0, test=test_flag):
+            logger.warning(f"Rate limit: skipping alarm {config.alarm_name}")
+            state_message = f"{state_message} (alarm skipped due to rate limit)"
+            messaging.icinga(config, state, state_message, send=icinga_flag)
+            return
         logger.info("Generating")
         try:
             filename = make_figure(nslc, T0, config, test=test_flag)
@@ -113,6 +125,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
             logger.error(traceback.format_exc())
 
         messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
+        alarming.record_send(config, T0, test=test_flag)
         # delete the file you just sent
         if filename:
             os.remove(filename)

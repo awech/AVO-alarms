@@ -11,7 +11,7 @@ from cartopy import crs as ccrs
 from obspy import UTCDateTime
 from obspy.geodetics.base import gps2dist_azimuth
 
-from avo_alarms.utils import downloading, messaging, plotting, processing
+from avo_alarms.utils import downloading, messaging, plotting, processing, alarming
 from avo_alarms.utils.setup_utils import get_logger
 
 warnings.filterwarnings("ignore")
@@ -23,7 +23,6 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
 
     logger.info(T0)
     T0_str = T0.strftime("%Y-%m-%d %H:%M")
-    outfile_cols = ["time", "id"]
 
     if force_flag:
         T0 = UTCDateTime("2026-03-09 17:05")
@@ -59,16 +58,23 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
 
     if len(vaas_df) == 0:
         state = "OK"
-        state_message = f"{T0_str} (UTC) No new VAAs"
-        processing.write_to_csv(vaas_df, config, outfile_cols)
+        state_message = f"{T0_str} (UTC) No new Volcanic Ash Advisories"
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 
     vaas_df = vaas_df.sort_values("time")
     vaas_df = vaas_df.drop_duplicates(subset="id")
-    new_vaas_df, vaas_df = processing.compare_to_old_events(vaas_df, config.outfile, outfile_cols)
+    vaas_df = processing.find_nearest_volcano(vaas_df, lon_col="lon", lat_col="lat")
     
-    for i, row in new_vaas_df.iterrows():
+    for i, row in vaas_df.iterrows():
+
+        if alarming.already_processed(config, row.id, test=test_flag):
+            logger.info("VAA has already been processed")
+            state = "OK"
+            state_message = f"{T0_str} (UTC) No Volcanic Ash Advisories."
+            messaging.icinga(config, state, state_message, send=icinga_flag)
+            continue
+
         logger.info("New VAA detected")
 
         try:
@@ -88,6 +94,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
 
         logger.info("Checking mattermost send...")
         messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
+        alarming.record_send(config, T0, volcano=row.v_name, event_id=row.id, test=test_flag)
 
         # delete the file you just sent
         if filename:
@@ -97,10 +104,6 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         state_message = f"{T0.strftime('%Y-%m-%d %H:%M')} (UTC) New {subject}"
         
         messaging.icinga(config, state, state_message, send=icinga_flag)
-
-    if not force_flag:
-        processing.write_to_csv(vaas_df, config, columns=outfile_cols)
-        
 
 
 def get_extent(LONS, LATS):
@@ -236,6 +239,9 @@ def process_vaa_id(vaa_id):
                 line_txt = line_txt.replace("=\n", "")
                 vaa[row] = line_txt
 
+    v_lat, v_lon = text_to_latlon(vaa['PSN'])
+    vaa["lon"] = v_lon
+    vaa["lat"] = v_lat
     vaa["time"] = pd.to_datetime(vaa["DTG"])
 
     volcano = re.findall(r"\D+", vaa["VOLCANO"])[0]
@@ -325,7 +331,7 @@ def create_message(vaa):
         message = f"Volcanic Ash Advisory\n{time_txt}\n\n#### *Original Message*\n"
     
     for key in vaa.keys():
-        if key not in ["header", "id", "time"]:
+        if key not in ["header", "id", "time", "v_name"]:
             if isinstance(vaa[key], str):
                 key_str = vaa[key].replace('\n', ' ')
                 message += f"**{key}:** {key_str}\n"

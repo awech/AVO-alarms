@@ -83,7 +83,7 @@ def icinga(config, state, state_message, send=True):
             logger.info(resp.json()["results"][0]["status"])
             logger.info("Success. Message sent to icinga2")
         else:
-            logger.info("Status code = {:g}".format(resp.status_code))
+            logger.info(f"Status code = {resp.status_code:g}")
             logger.error("Failed to send message to icinga2")
     except Exception as e:
         logger.error("requests error. Failed to send message to icinga")
@@ -277,12 +277,12 @@ def format_mm_message(subject, body, config):
     if config.alarm_name != "PIREP":
         subject = subject.replace("--- ", "")
         subject = subject.replace(" ---", "")
-        message = "### **{}**\n\n{}".format(subject, body)
+        message = f"### **{subject}**\n\n{body}"
     else:
         if "URGENT" in subject:
-            message = "### **{}**\n\n{}".format(subject, body)
+            message = f"### **{subject}**\n\n{body}"
         else:
-            message = "#### **{}**\n\n{}".format(subject, body)
+            message = f"#### **{subject}**\n\n{body}"
 
     return message
 

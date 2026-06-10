@@ -11,7 +11,7 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from obspy import UTCDateTime as utc
 from obspy.geodetics.base import gps2dist_azimuth
 
-from avo_alarms.utils import messaging, plotting, processing, downloading
+from avo_alarms.utils import messaging, plotting, processing, downloading, alarming
 from avo_alarms.utils.setup_utils import get_logger, load_volcano_list
 
 warnings.filterwarnings("ignore")
@@ -24,7 +24,6 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     strokes_df = downloading.download_lightning(force=force_flag)
     T0_str = T0.strftime("%Y-%m-%d %H:%M")
     T1 = pd.to_datetime(T0_str) - pd.to_timedelta(config.duration, "s")
-    outfile_columns = ["time", "v_name", "id"]
 
     if strokes_df is None:
         logger.error("Error downloading lightning data from API")
@@ -37,10 +36,8 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         logger.info("No new lightning strokes detected")
         state = "OK"
         state_message = f"{T0_str} (UTC) No new strokes detected"
-        processing.write_to_csv(strokes_df, config, outfile_columns)
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
-
 
 
     strokes_df = strokes_df[strokes_df["time"] > T1.strftime("%Y-%m-%d %H:%M:%S")]
@@ -57,13 +54,15 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         )
 
     strokes_df = strokes_df[strokes_df["v_distance"] < config.dist2]
-    new_strokes_df, strokes_df = processing.compare_to_old_events(strokes_df, config.outfile, outfile_columns)
+    new_strokes_df, strokes_df = alarming.filter_dataframe(strokes_df, id_column="id", test=test_flag)
+    logger.info(
+        f"{len(new_strokes_df)} new and {len(strokes_df) - len(new_strokes_df)} old strokes detected."
+    )
 
     if len(new_strokes_df) == 0:
         logger.info("No lightning detected")
         state = "OK"
         state_message = f"{T0_str} (UTC) No new strokes detected"
-        processing.write_to_csv(strokes_df, config, outfile_columns)
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 
@@ -79,9 +78,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
 
         logger.info(f"--- Processing detects at {v_name} volcano ---")
         v_strokes = strokes_df[strokes_df["v_name"] == v_name]
-        new_v_strokes, v_strokes = processing.compare_to_old_events(
-            v_strokes, config.outfile, outfile_columns
-        )
+        new_v_strokes, v_strokes = alarming.filter_dataframe(v_strokes, id_column="id", test=test_flag)
         n_ring1, n_ring2 = inner_outer(new_v_strokes, config)
 
         if len(new_v_strokes) == 0:
@@ -91,6 +88,9 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         else:
             logger.info("**** NEW DETECTION")
             new_v_strokes = new_v_strokes.sort_values("time")
+            logger.info(
+                f"{len(new_v_strokes)} new and {len(v_strokes) - len(new_v_strokes)} old strokes detected."
+            )
             if new_v_strokes.iloc[0].v_distance > config.dist1:
                 logger.info("...distal detection 1st.")
                 state = "WARNING"
@@ -119,14 +119,25 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
                     logger.error("problem posting to mattermost")
                     logger.error(e)
                     logger.error(traceback.format_exc())
-                    
-                messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
+
+                messaging.send_alert(
+                    config.alarm_name,
+                    subject,
+                    message,
+                    attachment=filename,
+                    test=test_flag,
+                )
+                alarming.record_send(
+                    config,
+                    T0,
+                    volcano=new_v_strokes.iloc[0].v_name,
+                    event_id=new_v_strokes.id.to_list(),
+                    test=test_flag,
+                )
                 # delete the file you just sent
                 if filename:
                     os.remove(filename)
 
-    if not force_flag:
-        processing.write_to_csv(strokes_df, config, outfile_columns)
     messaging.icinga(config, state, state_message, send=icinga_flag)
 
 
@@ -209,7 +220,7 @@ def plot_fig(df, config, T0, test=False):
     plotting.map_ticks(ax, extent, grid_kwargs="default")
     plotting.add_volcanoes_to_map(ax, extent, config, c1="k", c2="grey", linewidths=0.1)
     ax.plot(lon0, lat0, "^", mfc="k", mec="w", ms=6, transform=ccrs.Geodetic())
-    plotting.add_scale_bar(ax, 15, txt_yoffset=0.01)
+    plotting.add_scale_bar(ax, 15, txt_yoffset=0.01, extent=extent)
 
     map_hdl = ax.scatter(df.longitude.values,
                             df.latitude.values,

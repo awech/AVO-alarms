@@ -1,3 +1,4 @@
+import math
 import os
 import time
 import traceback
@@ -10,7 +11,7 @@ from obspy.geodetics.base import gps2dist_azimuth
 from obspy.signal.cross_correlation import correlate, xcorr_max
 from pandas import DataFrame
 
-from avo_alarms.utils import messaging, processing, plotting, downloading
+from avo_alarms.utils import messaging, processing, plotting, downloading, alarming
 from avo_alarms.utils.setup_utils import get_logger
 
 logger = get_logger(__name__)
@@ -19,8 +20,13 @@ logger = get_logger(__name__)
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force_flag=False):
 
     if os.getenv("FROMCRON") == "yep":
-        time.sleep(config.latency)
-    state_message=f'{T0.strftime("%Y-%m-%d %H:%M")} (UTC) {config.alarm_name}'
+        if config.latency < 30:
+            time.sleep(config.latency)
+        else:
+            dt = math.ceil(config.latency / 60) * 60
+            T0 = T0 - dt
+            logger.info(f"Backing up {dt} seconds to align with minute marks")
+    state_message=f"{T0.strftime('%Y-%m-%d %H:%M')} (UTC) {config.alarm_name}"
 
     #### download data ####
     NSLC = DataFrame.from_dict(config.NSLC)
@@ -123,11 +129,11 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         state = "WARNING"
 
     if state == "CRITICAL":
-        ## TODO
-        ## inf_df = pd.read(outfile)
-        ## inf_df = inf_df[inf_df["time"] > T0 - config.duration]
-        ## but wait...need to check id and volcano too
-        ## if len(inf_df) < config.n_alerts:
+        if not alarming.can_send(config, volcano=volcano['volcano'], T0=T0, test=test_flag):
+            logger.warning(f"Rate limit: skipping alarm {config.alarm_name} at {volcano['volcano']}")
+            state_message = f"{state_message} (alarm skipped due to rate limit)"
+            messaging.icinga(config, state, state_message, send=icinga_flag)
+            return
         try:
             logger.info("generating figure")
             filename = make_figure(st, volcano, T0, config, mx_pressure, test=test_flag)
@@ -138,7 +144,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
             filename=None
 
         subject, message = create_message(
-            t1, t2, config, volcano, azimuth, d_Azimuth, velocity, mx_pressure
+            t1, t2, st, volcano, azimuth, d_Azimuth, velocity, mx_pressure
         )
 
         try:
@@ -160,6 +166,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         messaging.send_alert(
             config.alarm_name, subject, message, attachment=filename, test=test_flag
         )
+        alarming.record_send(config, T0, volcano=volcano['volcano'], test=test_flag)
         # delete the file you just sent
         if filename:
             os.remove(filename)
@@ -401,7 +408,7 @@ def make_figure(st, volcano, T0, config, mx_pressure, test=False):
     ################# plot infrasound #################
     
     ##### plot stack spectrogram #####
-    plotting.plot_spectrogram(ax["stack_spec"], stack, infrasound=True)
+    plotting.plot_spectrogram(ax["stack_spec"], stack)
     ax["stack_spec"].set_title(config.alarm_name + " Alarm: " + volcano["volcano"] + " detection!")
     ax["stack_spec"].set_xticks([])
 
@@ -419,6 +426,7 @@ def make_figure(st, volcano, T0, config, mx_pressure, test=False):
             multialignment="center",
             horizontalalignment="right",
             verticalalignment="center",
+            color="red",
         )
 
     min_stamp = round(t_infra_win / 60)
@@ -451,7 +459,7 @@ def make_figure(st, volcano, T0, config, mx_pressure, test=False):
     return jpg_file
 
 
-def create_message(t1, t2, config, volcano, azimuth, d_Azimuth, velocity, mx_pressure):
+def create_message(t1, t2, st, volcano, azimuth, d_Azimuth, velocity, mx_pressure):
     # create the subject line
     subject = f"{volcano['volcano']} Airwave Detection"
 
@@ -467,8 +475,8 @@ def create_message(t1, t2, config, volcano, azimuth, d_Azimuth, velocity, mx_pre
     if "traveltime" in volcano:
         calc_tt = volcano["traveltime"]
     if ("v_lat" in volcano) & calc_tt:
-        lat0 = np.mean([nslc_entry["sta_lat"] for nslc_entry in config.NSLC])
-        lon0 = np.mean([nslc_entry["sta_lon"] for nslc_entry in config.NSLC])
+        lat0 = np.mean([tr.stats.coordinates.latitude for tr in st])
+        lon0 = np.mean([tr.stats.coordinates.longitude for tr in st])
         travel_time = UTCDateTime(
             gps2dist_azimuth(lat0, lon0, volcano["v_lat"], volcano["v_lon"])[0] / 333
         )

@@ -19,32 +19,54 @@ from avo_alarms.utils.setup_utils import (
 )
 
 
+def parse_args():
+    """
+    Parse command-line arguments for the script.
+    
+    Returns:
+        argparse.Namespace: Parsed arguments.
+    """
+
+    parser = argparse.ArgumentParser(
+        prog="run-alarm",
+        epilog="e.g.: `run-alarm avlof_RSAM` or `run-alarm --test -t 201701020205 -c Pavlof_RSAM`",
+    )
+    parser.add_argument("config", type=str, help="Name of the config file")
+    parser.add_argument(
+        "-t",
+        "--time",
+        type=str,
+        help="utc time stamp:YYYYMMDDHHMM (optional, otherwise grabs current utc time)",
+        required=False,
+    )
+    parser.add_argument("--test", help="Run in test mode", action="store_true")
+    parser.add_argument(
+        "--force", help="Force a trigger in test mode", action="store_true"
+    )
+    parser.add_argument(
+        "--mm",
+        help="Post to mattermost",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+    )
+    parser.add_argument(
+        "--icinga",
+        help="Send heartbeat to icinga",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+    )
+
+    return parser.parse_args()
+
+
+
 def main():
     """Main entry point for the alarm runner."""
     
     start = time.time()
     load_dotenv()
 
-    parser = argparse.ArgumentParser(
-        prog="run-alarm",
-        epilog="e.g.: run-alarm Pavlof_RSAM or run-alarm --test -t  201701020205 Pavlof_RSAM"
-    )
-    parser.add_argument("config", type=str, help="Name of the config file")
-    parser.add_argument(
-        "-t", "--time", type=str,
-        help="utc time stamp:YYYYMMDDHHMM (optional, otherwise grabs current utc time)"
-    )
-    parser.add_argument("--test", help="Run in test mode", action="store_true")
-    parser.add_argument("--force", help="Force a trigger in test mode", action="store_true")
-    parser.add_argument(
-        "--mm", help="Post to mattermost",
-        action=argparse.BooleanOptionalAction, default=None
-    )
-    parser.add_argument(
-        "--icinga", help="Send heartbeat to icinga",
-        action=argparse.BooleanOptionalAction, default=None
-    )
-    args = parser.parse_args()
+    args = parse_args()
     
     # Set up root logger first (before locking, for error messages)
     if os.getenv("FROMCRON") == "yep":

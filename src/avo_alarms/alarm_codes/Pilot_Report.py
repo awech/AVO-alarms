@@ -7,7 +7,7 @@ import cartopy.crs as ccrs
 import matplotlib.pyplot as plt
 from obspy import UTCDateTime as utc
 
-from avo_alarms.utils import messaging, plotting, processing, downloading
+from avo_alarms.utils import messaging, plotting, processing, downloading, alarming
 from avo_alarms.utils.setup_utils import get_logger, load_volcano_list
 
 logger = get_logger(__name__)
@@ -16,13 +16,10 @@ logger = get_logger(__name__)
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force_flag=False):
 
     T0_str = T0.strftime("%Y-%m-%d %H:%M")
-    outfile_columns = ["time", "lat", "lon", "PROD_ID"]
 
-    
     state, archive = downloading.download_pilot_reports(T0, config)
+    state_message = f"{T0_str} (UTC) No new pilot reports"
     if archive is None:
-        if state == "OK":
-            state_message = f"{T0_str} (UTC) No new pilot reports"
         if state == "WARNING":
             state_message = f"{T0_str} (UTC) PIREP API error. Cannot retrieve shape file"
         messaging.icinga(config, state, state_message, send=icinga_flag)
@@ -31,29 +28,25 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     pirep_df = processing.pirep_archive_to_dataframe(T0, config, archive)
     pirep_df = processing.find_nearest_volcano(pirep_df, lon_col="lon", lat_col="lat")
     pirep_df = pirep_df[pirep_df["v_distance"] < config.max_distance]
+
+    ## BUG 'PROD_ID' is not entirely unique. See events at 2026-05-21 17:08 and 17:09
+    N_new, N_old = alarming.check_new_event_ids(pirep_df["PROD_ID"], test=test_flag)
+    logger.info(f"Found {N_new} new and {N_old} old PIREPS")
+
     if force_flag:
-        new_pireps_df = pirep_df[:1]
+        pirep_df = pirep_df[:1]
     else:
         pirep_df = processing.check_volcano_mention(pirep_df)
         pirep_df = pirep_df[pirep_df["trigger"]]
-        new_pireps_df, pirep_df = processing.compare_to_old_events(
-            pirep_df,
-            config.outfile,
-            outfile_columns,
-            unique_id_col="PROD_ID",
-        )
 
-    
-    if len(new_pireps_df) == 0:
-        if len(pirep_df) > 0:
+    for i, row in pirep_df.iterrows():
+
+        if alarming.already_processed(config, row.PROD_ID, test=test_flag):
             logger.info("PIREPS found have already been processed")
-        processing.write_to_csv(pirep_df, config, outfile_columns)
-        state == "OK"
-        state_message = f"{T0_str} (UTC) No new pilot reports"
-        messaging.icinga(config, state, state_message, send=icinga_flag)
+            state == "OK"
+            state_message = f"{T0_str} (UTC) No new pilot reports"
+            continue
 
-
-    for i, row in new_pireps_df.iterrows():
         state = "WARNING"
         try:
             filename = plot_fig(row, config, test=test_flag)
@@ -79,12 +72,19 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
             state = "CRITICAL"
             messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
 
+        alarming.record_send(
+            config,
+            T0,
+            volcano=row.v_name,
+            event_id=row.PROD_ID,
+            test=test_flag,
+        )
         # delete the file you just sent
         if filename:
             os.remove(filename)
 
-    if not force_flag:
-        processing.write_to_csv(pirep_df, config, outfile_columns)
+    # if not force_flag:
+    #     processing.write_to_csv(pirep_df, config, outfile_columns)
     messaging.icinga(config, state, state_message, send=icinga_flag)
 
     return
@@ -155,7 +155,7 @@ def plot_fig(pirep_row, config, test=False):
         ax, pirep_row.lat, pirep_row.lon, xdist=X_DIST, ydist=Y_DIST, basemap="highres"
     )
     plotting.map_ticks(ax, extent, grid_kwargs="default")
-    plotting.add_scale_bar(ax, 50, txt_yoffset=0.01)
+    plotting.add_scale_bar(ax, 50, txt_yoffset=0.01, extent=extent)
 
     plotting.add_volcanoes_to_map(ax, extent, config)
     ax.plot(

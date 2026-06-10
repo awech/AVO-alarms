@@ -352,8 +352,8 @@ def eq_picks_to_dataframe(cat):
     )
 
     if isinstance(cat, Event):
-        STAS["P"] = np.nan
-        STAS["S"] = np.nan
+        STAS["P"] = None
+        STAS["S"] = None
         for p in eq.picks:
             ns = ".".join(p.waveform_id.id.split(".")[:2])
             STAS.loc[STAS.NS == ns, p.phase_hint] = p.time
@@ -429,7 +429,7 @@ def Dr_to_RSAM(config, DR, volcano_name, base=25):
 
         lvl = base * np.round(lvl / base)
 
-        logger.info("{}: {:g}".format(nslc, lvl))
+        logger.info(f"{nslc}: {lvl:g}")
 
     return
 

@@ -2,9 +2,6 @@
 __pycache__/
 *.pyc
 
-bin/perms.sh
-common/
-www/
 logs/*.out
 logs/*.log
 logs/*.lock
@@ -21,3 +18,7 @@ phonebook.yml
 .eggs/
 build/
 dist/
+
+alarm_aux_files/*.npz
+alarm_aux_files/*.xml
+alarm_aux_files/*.db

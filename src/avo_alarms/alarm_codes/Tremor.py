@@ -2,6 +2,7 @@ import math
 import os
 import time
 import traceback
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -207,6 +208,7 @@ def test_traveltime(st, config):
 
 def run_enveloc(st, band_env, high_env, config):
 
+    grid_file = Path("tmp_files") / config.grid_file
     if test_traveltime(st, config):
         XC = XCOR(
             band_env,
@@ -217,7 +219,7 @@ def run_enveloc(st, band_env, high_env, config):
             Cmax=config.Cmax,
             env_hp=high_env,
             grid_size=config.grid,
-            tt_file=config.grid_file,
+            tt_file=grid_file,
             phase_types=config.phase_list,
         )
     else:
@@ -232,7 +234,7 @@ def run_enveloc(st, band_env, high_env, config):
             env_hp=high_env,
             grid_size=config.grid,
         )
-        XC.save_traveltimes(config.grid_file)
+        XC.save_traveltimes(grid_file)
     loc = XC.locate(
         window_length=config.window_length,
         step=config.window_length / 2.0,

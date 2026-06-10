@@ -104,10 +104,11 @@ def pirep_archive_to_dataframe(T0, config, archive):
     T2 = T0
     T1 = T2 - config.duration
 
-    archive.extractall(path=config.tmp_zipped_dir)
+    tmp_zipped_dir = Path("tmp_files") / "tmp_zipped_dir"
+    archive.extractall(path=tmp_zipped_dir)
     T1_str = T1.strftime('%Y%m%d%H%M')
     T2_str = T2.strftime('%Y%m%d%H%M')
-    shp_path = config.tmp_zipped_dir / f"pireps_{T1_str}_{T2_str}"
+    shp_path = tmp_zipped_dir / f"pireps_{T1_str}_{T2_str}"
 
     # read file, parse out the records
     sf = shapefile.Reader(shp_path)
@@ -129,7 +130,7 @@ def pirep_archive_to_dataframe(T0, config, archive):
     pirep_df = pirep_df.loc[A.index]
     pirep_df.reset_index(drop=True, inplace=True)
 
-    rmtree(config.tmp_zipped_dir)
+    rmtree(tmp_zipped_dir)
 
     return pirep_df
 

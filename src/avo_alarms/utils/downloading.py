@@ -393,13 +393,14 @@ def get_cimss_image(soup, alert, config):
 
     base_url = "://".join(urlparse(alert.alert_url)[:2])
     image_files = soup.find(class_="alert_images").find_all("img")
+    img_file = Path("tmp_files/noaa_out_.png")
     for i, img in enumerate(image_files):
         img.get("src")
         im_url = urljoin(base_url, img.get("src"))
         r = requests.get(im_url, verify=False, timeout=10)
 
         if r.status_code == 200:
-            new_file = Path(str(config.img_file).replace(".png", f"{i+1:g}.png"))
+            new_file = Path(str(img_file).replace(".png", f"{i+1:g}.png"))
             with open(new_file, "wb") as out:
                 for bits in r.iter_content():
                     out.write(bits)

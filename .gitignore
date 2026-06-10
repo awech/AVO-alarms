@@ -19,7 +19,7 @@ phonebook.yml
 build/
 dist/
 
-alarm_aux_files/*.npz
-alarm_aux_files/*.xml
-alarm_aux_files/*.db
+alarm_aux_files/*.db*
 alarm_aux_files/*.xlsx
+
+tmp_files/*

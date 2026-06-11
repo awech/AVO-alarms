@@ -97,7 +97,7 @@ def main():
         """
 
         # You can save this to an HTML file and open it in a browser
-        out_file = Path(WWW_FILE)
+        out_file = Path(os.environ["WWW_FILE"])
         with open(out_file, "w") as f:
             f.write(centered_html)
         logger.info("Notification HTML generated successfully")

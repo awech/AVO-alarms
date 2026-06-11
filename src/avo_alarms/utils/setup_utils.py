@@ -308,13 +308,13 @@ def setup_root_logger(
         log_file = os.path.join(log_dir, f"{config_name}-{current_time_str}.log")
 
         # TimedRotatingFileHandler
-        # when='H', interval=4 -> rotate every 4 hours
-        # backupCount=84 -> keep 84 rotations = 14 days (84 / 6 rotations per day)
+        # when='H', interval=12 -> rotate every 12 hours
+        # backupCount=14 -> keep 14 rotations = 7 days (14 / 2 rotations per day)
         handler = logging.handlers.TimedRotatingFileHandler(
             filename=log_file,
             when="H",
-            interval=4,
-            backupCount=84,
+            interval=12,
+            backupCount=14,
             encoding="utf-8",
         )
 

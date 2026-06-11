@@ -112,29 +112,37 @@ def load_config(config_name):
             # Some attributes might not be settable or might cause issues
             continue
     
+    if config.alarm_type == "Infrasound":
+        config = update_infrasound_config(config)
+
     return config
 
-# TODO implement snippet below to set infrasound defaults
-# def update_config():
-# df = load_volcano_list()
 
-# for i, volc in enumerate(config.VOLCANO):
-#     if "v_lat" not in volc or "v_lon" not in volc:
-#         print("updating")
-#         v_name = volc["volcano"]
-#         v_row = df[df["Volcano"] == v_name].squeeze()
-#         tmp_dict = {"volcano": v_row["Volcano"], "v_lon": v_row.Longitude.item(), "v_lat":v_row.Latitude.item()}
-#         config.VOLCANO[i].update(tmp_dict)
-#     if "vmin" not in volc:
-#         config.VOLCANO[i].update({"vmin": 0.28})
-#     if "vmax" not in volc:
-#         config.VOLCANO[i].update({"vmax": 0.45})
+def update_infrasound_config(config):
+
+    df = load_volcano_list()
+    VMIN = os.environ.get("INFRASOUND_VMIN", 0.28)
+    VMAX = os.environ.get("INFRASOUND_VMAX", 0.45)
+
+    for i, target in enumerate(config.TARGETS):
+        if "lat" not in target or "lon" not in target:
+            v_name = target["name"]
+            v_row = df[df["Name"] == v_name].squeeze()
+            tmp_dict = {"name": v_row["Name"], "lon": v_row.Longitude.item(), "lat":v_row.Latitude.item()}
+            config.TARGETS[i].update(tmp_dict)
+        if "vmin" not in target:
+            config.TARGETS[i].update({"vmin": VMIN})
+        if "vmax" not in target:
+            config.TARGETS[i].update({"vmax": VMAX})
+            
+    return config
+
 
 def load_volcano_list(volcano_file=None):
     """
     Load volcano list from file, supporting .xlsx, .csv, or .txt formats.
     
-    Requires the following columns: "Volcano", "Latitude", "Longitude".
+    Requires the following columns: "Name", "Latitude", "Longitude".
     Additional columns are preserved if present.
 
     Parameters
@@ -146,7 +154,7 @@ def load_volcano_list(volcano_file=None):
     Returns
     -------
     pd.DataFrame
-        DataFrame with required columns: Volcano, Latitude, Longitude
+        DataFrame with required columns: Name, Latitude, Longitude
         
     Raises
     ------
@@ -162,7 +170,7 @@ def load_volcano_list(volcano_file=None):
     
     volcano_file = Path(volcano_file)
     
-    required_columns = {"Volcano", "Latitude", "Longitude"}
+    required_columns = {"Name", "Latitude", "Longitude"}
     
     if volcano_file.suffix.lower() == ".xlsx":
         df = pd.read_excel(volcano_file)

@@ -159,7 +159,7 @@ def create_message(eq, volcs):
     volcs = volcs.sort_values("distance")
     v_text = ""
     for _, row in volcs[:3].iterrows():
-        v_text = f"{v_text}{row.Volcano} ({row.distance:.0f} km), "
+        v_text = f"{v_text}{row.Name} ({row.distance:.0f} km), "
     v_text = v_text.replace("_", " ")
     message = f"{message}\n**Nearest volcanoes:** {v_text[:-2]}"
 
@@ -175,7 +175,7 @@ def create_message(eq, volcs):
         logger.warning(traceback.format_exc())
         pass
 
-    subject = f"M{eq.preferred_magnitude().mag:.1f} earthquake at {volcs.iloc[0].Volcano}"
+    subject = f"M{eq.preferred_magnitude().mag:.1f} earthquake at {volcs.iloc[0].Name}"
 
     return subject, message
 
@@ -226,7 +226,7 @@ def plot_event(eq, volcs, config, n_stations=8, test=False):
     eq_t = origin.time.strftime("%Y-%m-%d %H:%M:%S")
     eq_mag = eq.preferred_magnitude().mag
     eq_dist = volcs.iloc[0].distance
-    volc = volcs.iloc[0].Volcano
+    volc = volcs.iloc[0].Name
     eq_depth = origin.depth / 1000
     title_str = (
         f"{eq_t}\n"

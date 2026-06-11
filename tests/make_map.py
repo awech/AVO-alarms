@@ -28,7 +28,7 @@ start = time.time()
 
 output_folder = Path("tests") / "outputs"
 
-df = pd.read_excel(Path("alarm_aux_files") / "volcano_list.xlsx").set_index("Volcano")
+df = pd.read_excel(Path("alarm_aux_files") / "volcano_list.xlsx").set_index("Name")
 volcano = "Spurr"
 
 

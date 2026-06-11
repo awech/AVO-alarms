@@ -48,7 +48,7 @@ def compare_to_old_events(df, event_file, default_cols, unique_id_col="id"):
 
 def check_ignore_volcano(cimss_df, alert_type=None):
 
-    volcs = load_volcano_list().set_index("Volcano")
+    volcs = load_volcano_list().set_index("Name")
     alert_dict = {"ash": "NOAA Ash", "hot": "NOAA Thermal", "ice": "NOAA Ice"}
     
     cimss_df["keep"] = True
@@ -196,7 +196,7 @@ def find_nearest_volcano(df, lon_col="longitude", lat_col="latitude", volc_df=No
     for _, row in df.iterrows():
         volc_df = volcano_distance(row[lon_col], row[lat_col], volc_df)
         V_DIST.append(volc_df.iloc[0].distance)
-        V_NAME.append(volc_df.iloc[0].Volcano)
+        V_NAME.append(volc_df.iloc[0].Name)
 
     df["v_distance"] = V_DIST
     df["v_name"] = V_NAME
@@ -387,7 +387,7 @@ def Dr_to_RSAM(config, DR, volcano_name, base=25):
 
     T0 = UTCDateTime.utcnow()
     VOLCS = load_volcano_list()
-    volcs = VOLCS[VOLCS["Volcano"] == volcano_name].copy()
+    volcs = VOLCS[VOLCS["Name"] == volcano_name].copy()
     NSLC = pd.DataFrame.from_dict(config.NSLC)
 
     for nslc in NSLC.nslc:
@@ -466,7 +466,7 @@ def RSAM_to_DR(tr, volcano_name, VELOCITY=1.5, FREQ=2, Q=200):
     """
 
     VOLCS = load_volcano_list()
-    volcs = VOLCS[VOLCS["Volcano"] == volcano_name].copy()
+    volcs = VOLCS[VOLCS["Name"] == volcano_name].copy()
 
     xml_file = Path(os.getenv("STATION_XML", "blank"))
     if not xml_file.exists():

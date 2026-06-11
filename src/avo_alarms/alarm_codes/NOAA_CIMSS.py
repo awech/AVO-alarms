@@ -145,7 +145,7 @@ def create_message(alert, volcs, output_text):
 
     v_text = ""
     for i, row in volcs[:3].iterrows():
-        v_text = f"{v_text}{row.Volcano} ({row.distance:.0f} km), "
+        v_text = f"{v_text}{row.Name} ({row.distance:.0f} km), "
     v_text = v_text.replace("_", " ")
 
     message += f"**Method:** {alert.method}\n"
@@ -154,7 +154,7 @@ def create_message(alert, volcs, output_text):
 
     subject_text = alert.alert_header.title().replace(" Found", "")
     subject_text = subject_text.replace(" Detected", "")
-    subject = f"{volcs.iloc[0].Volcano}: {subject_text}"
+    subject = f"{volcs.iloc[0].Name}: {subject_text}"
 
     return subject, message
 

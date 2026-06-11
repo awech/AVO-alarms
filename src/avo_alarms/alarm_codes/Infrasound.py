@@ -216,11 +216,12 @@ def calc_triggers(st, config, intsd, force=False):
     #### cross correlate all station pairs ####
     for ii in range(len(st[:-1])):
         for jj in range(ii + 1, len(st)):
-            cc_vector = correlate(st[ii].data, st[jj].data, config.cc_shift_length*st[0].stats.sampling_rate)
+            shift = int(config.cc_shift_length*st[0].stats.sampling_rate)
+            cc_vector = correlate(st[ii].data, st[jj].data, shift)
             index, value = xcorr_max(cc_vector)
             #### if best xcorr value is negative, find the best positive one ####
             if value < 0:
-                index = cc_vector.argmax() - config.cc_shift_length*st[0].stats.sampling_rate
+                index = cc_vector.argmax() - shift
                 value = cc_vector.max()
             dt = index / st[0].stats.sampling_rate
             #### check that the best lag is at least the vmin value
@@ -334,7 +335,7 @@ def inversion(cmbm2n,cmbm2,intsd,ints_az,lags_inds1,lags_inds2,lags,mpk):
 
 def xcorr_align_stream(st, config):
 
-    shift_len = config.cc_shift_length*st[0].stats.sampling_rate
+    shift_len = int(config.cc_shift_length*st[0].stats.sampling_rate)
     shifts = []
     for i, tr in enumerate(st):
         c = correlate(st[0].data, tr.data, shift_len)

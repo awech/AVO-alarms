@@ -62,7 +62,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         return	
 
 
-    volcano_name = volcs.iloc[0].Volcano
+    volcano_name = volcs.iloc[0].Name
     alert_time = UTCDateTime(date + time).strftime("%Y-%m-%d %H:%M:%S")
     event_id = f"{volcano_name} - {alert_time}"
     new_alert = alarming.already_processed(config, event_id, test=test_flag)
@@ -193,7 +193,7 @@ def create_message(date, time, table, config, volcs):
 
     v_text = ""
     for i, row in volcs.sort_values("distance")[:3].iterrows():
-        v_text = f"{v_text}{row.Volcano} ({row.distance:.0f} km), "
+        v_text = f"{v_text}{row.Name} ({row.distance:.0f} km), "
     v_text = v_text.replace("_", " ")
     message = f"{message}\n\nNearest volcanoes: {v_text[:-2]}\n"
     message += f"\n{os.environ['SACS_URL']}"

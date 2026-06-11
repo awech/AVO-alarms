@@ -131,7 +131,7 @@ def create_message(pirep_row, config):
 
     v_text = ""
     for j, row in volcs[:3].iterrows():
-        v_text = f"{v_text}{row.Volcano} ({row.distance:.0f} km), "
+        v_text = f"{v_text}{row.Name} ({row.distance:.0f} km), "
     v_text = v_text.replace("_", " ")
     message = f"{message}Nearest volcanoes: {v_text[:-2]}\n"
     message = f"{message}\n--Original Report--\n{pirep_row.REPORT}"

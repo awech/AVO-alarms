@@ -74,7 +74,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         logger.warning("Running in force trigger mode")
         min_pa = 0
     else:
-        min_pa = np.array([v["min_pa"] for v in config.VOLCANO]).min()
+        min_pa = np.array([v["min_pa"] for v in config.TARGETS]).min()
     st = Stream([tr for tr in st if np.any(np.abs(tr.data) > min_pa)])
     if len(st) < config.min_chan and not force_flag:
         state_message = f"{state_message} - not enough channels exceeding amplitude threshold!"
@@ -84,7 +84,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         return
 
     #### Set up grid ####
-    config = get_volcano_backazimuth(st, config)
+    config = get_target_backazimuth(st, config)
     yx, intsd, ints_az = setup_coordinate_system(st)
     #### Cross correlate ####
     lags, lags_inds1, lags_inds2 = calc_triggers(st, config, intsd, force=force_flag)
@@ -100,22 +100,22 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     velocity, azimuth, rms = inversion(
         cmbm2n, cmbm2, intsd, ints_az, lags_inds1, lags_inds2, lags, mpk
     )
-    d_Azimuth = azimuth - np.array([t["back_azimuth"] for t in config.VOLCANO])
-    az_tolerance = np.array([t["Azimuth_tolerance"] for t in config.VOLCANO])
-    #### check if this is airwave velocity from a volcano in config file list ####
+    d_Azimuth = azimuth - np.array([t["back_azimuth"] for t in config.TARGETS])
+    az_tolerance = np.array([t["az_tolerance"] for t in config.TARGETS])
+    #### check if this is airwave velocity from a target in config file list ####
     if np.any(np.abs(d_Azimuth) < az_tolerance) or force_flag:
         v_ind = np.argmin(np.abs(d_Azimuth))
         mx_pressure = np.max(np.array([np.max(np.abs(tr.data)) for tr in st]))
         if (
-            config.VOLCANO[v_ind]["vmin"] < velocity < config.VOLCANO[v_ind]["vmax"]
-            and mx_pressure > config.VOLCANO[v_ind]["min_pa"]
+            config.TARGETS[v_ind]["vmin"] < velocity < config.TARGETS[v_ind]["vmax"]
+            and mx_pressure > config.TARGETS[v_ind]["min_pa"]
         ) or force_flag:
             #### DETECTION ####
-            volcano = config.VOLCANO[v_ind]
+            target = config.TARGETS[v_ind]
             d_Azimuth = d_Azimuth[v_ind]
 
             logger.info("Airwave Detection!!!")
-            state_message = f"{state_message} - {volcano['volcano']} detection! {mx_pressure:.1f} Pa peak pressure"
+            state_message = f"{state_message} - {target['name']} detection! {mx_pressure:.1f} Pa peak pressure"
             state = "CRITICAL"
 
         else:
@@ -129,14 +129,14 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         state = "WARNING"
 
     if state == "CRITICAL":
-        if not alarming.can_send(config, volcano=volcano['volcano'], T0=T0, test=test_flag):
-            logger.warning(f"Rate limit: skipping alarm {config.alarm_name} at {volcano['volcano']}")
+        if not alarming.can_send(config, volcano=target['name'], T0=T0, test=test_flag):
+            logger.warning(f"Rate limit: skipping alarm {config.alarm_name} at {target['name']}")
             state_message = f"{state_message} (alarm skipped due to rate limit)"
             messaging.icinga(config, state, state_message, send=icinga_flag)
             return
         try:
             logger.info("generating figure")
-            filename = make_figure(st, volcano, T0, config, mx_pressure, test=test_flag)
+            filename = make_figure(st, target, T0, config, mx_pressure, test=test_flag)
         except Exception as e:
             logger.error("problem generating figure")
             logger.error(e)
@@ -144,7 +144,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
             filename=None
 
         subject, message = create_message(
-            t1, t2, st, volcano, azimuth, d_Azimuth, velocity, mx_pressure
+            t1, t2, st, target, azimuth, d_Azimuth, velocity, mx_pressure
         )
 
         try:
@@ -166,7 +166,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         messaging.send_alert(
             config.alarm_name, subject, message, attachment=filename, test=test_flag
         )
-        alarming.record_send(config, T0, volcano=volcano['volcano'], test=test_flag)
+        alarming.record_send(config, T0, volcano=target['name'], test=test_flag)
         # delete the file you just sent
         if filename:
             os.remove(filename)
@@ -179,13 +179,13 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     messaging.icinga(config, state, state_message, send=icinga_flag)
 
 
-def get_volcano_backazimuth(st, config):
+def get_target_backazimuth(st, config):
     lon0 = np.mean([tr.stats.coordinates.longitude for tr in st])
     lat0 = np.mean([tr.stats.coordinates.latitude for tr in st])
-    for volc in config.VOLCANO:
-        if "back_azimuth" not in volc:
-            tmp = gps2dist_azimuth(lat0, lon0, volc["v_lat"], volc["v_lon"])
-            volc["back_azimuth"] = tmp[1]
+    for target in config.TARGETS:
+        if "back_azimuth" not in target:
+            tmp = gps2dist_azimuth(lat0, lon0, target["lat"], target["lon"])
+            target["back_azimuth"] = tmp[1]
     return config
 
 
@@ -216,16 +216,17 @@ def calc_triggers(st, config, intsd, force=False):
     #### cross correlate all station pairs ####
     for ii in range(len(st[:-1])):
         for jj in range(ii + 1, len(st)):
-            cc_vector = correlate(st[ii].data, st[jj].data, config.cc_shift_length)
+            shift = int(config.cc_shift_length*st[0].stats.sampling_rate)
+            cc_vector = correlate(st[ii].data, st[jj].data, shift)
             index, value = xcorr_max(cc_vector)
             #### if best xcorr value is negative, find the best positive one ####
             if value < 0:
-                index = cc_vector.argmax() - config.cc_shift_length
+                index = cc_vector.argmax() - shift
                 value = cc_vector.max()
             dt = index / st[0].stats.sampling_rate
             #### check that the best lag is at least the vmin value
             #### and check for minimum cross correlation value
-            all_vmin = np.array([v["vmin"] for v in config.VOLCANO]).min()
+            all_vmin = np.array([v["vmin"] for v in config.TARGETS]).min()
             if (np.abs(dt) < intsd[ii, jj] / all_vmin and value > config.min_cc) or force:
                 lags = np.append(lags, dt)
                 lags_inds1 = np.append(lags_inds1, ii)
@@ -334,7 +335,7 @@ def inversion(cmbm2n,cmbm2,intsd,ints_az,lags_inds1,lags_inds2,lags,mpk):
 
 def xcorr_align_stream(st, config):
 
-    shift_len = config.cc_shift_length
+    shift_len = int(config.cc_shift_length*st[0].stats.sampling_rate)
     shifts = []
     for i, tr in enumerate(st):
         c = correlate(st[0].data, tr.data, shift_len)
@@ -365,13 +366,13 @@ def xcorr_align_stream(st, config):
     return ST
 
 
-def make_figure(st, volcano, T0, config, mx_pressure, test=False):
+def make_figure(st, target, T0, config, mx_pressure, test=False):
 
     start = time.time()
     
     ##### get seismic data #####
     t_seis_win = config.seismic_plot_duration if hasattr(config, "seismic_plot_duration") else 3600
-    seis = downloading.download_waveforms(volcano["seismic_nslc"], T0 - t_seis_win, T0, fill_value="interpolate")
+    seis = downloading.download_waveforms(target["seismic_nslc"], T0 - t_seis_win, T0, fill_value="interpolate")
     ##### get infrasound data #####
     infra_nslc = [tr.id for tr in st]
     t_infra_win = config.infrasound_plot_duration if hasattr(config, "infrasound_plot_duration") else 600
@@ -409,7 +410,7 @@ def make_figure(st, volcano, T0, config, mx_pressure, test=False):
     
     ##### plot stack spectrogram #####
     plotting.plot_spectrogram(ax["stack_spec"], stack)
-    ax["stack_spec"].set_title(config.alarm_name + " Alarm: " + volcano["volcano"] + " detection!")
+    ax["stack_spec"].set_title(config.alarm_name + " Alarm: " + target["name"] + " detection!")
     ax["stack_spec"].set_xticks([])
 
     ##### plot stack trace #####
@@ -459,9 +460,9 @@ def make_figure(st, volcano, T0, config, mx_pressure, test=False):
     return jpg_file
 
 
-def create_message(t1, t2, st, volcano, azimuth, d_Azimuth, velocity, mx_pressure):
+def create_message(t1, t2, st, target, azimuth, d_Azimuth, velocity, mx_pressure):
     # create the subject line
-    subject = f"{volcano['volcano']} Airwave Detection"
+    subject = f"{target['name']} Airwave Detection"
 
     # create the text for the message you want to send
     message = f"{messaging.format_timestring(t1, t2)}\n\n"
@@ -472,13 +473,13 @@ def create_message(t1, t2, st, volcano, azimuth, d_Azimuth, velocity, mx_pressur
     message = f"{message}Max Pressure: {mx_pressure:.1f} Pa"
 
     calc_tt = True
-    if "traveltime" in volcano:
-        calc_tt = volcano["traveltime"]
-    if ("v_lat" in volcano) & calc_tt:
+    if "traveltime" in target:
+        calc_tt = target["traveltime"]
+    if ("lat" in target) & calc_tt:
         lat0 = np.mean([tr.stats.coordinates.latitude for tr in st])
         lon0 = np.mean([tr.stats.coordinates.longitude for tr in st])
         travel_time = UTCDateTime(
-            gps2dist_azimuth(lat0, lon0, volcano["v_lat"], volcano["v_lon"])[0] / 333
+            gps2dist_azimuth(lat0, lon0, target["lat"], target["lon"])[0] / 333
         )
         if travel_time.hour > 0:
             message = f"{message}\nTravel Time: {travel_time.hour:.0f}h {travel_time.minute:.0f}m {travel_time.second:.0f}s"

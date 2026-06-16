@@ -1,14 +1,15 @@
 import os
-import requests
-from obspy import UTCDateTime
-from urllib.parse import urlparse, urljoin
-import matplotlib.image as mpimg
-import matplotlib.pyplot as plt
 import traceback
 import re
 
-from avo_alarms.utils import messaging, plotting, processing, downloading, alarming
+from obspy import UTCDateTime
+
+from avo_alarms.utils import messaging, processing, alarming
 from avo_alarms.utils.setup_utils import get_logger, load_volcano_list
+
+from .detection import download_SO2, get_so2_images
+from .figure import plot_fig
+from .message import create_message
 
 logger = get_logger(__name__)
 
@@ -16,7 +17,7 @@ logger = get_logger(__name__)
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force_flag=False):
 
     T0_str = T0.strftime('%Y-%m-%d %H:%M')
-    table, soup = downloading.download_SO2()
+    table, soup = download_SO2()
 
     if table is None:
         state = "WARNING"
@@ -118,84 +119,3 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
 
     # send heartbeat status message to icinga
     messaging.icinga(config, state, state_message, send=icinga_flag)
-
-
-
-
-def get_so2_images(soup, config):
-    base_url = "://".join(urlparse(os.environ["SACS_URL"])[:2])
-    imgs = soup.find_all("img")
-    img_files = []
-    img_file_name = Path("tmp_files/sacs_out_.png")
-    for im in imgs:
-        if "/alert" in im.get("src"):
-            img_files.append(urljoin(base_url, im.get("src")))
-
-    for i, image in enumerate(img_files[:2]):
-        r = requests.get(image, verify=False, timeout=10)
-        if r.status_code == 200:
-            with open(
-                Path(str(img_file_name).replace(".png", str(i + 1) + ".gif")), "wb"
-            ) as out:
-                for bits in r.iter_content():
-                    out.write(bits)
-
-        gif = Path(str(img_file_name).replace(".png", str(i + 1) + ".gif"))
-        from PIL import Image
-
-        img = Image.open(gif)
-        img.save(gif.with_suffix("png"), "png", optimize=True, quality=300)
-        os.remove(gif)
-
-
-def plot_fig(config):
-
-    plt.figure(figsize=(3, 4.4))
-
-    img_file_name = Path("tmp_files/sacs_out_.png")
-    tmp_file1 = Path(str(img_file_name).replace(".png", "1.png"))
-    tmp_file2 = Path(str(img_file_name).replace(".png", "2.png"))
-    img1 = mpimg.imread(tmp_file1)
-    img2 = mpimg.imread(tmp_file2)
-
-    plt.subplot(2, 1, 1)
-    plt.imshow(img1)
-    plt.gca().set_xticks([])
-    plt.gca().set_yticks([])
-
-    plt.subplot(2, 1, 2)
-    plt.imshow(img2)
-    plt.gca().set_xticks([])
-    plt.gca().set_yticks([])
-
-    plt.tight_layout(pad=0.5)
-
-    jpg_file = plotting.save_file(plt, config, dpi=500)
-
-    os.remove(tmp_file1)
-    os.remove(tmp_file2)
-
-    return jpg_file
-
-
-
-def create_message(date, time, table, config, volcs):
-
-    subject = "SO2 detection"
-
-    message = f"{messaging.format_timestring(UTCDateTime(time))}"
-
-    message += "\n".join(table[2:])
-    # message = message.replace('     ',' ')
-    # message = message.replace('   ',' ')
-    # message = message.replace('  ',' ')
-    message = message.replace(" deg.", "")
-
-    v_text = ""
-    for i, row in volcs.sort_values("distance")[:3].iterrows():
-        v_text = f"{v_text}{row.Name} ({row.distance:.0f} km), "
-    v_text = v_text.replace("_", " ")
-    message = f"{message}\n\nNearest volcanoes: {v_text[:-2]}\n"
-    message += f"\n{os.environ['SACS_URL']}"
-
-    return subject, message

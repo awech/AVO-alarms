@@ -4,6 +4,7 @@ import pandas as pd
 from obspy import UTCDateTime as utc
 
 from avo_alarms.utils import alarming
+from avo_alarms.utils.setup_utils import load_environment
 
 
 def parse_args():
@@ -60,6 +61,12 @@ def parse_args():
         help="Duration in hours (\"h\"), days (\"d\"), or minutes (\"m\") before present to process (e.g. -dt 3h)",
         required=False,
     )
+    parser.add_argument(
+        "--env-file",
+        type=str,
+        help="Path to a .env file (optional, otherwise searches up the directory tree)",
+        required=False,
+    )
 
     return parser.parse_args()
 
@@ -70,6 +77,8 @@ def main():
     """
 
     args = parse_args()  # Parse command-line arguments
+
+    load_environment(args.env_file)
 
     if args.starttime is not None:
         T1 = utc(args.starttime)

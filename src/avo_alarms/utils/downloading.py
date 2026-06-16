@@ -9,7 +9,6 @@ import numpy as np
 import pandas as pd
 import requests
 import urllib3
-from dotenv import load_dotenv
 from obspy import Catalog, Stream, Trace, UTCDateTime
 from obspy.clients.earthworm import Client as EW_Client
 from obspy.clients.fdsn import Client as FDSN_Client
@@ -17,7 +16,6 @@ from obspy.io.quakeml.core import Unpickler
 
 from avo_alarms.utils.setup_utils import get_logger
 
-load_dotenv()
 urllib3.disable_warnings()
 socket.setdefaulttimeout(15)
 

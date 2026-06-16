@@ -39,6 +39,8 @@ os.environ.setdefault("HOME_DIR", str(REPO_ROOT))
 os.environ.setdefault("VOLCANO_LIST", str(AUX_DIR / "volcano_list.xlsx"))
 os.environ.setdefault("TMP_FIGURE_DIR", str(REPO_ROOT / "tmp_files"))
 os.environ.setdefault("TIMEZONE", "UTC")
+# FDSN base URL used by the Swarm alarm to build its (mocked) download request.
+os.environ.setdefault("FDSN_URL", "https://service.example.com/fdsnws/event/1/query?")
 # Never touch a real alarm-history DB; the DB doubles are in-memory regardless.
 os.environ.setdefault("DB_FILE", str(REPO_ROOT / "tmp_files" / "__test_alarms__.db"))
 # Make sure no test accidentally runs as if launched from cron unless it asks.

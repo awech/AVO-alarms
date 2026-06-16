@@ -1,3 +1,4 @@
+import argparse
 import os
 import socket
 from pathlib import Path
@@ -5,10 +6,29 @@ from pathlib import Path
 from obspy import UTCDateTime
 
 from avo_alarms.utils.messaging import send_alert
-from avo_alarms.utils.setup_utils import get_logger, setup_root_logger, LockFile
+from avo_alarms.utils.setup_utils import (
+    get_logger,
+    load_environment,
+    setup_root_logger,
+    LockFile,
+)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(prog="email-test")
+    parser.add_argument(
+        "--env-file",
+        type=str,
+        help="Path to a .env file (optional, otherwise searches up the directory tree)",
+        required=False,
+    )
+    return parser.parse_args()
 
 
 def main():
+
+    args = parse_args()
+    load_environment(args.env_file)
 
     # Log and set lock directory based on cron status
     if os.getenv("FROMCRON") == "yep":

@@ -3,7 +3,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from dotenv import load_dotenv
 from obspy import UTCDateTime, read_inventory, Catalog
 from obspy.clients.fdsn import Client as FDSN_Client
 from obspy.geodetics import gps2dist_azimuth
@@ -12,8 +11,6 @@ from pandas.errors import EmptyDataError
 
 from avo_alarms.utils.setup_utils import get_logger, load_volcano_list
 from avo_alarms.utils.downloading import IRIS_client
-
-load_dotenv()
 
 logger = get_logger(__name__)
 

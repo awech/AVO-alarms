@@ -1,16 +1,34 @@
+import argparse
 import os
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import yaml
-from dotenv import load_dotenv
 
-from avo_alarms.utils.setup_utils import get_logger, setup_root_logger, LockFile
+from avo_alarms.utils.setup_utils import (
+    get_logger,
+    load_environment,
+    setup_root_logger,
+    LockFile,
+)
 
-load_dotenv()
+
+def parse_args():
+    parser = argparse.ArgumentParser(prog="update-html")
+    parser.add_argument(
+        "--env-file",
+        type=str,
+        help="Path to a .env file (optional, otherwise searches up the directory tree)",
+        required=False,
+    )
+    return parser.parse_args()
+
 
 def main():
+    args = parse_args()
+    load_environment(args.env_file)
+
     # Log and set lock directory based on cron status
     if os.getenv("FROMCRON") == "yep":
         setup_root_logger(log_dir=os.environ.get("LOGS_DIR"), config_name="Notification_HTML")

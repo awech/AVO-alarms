@@ -7,12 +7,6 @@ import pandas as pd
 from tabulate import tabulate
 
 
-# ---- Config ----
-from dotenv import load_dotenv
-load_dotenv()
-DB_PATH = Path(os.environ["DB_FILE"])
-
-
 def now_utc():
     return datetime.now(timezone.utc)
 
@@ -135,8 +129,9 @@ def record_tremor_event_ids(tremor_df, test=False):
 
 
 def get_conn(test=False, table=None):
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH, timeout=10, isolation_level=None)  # autocommit
+    db_path = Path(os.environ["DB_FILE"])
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    conn = sqlite3.connect(db_path, timeout=10, isolation_level=None)  # autocommit
     if table == "swarm":
         init_swarm_db(conn, test=test)
     elif table == "tremor":

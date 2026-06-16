@@ -7,12 +7,11 @@ import traceback
 from importlib import import_module
 from pathlib import Path
 
-from dotenv import load_dotenv
-
 from avo_alarms.utils import messaging
 from avo_alarms.utils.setup_utils import (
     get_logger,
     load_config,
+    load_environment,
     setup_root_logger,
     update_arguments,
     LockFile,
@@ -32,6 +31,12 @@ def parse_args():
         epilog="e.g.: `run-alarm avlof_RSAM` or `run-alarm --test -t 201701020205 -c Pavlof_RSAM`",
     )
     parser.add_argument("config", type=str, help="Name of the config file")
+    parser.add_argument(
+        "--env-file",
+        type=str,
+        help="Path to a .env file (optional, otherwise searches up the directory tree)",
+        required=False,
+    )
     parser.add_argument(
         "-t",
         "--time",
@@ -64,9 +69,11 @@ def main():
     """Main entry point for the alarm runner."""
     
     start = time.time()
-    load_dotenv()
 
     args = parse_args()
+
+    # Load environment: explicit --env-file if given, otherwise search upward.
+    load_environment(args.env_file)
     
     # Set up root logger first (before locking, for error messages)
     if os.getenv("FROMCRON") == "yep":

@@ -19,7 +19,30 @@ import time
 from pathlib import Path
 
 import pandas as pd
+from dotenv import load_dotenv, find_dotenv
 from obspy import UTCDateTime as utc
+
+
+def load_environment(env_file=None):
+    """
+    Load environment variables from a .env file.
+
+    Args:
+        env_file: Optional path to a .env file. If provided, that file is
+            loaded and its values override any variables already set in the
+            environment. If omitted, the directory tree is searched upward
+            for a .env file (the default python-dotenv behavior).
+
+    Raises:
+        FileNotFoundError: If an explicit env_file is given but does not exist.
+    """
+    if env_file:
+        env_path = Path(env_file)
+        if not env_path.is_file():
+            raise FileNotFoundError(f"Environment file not found: {env_path}")
+        load_dotenv(env_path, override=True)
+    else:
+        load_dotenv(find_dotenv())
 
 
 class StderrToLogger(io.TextIOBase):

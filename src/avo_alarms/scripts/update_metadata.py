@@ -1,15 +1,32 @@
+import argparse
 import os
 import time
 from pathlib import Path
 
-from dotenv import load_dotenv
-
 from avo_alarms.utils.downloading import download_station_xml
-from avo_alarms.utils.setup_utils import get_logger, setup_root_logger, LockFile
+from avo_alarms.utils.setup_utils import (
+    get_logger,
+    load_environment,
+    setup_root_logger,
+    LockFile,
+)
 
-load_dotenv()
+
+def parse_args():
+    parser = argparse.ArgumentParser(prog="update-metadata")
+    parser.add_argument(
+        "--env-file",
+        type=str,
+        help="Path to a .env file (optional, otherwise searches up the directory tree)",
+        required=False,
+    )
+    return parser.parse_args()
+
 
 def main():
+
+    args = parse_args()
+    load_environment(args.env_file)
 
     # log info if run from cron
     if os.getenv("FROMCRON") == "yep":

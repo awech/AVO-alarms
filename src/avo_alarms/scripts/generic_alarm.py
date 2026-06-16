@@ -1,18 +1,42 @@
+import argparse
 import os
-import sys
 from pathlib import Path
 
 from avo_alarms.utils.messaging import icinga
-from avo_alarms.utils.setup_utils import get_logger, setup_root_logger, LockFile
+from avo_alarms.utils.setup_utils import (
+    get_logger,
+    load_environment,
+    setup_root_logger,
+    LockFile,
+)
 
 
 def config():
     return
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(prog="generic-alarm")
+    parser.add_argument(
+        "alarm",
+        type=str,
+        help="Alarm name. Use '_' in place of spaces.",
+    )
+    parser.add_argument(
+        "--env-file",
+        type=str,
+        help="Path to a .env file (optional, otherwise searches up the directory tree)",
+        required=False,
+    )
+    return parser.parse_args()
+
+
 def main():
 
-    alarm_name = sys.argv[1].replace("_", " ")
+    args = parse_args()
+    load_environment(args.env_file)
+
+    alarm_name = args.alarm.replace("_", " ")
     config.icinga_service_name = alarm_name
     config.alarm_name = alarm_name
 

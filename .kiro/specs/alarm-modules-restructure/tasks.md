@@ -17,8 +17,8 @@ design document). Tests use `pytest`; the single correctness property uses
 
 ## Tasks
 
-- [ ] 1. Establish behavior-preservation harness and baselines (gating — before any refactor)
-  - [ ] 1.1 Create test package structure and shared test doubles
+- [x] 1. Establish behavior-preservation harness and baselines (gating — before any refactor)
+  - [x] 1.1 Create test package structure and shared test doubles
     - Add a `tests/alarms/` package (with `conftest.py`) for alarm-level tests
     - Point `CONFIGS_DIR` at the in-repo `config/` directory (the `.py` config
       modules now checked into the repo) and load configs via
@@ -34,7 +34,7 @@ design document). Tests use `pytest`; the single correctness property uses
       figure builders / `plotting.save_file` (return a sentinel path);
       `os.remove` (record the call); and a helper to set `FROMCRON` per test
     - _Requirements: 10.1, 12.1_
-  - [ ] 1.2 Capture and freeze golden behavior baselines from the current (pre-restructure) code
+  - [x] 1.2 Capture and freeze golden behavior baselines from the current (pre-restructure) code
     - Drive each alarm's `run_alarm` with recorded input fixtures using the
       doubles from 1.1 and snapshot the Behavior_Baseline: detection `state`,
       Icinga state + state message, `CRITICAL` message subject/body,
@@ -44,8 +44,8 @@ design document). Tests use `pytest`; the single correctness property uses
       restructured output equals them
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 12.2, 12.3_
 
-- [ ] 2. Create shared flow templates in `utils/alarm_flow.py`
-  - [ ] 2.1 Implement `apply_cron_latency_backup(config, T0, extra_sleep=0.0)`
+- [x] 2. Create shared flow templates in `utils/alarm_flow.py`
+  - [x] 2.1 Implement `apply_cron_latency_backup(config, T0, extra_sleep=0.0)`
     - New module `utils/alarm_flow.py`; import only `messaging`, `alarming`,
       `setup_utils` to preserve the layered, acyclic dependency direction
     - Reproduce the Cron_Latency_Backup math: `FROMCRON == "yep"` and
@@ -59,7 +59,7 @@ design document). Tests use `pytest`; the single correctness property uses
     - Tag the test: `Feature: alarm-modules-restructure, Property 1`; run 100+
       iterations over the latency domain and both `FROMCRON` states; assert the
       returned `T0` and sleep behavior for all three branches
-  - [ ] 2.3 Implement `run_send_sequence(...)` template
+  - [x] 2.3 Implement `run_send_sequence(...)` template
     - In `utils/alarm_flow.py`, implement the single Send_Sequence: `can_send`
       rate-limit check → `figure_factory()` guarded by try/except →
       `message_factory()` → `post_mattermost` guarded by try/except →
@@ -79,8 +79,8 @@ design document). Tests use `pytest`; the single correctness property uses
       (8.5); `can_send_kwargs`/`record_kwargs` forwarding reaches both callees (8.6)
     - _Requirements: 8.3, 8.4, 8.5, 8.6, 12.4_
 
-- [ ] 3. Relocate the shared spectrogram figure builder
-  - [ ] 3.1 Add `plot_spectrogram_figure(nslc, T0, config, test=False)` to `utils/plotting.py`
+- [x] 3. Relocate the shared spectrogram figure builder
+  - [x] 3.1 Add `plot_spectrogram_figure(nslc, T0, config, test=False)` to `utils/plotting.py`
     - Move the body of the current `RSAM.make_figure` (generic spectrogram
       mosaic over a list of NSLC) into `utils/plotting.py` as a shared builder
       consumed by RSAM and Tremor; do not delete `RSAM.make_figure` yet (the
@@ -91,11 +91,11 @@ design document). Tests use `pytest`; the single correctness property uses
       builds one mosaic row per trace
     - _Requirements: 5.2_
 
-- [ ] 4. Checkpoint — Ensure all tests pass
+- [x] 4. Checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 5. Restructure the three consolidated alarms (Infrasound, RSAM, Tremor)
-  - [ ] 5.1 Convert Infrasound into an Alarm_Package wired to the shared templates
+- [x] 5. Restructure the three consolidated alarms (Infrasound, RSAM, Tremor)
+  - [x] 5.1 Convert Infrasound into an Alarm_Package wired to the shared templates
     - Create `alarm_codes/Infrasound/` with `__init__.py` (the `run_alarm`
       skeleton, signature unchanged), `detection.py`
       (`setup_coordinate_system`, `calc_triggers`, `associator`, `inversion`,
@@ -113,7 +113,7 @@ design document). Tests use `pytest`; the single correctness property uses
       Icinga state/message, CRITICAL subject/body, `record_send` fields, and
       `os.remove` match the frozen baseline from 1.2
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 12.2, 12.3_
-  - [ ] 5.3 Convert RSAM into an Alarm_Package (relocate `RSAM_to_DR`, thin figure wrapper)
+  - [x] 5.3 Convert RSAM into an Alarm_Package (relocate `RSAM_to_DR`, thin figure wrapper)
     - Create `alarm_codes/RSAM/` with `__init__.py` (`run_alarm` skeleton),
       `detection.py` (relocated `RSAM_to_DR`), `figure.py` (thin `make_figure`
       delegating to `plotting.plot_spectrogram_figure`), and `message.py`
@@ -126,7 +126,7 @@ design document). Tests use `pytest`; the single correctness property uses
     - Assert state, Icinga, CRITICAL subject/body, `record_send`, and
       `os.remove` match the frozen baseline
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 12.2, 12.3_
-  - [ ] 5.5 Convert Tremor into an Alarm_Package and remove the Tremor→RSAM import
+  - [x] 5.5 Convert Tremor into an Alarm_Package and remove the Tremor→RSAM import
     - Create `alarm_codes/Tremor/` with `__init__.py` (`run_alarm` skeleton),
       `detection.py` (`test_traveltime`, `run_enveloc`, `remove_hp_detects`,
       `preprocess`, `qc_checks`, `make_env`, `create_icinga_test`), `figure.py`
@@ -143,11 +143,11 @@ design document). Tests use `pytest`; the single correctness property uses
       `os.remove` match the frozen baseline (including the `latency + taper` sleep)
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 12.2, 12.3_
 
-- [ ] 6. Checkpoint — Ensure all tests pass
+- [x] 6. Checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 7. Restructure the event-id de-dup alarms (Lightning, NOAA_CIMSS, Pilot_Report, SO2, VAA)
-  - [ ] 7.1 Convert Lightning into an Alarm_Package (relocate `download_lightning`)
+  - [x] 7.1 Convert Lightning into an Alarm_Package (relocate `download_lightning`)
     - Create `alarm_codes/Lightning/` with `__init__.py`, `detection.py`
       (relocated `download_lightning` plus `inner_outer`, `get_state_message`,
       `get_direction`), `figure.py` (`plot_fig`), `message.py`; import
@@ -158,7 +158,7 @@ design document). Tests use `pytest`; the single correctness property uses
     - Assert state, Icinga, CRITICAL subject/body, `record_send`, and
       `os.remove` match the frozen baseline
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 12.2, 12.3_
-  - [ ] 7.3 Convert NOAA_CIMSS into an Alarm_Package (relocate CIMSS-only functions)
+  - [x] 7.3 Convert NOAA_CIMSS into an Alarm_Package (relocate CIMSS-only functions)
     - Create `alarm_codes/NOAA_CIMSS/` with `__init__.py`, `detection.py`
       (relocated `download_cimss_vv_api`, `scrape_cimss_alert`,
       `get_cimss_image`, `format_cimss_dataframe`, `check_ignore_volcano`, plus
@@ -170,7 +170,7 @@ design document). Tests use `pytest`; the single correctness property uses
     - Assert state, Icinga, CRITICAL subject/body, `record_send`, and
       `os.remove` match the frozen baseline
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 12.2, 12.3_
-  - [ ] 7.5 Convert Pilot_Report into an Alarm_Package (relocate PIREP-only functions)
+  - [x] 7.5 Convert Pilot_Report into an Alarm_Package (relocate PIREP-only functions)
     - Create `alarm_codes/Pilot_Report/` with `__init__.py`, `detection.py`
       (relocated `download_pilot_reports`, `pirep_archive_to_dataframe`,
       `check_volcano_mention`, plus `get_height_text`, `get_pilot_remark`),
@@ -180,7 +180,7 @@ design document). Tests use `pytest`; the single correctness property uses
     - Assert state, Icinga, CRITICAL subject/body, `record_send`, and
       `os.remove` match the frozen baseline
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 12.2, 12.3_
-  - [ ] 7.7 Convert SO2 into an Alarm_Package (relocate `download_SO2`)
+  - [x] 7.7 Convert SO2 into an Alarm_Package (relocate `download_SO2`)
     - Create `alarm_codes/SO2/` with `__init__.py`, `detection.py` (relocated
       `download_SO2` plus `get_so2_images`), `figure.py` (`plot_fig`),
       `message.py`; import `download_SO2` from `.detection`; keep shared
@@ -190,7 +190,7 @@ design document). Tests use `pytest`; the single correctness property uses
     - Assert state, Icinga, CRITICAL subject/body, `record_send`, and
       `os.remove` match the frozen baseline
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 12.2, 12.3_
-  - [ ] 7.9 Convert VAA into an Alarm_Package (relocate `download_mesonet_vaa_list`)
+  - [x] 7.9 Convert VAA into an Alarm_Package (relocate `download_mesonet_vaa_list`)
     - Create `alarm_codes/VAA/` with `__init__.py`, `detection.py` (relocated
       `download_mesonet_vaa_list` plus `process_vaa_id`, `process_polygons`,
       `text_to_latlon`, `get_extent`), `figure.py` (VAA `make_map`),
@@ -201,11 +201,11 @@ design document). Tests use `pytest`; the single correctness property uses
       `os.remove` match the frozen baseline
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 12.2, 12.3_
 
-- [ ] 8. Checkpoint — Ensure all tests pass
+- [x] 8. Checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 9. Restructure the remaining alarms (Magnitude, Swarm)
-  - [ ] 9.1 Convert Magnitude into an Alarm_Package
+- [x] 9. Restructure the remaining alarms (Magnitude, Swarm)
+  - [x] 9.1 Convert Magnitude into an Alarm_Package
     - Create `alarm_codes/Magnitude/` with `__init__.py`, `detection.py`
       (`process_event`), `figure.py` (`plot_event`), `message.py`; import
       shared `addPhaseHint`, `eq_picks_to_dataframe`, `find_nearest_volcano`,
@@ -216,7 +216,7 @@ design document). Tests use `pytest`; the single correctness property uses
     - Assert state, Icinga, CRITICAL subject/body, `record_send`, and
       `os.remove` match the frozen baseline
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 12.2, 12.3_
-  - [ ] 9.3 Convert Swarm into an Alarm_Package
+  - [x] 9.3 Convert Swarm into an Alarm_Package
     - Create `alarm_codes/Swarm/` with `__init__.py`, `detection.py`
       (`get_swarms`, `check_swarm_continue`, `compare_swarms`,
       `build_download_url`), `figure.py` (Swarm `make_figure`), `message.py`;
@@ -228,8 +228,8 @@ design document). Tests use `pytest`; the single correctness property uses
       `os.remove` match the frozen baseline
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 12.2, 12.3_
 
-- [ ] 10. Remove orphaned definitions from Shared_Utils and verify integrity
-  - [ ] 10.1 Delete relocated single-consumer functions from `utils/`
+- [x] 10. Remove orphaned definitions from Shared_Utils and verify integrity
+  - [x] 10.1 Delete relocated single-consumer functions from `utils/`
     - Remove from `processing.py`: `RSAM_to_DR`, `check_ignore_volcano`,
       `format_cimss_dataframe`, `pirep_archive_to_dataframe`,
       `check_volcano_mention`; from `downloading.py`: `download_lightning`,
@@ -251,7 +251,7 @@ design document). Tests use `pytest`; the single correctness property uses
       another alarm package
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 4.4, 11.1, 11.2, 11.3, 11.4_
 
-- [ ] 11. Final checkpoint — Ensure all tests pass
+- [x] 11. Final checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes

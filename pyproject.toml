@@ -59,3 +59,8 @@ list-alerts = "avo_alarms.scripts.list_alerts:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/avo_alarms"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+addopts = "-ra"

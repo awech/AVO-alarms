@@ -1,0 +1,18 @@
+{
+  "call_order": [
+    "download_hypocenters_csv",
+    "icinga"
+  ],
+  "detection_state": "OK",
+  "icinga": [
+    {
+      "send": true,
+      "state": "OK",
+      "state_message": "2025-01-01 00:00 (UTC) No new earthquakes"
+    }
+  ],
+  "os_remove": [],
+  "post_mattermost": [],
+  "record_send": [],
+  "send_alert": []
+}

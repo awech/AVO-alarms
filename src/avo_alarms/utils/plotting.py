@@ -1,4 +1,5 @@
 import os
+import time
 import importlib
 from pathlib import Path
 
@@ -17,7 +18,7 @@ from matplotlib.path import Path as mpath
 from matplotlib.colors import LinearSegmentedColormap
 from obspy import UTCDateTime as utc
 from avo_alarms.utils.setup_utils import get_logger, load_volcano_list
-from avo_alarms.utils import processing
+from avo_alarms.utils import downloading, processing
 
 logger = get_logger(__name__)
 m.use("Agg")
@@ -757,3 +758,55 @@ def format_spec_xaxis(ax, tr, st, i, config, duration=None):
         ax.set_xticklabels([t.strftime(tick_fmt) for t in T])
         ax.tick_params("x", labelsize=5)
         ax.set_xlabel(tr.stats.starttime.strftime("%Y-%b-%d"))
+
+
+def plot_spectrogram_figure(nslc, T0, config, test=False):
+    """Shared spectrogram-mosaic figure builder.
+
+    Originally RSAM.make_figure; extracted here so both RSAM and Tremor
+    alarm modules can share the same plotting logic.
+
+    Parameters
+    ----------
+    nslc : list
+        List of NSLC strings to plot.
+    T0 : obspy.UTCDateTime
+        End time of the plot window.
+    config : object
+        Alarm configuration object (must have at least `alarm_name`;
+        optionally `plot_duration`).
+    test : bool, optional
+        If True, stamp the figure with a TEST watermark, by default False.
+
+    Returns
+    -------
+    pathlib.Path
+        Path to the saved JPG figure file.
+    """
+
+    #### grab data ####
+    start = time.time()
+    t_win = config.plot_duration if hasattr(config, "plot_duration") else 3600
+    st = downloading.download_waveforms(nslc, T0 - t_win, T0, fill_value="interpolate")
+    logger.info(f"{time.time() - start:.2f} seconds to grab figure data.")
+
+    #### preprocess data ####
+    st.detrend("demean")
+    [tr.decimate(2, no_filter=True) for tr in st if tr.stats.sampling_rate == 100]
+    [tr.decimate(2, no_filter=True) for tr in st if tr.stats.sampling_rate == 50]
+    [tr.resample(25) for tr in st if tr.stats.sampling_rate != 25]
+
+    #### generate the figure ####
+    axes_list = [[f"{tr.stats.station}.{tr.stats.channel}"] for tr in st]
+    fig, ax = plt.subplot_mosaic(axes_list, figsize=(4.5, 4.5))
+
+    for i, tr in enumerate(st):
+        name = f"{tr.stats.station}.{tr.stats.channel}"
+        plot_spectrogram(ax[name], tr)
+        format_spec_xaxis(ax[name], tr, st, i, config)
+
+    plt.subplots_adjust(left=0.08, right=0.94, top=0.92, bottom=0.1, hspace=0.1)
+
+    jpg_file = save_file(fig, config, test=test, dpi=250)
+
+    return jpg_file

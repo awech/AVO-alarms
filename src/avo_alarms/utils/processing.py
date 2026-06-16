@@ -1,10 +1,8 @@
 import os
 from pathlib import Path
-from shutil import rmtree
 
 import numpy as np
 import pandas as pd
-import shapefile
 from dotenv import load_dotenv
 from obspy import UTCDateTime, read_inventory, Catalog
 from obspy.clients.fdsn import Client as FDSN_Client
@@ -46,27 +44,6 @@ def compare_to_old_events(df, event_file, default_cols, unique_id_col="id"):
     return new_events_df, df
 
 
-def check_ignore_volcano(cimss_df, alert_type=None):
-
-    volcs = load_volcano_list().set_index("Name")
-    alert_dict = {"ash": "NOAA Ash", "hot": "NOAA Thermal", "ice": "NOAA Ice"}
-    
-    cimss_df["keep"] = True
-
-    alert_name = alert_type
-    for i, row in cimss_df.iterrows():
-        if alert_type is None:
-            alert_name = alert_dict[row.alert_type]
-        if alert_name not in volcs.columns:
-            logger.info(f"\'{alert_dict[row.alert_type]}\' not a column in {os.getenv('VOLCANO_LIST')}")
-            continue
-        if volcs.loc[row.v_name, alert_name] == "N":
-            logger.info(f"{row.v_name} has \'{alert_name}\' column set to \'N\'")
-            cimss_df.loc[i, "keep"] = False
-
-    return cimss_df
-
-
 def write_to_csv(df, config, columns):
 
     logger.info(f"Writing {len(df)} events to {config.outfile}")
@@ -76,114 +53,6 @@ def write_to_csv(df, config, columns):
     df.to_csv(config.outfile, columns=columns, index=False, date_format='%Y-%m-%d %H:%M:%S.%f')
 
     return
-
-
-def format_cimss_dataframe(cimss_df, config, T0):
-
-    # update DataFrame with unique NOAA/CIMSS id
-    # Remove rows with empty alert_url and extract NOAA_id
-    cimss_df = cimss_df[cimss_df["alert_url"].notna() & (cimss_df["alert_url"] != "")]
-    cimss_df["NOAA_id"] = pd.to_numeric(
-        cimss_df["alert_url"].str.split("/").str[-1],
-        errors="coerce",
-        downcast="integer",
-    )
-    cimss_df = cimss_df[cimss_df["NOAA_id"].notna()]
-
-    cimss_df["time"] = pd.to_datetime(cimss_df["object_date_time"])
-
-    if len(cimss_df) > 0:
-        cimss_df.loc[:, "aid"] = np.nan
-        cimss_df = cimss_df.sort_values("time")
-
-    return cimss_df
-
-
-def pirep_archive_to_dataframe(T0, config, archive):
-
-    T2 = T0
-    T1 = T2 - config.duration
-
-    tmp_zipped_dir = Path("tmp_files") / "tmp_zipped_dir"
-    archive.extractall(path=tmp_zipped_dir)
-    T1_str = T1.strftime('%Y%m%d%H%M')
-    T2_str = T2.strftime('%Y%m%d%H%M')
-    shp_path = tmp_zipped_dir / f"pireps_{T1_str}_{T2_str}"
-
-    # read file, parse out the records
-    sf = shapefile.Reader(shp_path)
-    fields = [x[0] for x in sf.fields][1:]
-    records = sf.records()
-
-    # convert to a DataFrame
-    pirep_df = pd.DataFrame(columns=fields, data=records)
-    pirep_df['VALID'] = pd.to_datetime(pirep_df['VALID'])
-    pirep_df = pirep_df[pirep_df.LAT>49]
-    pirep_df["time"] = pd.to_datetime(pirep_df["VALID"])
-    pirep_df["lat"] = pirep_df["LAT"]
-    pirep_df["lon"] = pirep_df["LON"]
-
-    # delete duplicate events with different text versions in the 'REPORT' field'
-    A = pirep_df.copy()
-    del A['REPORT']
-    A.drop_duplicates(inplace=True)
-    pirep_df = pirep_df.loc[A.index]
-    pirep_df.reset_index(drop=True, inplace=True)
-
-    rmtree(tmp_zipped_dir)
-
-    return pirep_df
-
-
-def check_volcano_mention(df):
-    df["trigger"] = False
-    for i, row in df.iterrows():
-        report = row["REPORT"].upper()
-        tmp_report = report.replace("VAR", "")
-        tmp_report = tmp_report.replace("VAL", "")
-        tmp_report = tmp_report.replace("VAT", "")
-        tmp_report = tmp_report.replace("NEVA", "")
-        tmp_report = tmp_report.replace("AVAIL", "")
-        tmp_report = tmp_report.replace("SVA", "")
-        tmp_report = tmp_report.replace("PREVAIL", "")
-        tmp_report = tmp_report.replace("VASI", "")
-        tmp_report = tmp_report.replace("TOLOVANA", "")
-        tmp_report = tmp_report.replace("GAVANSKI", "")
-        tmp_report = tmp_report.replace("CORDOVA", "")
-        tmp_report = tmp_report.replace("ADVANC", "")
-        tmp_report = tmp_report.replace("INVAD", "")
-        tmp_report = tmp_report.replace("VACINITY", "")
-        tmp_report = tmp_report.replace("SULLIVAN", "")
-        tmp_report = tmp_report.replace("BELIEVABLE", "")
-        tmp_report = tmp_report.replace("DURD VA RWY", "")
-        if (
-            len(tmp_report.split("/SK")) > 1
-            and "VA" in tmp_report.split("/SK")[-1].split("/")[0]
-        ):
-            df.loc[i, "trigger"] = True
-        elif (
-            len(tmp_report.split("/RM")) > 1
-            and "VA" in tmp_report.split("/RM")[-1].split("/")[0]
-        ):
-            df.loc[i, "trigger"] = True
-
-        trigger_words = [
-            " ASH",
-            "/ASH",
-            "VOLC",
-            "SULFUR",
-            "SULPHUR",
-            "PLUME",
-            "ERUPT",
-            "STEAM",
-            "MAGMA",
-            "PYROCLASTIC",
-        ]
-
-        if any(t_word in report for t_word in trigger_words):
-            df.loc[i, "trigger"] = True
-
-    return df
 
 
 def find_nearest_volcano(df, lon_col="longitude", lat_col="latitude", volc_df=None):
@@ -433,71 +302,6 @@ def Dr_to_RSAM(config, DR, volcano_name, base=25):
         logger.info(f"{nslc}: {lvl:g}")
 
     return
-
-
-def RSAM_to_DR(tr, volcano_name, VELOCITY=1.5, FREQ=2, Q=200):
-    """_summary_
-
-
-
-    VELOCITY = 1.5 	# km/s
-    FREQ = 2 		# dominant frequency (Hz)
-    Q = 200			# quality factor
-
-    Parameters
-    ----------
-    tr : _type_
-        _description_
-    volcano_name : _type_
-        _description_
-    VELOCITY : float, optional
-        _description_, by default 1.5
-    FREQ : int, optional
-        _description_, by default 2
-    Q : int, optional
-        _description_, by default 200
-
-    Returns
-    -------
-    _type_
-        _description_
-
-
-    """
-
-    VOLCS = load_volcano_list()
-    volcs = VOLCS[VOLCS["Name"] == volcano_name].copy()
-
-    xml_file = Path(os.getenv("STATION_XML", "blank"))
-    if not xml_file.exists():
-        logger.error("Station XML file missing")
-        return
-
-    inventory = read_inventory(xml_file)
-
-    coords = inventory.get_coordinates(tr.id)
-    gain = inventory.get_response(
-        tr.id, tr.stats.starttime
-    ).instrument_sensitivity.value  # counts/m/s
-
-    volcs = volcano_distance(coords["longitude"], coords["latitude"], volcs)
-    R = volcs.iloc[0].distance
-
-    r = R * 1000 * 100
-    velocity = VELOCITY * 1000 * 100
-    wavelength = velocity / FREQ
-
-    #### account for attenuation ####
-    numerator = -np.pi * FREQ * r
-    denominator = Q * velocity
-    atten_factor = np.exp(numerator / denominator)
-
-    lvl = np.sqrt(np.mean(np.square(tr.data)))  # rms level in counts
-    rms_v = lvl / (gain * atten_factor)         # rms in m/s corrected for gain & attenuation
-    rmssta = rms_v * 100 / (2 * np.pi * FREQ)   # converted to cm
-    DR = rmssta * np.sqrt(r * wavelength)       # converted to reduced displacement
-
-    return DR
 
 
 def check_inventory(tr, inv):

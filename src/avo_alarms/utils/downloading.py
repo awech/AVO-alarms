@@ -1,12 +1,9 @@
 import importlib
 import io
-import json
 import os
 import socket
 import time
-import zipfile
 from pathlib import Path
-from urllib.parse import urljoin, urlparse
 
 import numpy as np
 import pandas as pd
@@ -18,7 +15,7 @@ from obspy.clients.earthworm import Client as EW_Client
 from obspy.clients.fdsn import Client as FDSN_Client
 from obspy.io.quakeml.core import Unpickler
 
-from avo_alarms.utils.setup_utils import get_logger, load_volcano_list
+from avo_alarms.utils.setup_utils import get_logger
 
 load_dotenv()
 urllib3.disable_warnings()
@@ -235,177 +232,6 @@ def download_waveforms(nslc_list, T1, T2, fill_value=0, iris=False):
     return st
 
 
-def download_lightning(force=False):
-
-    logger.info("Reading in alerts from volcview api .json file")
-    attempt = 1
-    max_tries = 3
-    lightning_url = os.getenv("LIGHTNING_URL")
-    if force:
-        logger.warning("Forcing trigger by pointing to global data source")
-        lightning_url = lightning_url.replace("avorecent", "recent")
-        lightning_url = lightning_url.replace("avo-volcview", "volcview")
-    while attempt <= max_tries:
-        try:
-            data = json.load(
-                os.popen(
-                    'curl --connect-timeout 5 -H "username:{}" -H "password:{}" -X GET {}'.format(
-                        os.getenv("API_USERNAME"),
-                        os.getenv("API_PASSWORD"),
-                        lightning_url,
-                    )
-                )
-            )
-            strokes_df = pd.DataFrame(data["lightning"])
-            if len(strokes_df) >= 1:
-                column_rename = {
-                    "lightningLatitude": "latitude",
-                    "lightningLongitude": "longitude",
-                    "lightningDate": "time",
-                    "lightningId": "id",
-                    "dataSource": "dataSource",
-                    "volcanoName": "api_vname",
-                    "volcanoLatitude": "api_vlat",
-                    "volcanoLongitude": "api_vlon",
-                    "nearestDistanceKm": "api_vdist",
-                }
-                strokes_df.rename(columns=column_rename, inplace=True)
-                strokes_df["time"] = pd.to_datetime(strokes_df["time"])
-                strokes_df = strokes_df[column_rename.values()]
-            break
-        except Exception as e:
-            logger.warning(f"Error getting data from Volcview-API on attempt {attempt:g}")
-            logger.warning(e)
-            time.sleep(2)
-            attempt += 1
-            strokes_df = None
-
-    return strokes_df
-
-
-def download_cimss_vv_api():
-
-    usr = os.getenv("API_USERNAME")
-    pwd = os.getenv("API_PASSWORD")
-    url = os.getenv("NOAA_CIMSS_URL")
-
-    attempt = 1
-    max_tries = 3
-    while attempt <= max_tries:
-        try:
-            result = os.popen(
-                f"curl --connect-timeout 5 --max-time 20 -H 'username:{usr}' -H 'password:{pwd}' -X GET {url}"
-            )
-            cimss_df = pd.read_json(result)
-            break
-        except Exception as e:
-            logger.warning(f"Error getting data from Volcview-API on attempt {attempt:g}")
-            logger.warning(e)
-            time.sleep(2)
-            attempt += 1
-            cimss_df = None
-    return cimss_df
-
-
-def download_pilot_reports(T0, config):
-
-    volcs = load_volcano_list()
-    volcs = volcs[volcs["PIREP"] == "Y"]
-
-    T2 = T0
-    T1 = T2 - config.duration
-
-    t1 = (
-        f"&year1={T1.strftime('%Y')}"
-        f"&month1={T1.strftime('%m')}"
-        f"&day1={T1.strftime('%d')}"
-        f"&hour1={T1.strftime('%H')}"
-        f"&minute1={T1.strftime('%M')}"
-    )
-    t2 = (
-        f"&year2={T2.strftime('%Y')}"
-        f"&month2={T2.strftime('%m')}"
-        f"&day2={T2.strftime('%d')}"
-        f"&hour2={T2.strftime('%H')}"
-        f"&minute2={T2.strftime('%M')}"
-    )
-    pirep_url = f"{os.getenv('PIREP_URL')}?fmt=shp{t1}{t2}"
-
-    state = "OK"
-    archive = None
-    tmp_zipfile = Path("tmp_files") / "pireps.zip"
-    try:
-        with open(tmp_zipfile, "wb") as f:
-            resp = requests.get(pirep_url, verify=False, timeout=10)
-            f.write(resp.content)
-    except Exception:
-        logger.error("Request error from PIREP API")
-        state = "WARNING"
-        return state, archive
-
-    if zipfile.is_zipfile(tmp_zipfile):
-        archive = zipfile.ZipFile(tmp_zipfile, "r")
-        logger.info("New pilot reports from API call")
-    else:
-        logger.info("No new pilot reports from API call")
-
-    os.remove(tmp_zipfile)
-
-    return state, archive
-
-
-def scrape_cimss_alert(alert):
-    from bs4 import BeautifulSoup
-
-    attempt = 1
-    max_tries = 3
-
-    while attempt <= max_tries:
-        try:
-            soup = BeautifulSoup(
-                requests.get(alert.alert_url, verify=False, timeout=10).content
-            )
-            redir = soup.select_one("#loginform-custom")["action"]
-
-            # This URL will be the URL that your login form points to with the "action" tag.
-            POST_LOGIN_URL = redir
-            # This URL is the page you actually want to pull down with requests.
-            REQUEST_URL = alert.alert_url
-
-            payload = {"log": os.environ["CIMSS_USERNAME"], "pwd": os.environ["CIMSS_PASSWORD"]}
-
-            with requests.Session() as session:
-                session.post(POST_LOGIN_URL, data=payload, verify=False, timeout=10)
-                r = session.get(REQUEST_URL, verify=False, timeout=10)
-                soup = BeautifulSoup(r.content)
-            session.close()
-            break
-        except Exception:
-            logger.warning(f"Error scraping NOAA CIMSS alert on attempt {attempt:g}")
-            if attempt == max_tries:
-                soup = None
-            attempt += 1
-
-    return soup
-
-
-def get_cimss_image(soup, alert, config):
-
-    base_url = "://".join(urlparse(alert.alert_url)[:2])
-    image_files = soup.find(class_="alert_images").find_all("img")
-    img_file = Path("tmp_files/noaa_out_.png")
-    for i, img in enumerate(image_files):
-        img.get("src")
-        im_url = urljoin(base_url, img.get("src"))
-        r = requests.get(im_url, verify=False, timeout=10)
-
-        if r.status_code == 200:
-            new_file = Path(str(img_file).replace(".png", f"{i+1:g}.png"))
-            with open(new_file, "wb") as out:
-                for bits in r.iter_content():
-                    out.write(bits)
-
-
 def download_vaa_from_nws_api():
     ## this is currently not implemented. Testing out mesonet as preferred option
     attempt = 1
@@ -425,58 +251,6 @@ def download_vaa_from_nws_api():
                 logger.error(f"Problem connecting to VAA API after {max_tries} attempts")
                 
     return vaa_id_list
-
-
-def download_mesonet_vaa_list(T0):
-    logger.info(
-        f"Reading in alerts from mesonet api .json file for {T0.strftime('%Y-%m-%d')}"
-    )
-
-    vaa_url = os.getenv("VAA_URL") + f"&date={T0.strftime('%Y-%m-%d')}"
-
-    attempt = 1
-    max_tries = 3
-    vaa_id_list = None
-    while attempt <= max_tries:
-        try:
-            response = requests.get(vaa_url, timeout=10, verify=False)
-            data = response.json()
-            vaa_id_list = pd.DataFrame(data["data"])
-            if not vaa_id_list.empty:
-                vaa_id_list = vaa_id_list["text_link"].to_frame()
-            else:
-                vaa_id_list["text_link"] = ""
-            break
-        except Exception:
-            logger.warning(f"Page error on attempt number {attempt:g}")
-            attempt += 1	
-            if attempt == max_tries:
-                logger.error(f'Problem connecting to VAA API after {max_tries} attempts')
-                
-    return vaa_id_list
-
-
-def download_SO2():
-    from bs4 import BeautifulSoup
-
-    logger.info("Reading SACS SO2 webpage")
-    attempt = 1
-    max_tries = 3
-    while attempt <= max_tries:
-        try:
-            page = requests.get(os.getenv("SACS_URL"), verify=False, timeout=10)
-            soup = BeautifulSoup(page.content, "html.parser")
-            table = soup.find_all("pre")[0]
-            break
-        except Exception as e:
-            logger.warning(f"Error scraping SO2 webpage on attempt {attempt:g}")
-            logger.warning(e)
-            time.sleep(2)
-            attempt += 1
-            table = None
-            soup = None
-
-    return table, soup
 
 
 def download_station_xml():

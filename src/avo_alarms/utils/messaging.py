@@ -392,26 +392,6 @@ def post_mattermost(config, subject, body, attachment=None, send=False, test=Fal
     return url
 
 
-def cimss_mm_channels(alert, config, subject, message, attachment, test_flag, mm_flag):
-    
-    ##################################################################
-    # Send thermal alerts to their own channel
-    if (alert.alert_type == "hot") and ("THERMAL" in alert.alert_header):
-        if alert.v_distance < getattr(config, "thermal_alert_dist", 20):
-            config.mattermost_channel_id = config.thermal_alerts_mm
-            post_mattermost(config, subject, message, attachment=attachment, send=mm_flag, test=test_flag)
-    ##################################################################
-
-    ##################################################################
-    # Send alerts for elevated volcanoes to their own channel
-    if (alert.v_distance < config.elevated_volcano_dist) and (alert.v_name in config.elevated_volcano_list):
-        config.mattermost_channel_id = config.elevated_volcano_mm
-        post_mattermost(config, subject, message, attachment=attachment, send=mm_flag, test=test_flag)
-    ##################################################################
-
-    return
-
-
 def format_timestring(t1, t2=None):
 
     t1_str = t1.strftime("%Y-%m-%d %H:%M")

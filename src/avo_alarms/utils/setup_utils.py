@@ -23,10 +23,19 @@ import yaml
 from dotenv import load_dotenv, find_dotenv
 from obspy import UTCDateTime as utc
 
+# Absolute project root, derived from this file's location:
+# src/avo_alarms/utils/setup_utils.py → 3 parents up = project root
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+TMP_DIR = PROJECT_ROOT / "tmp_files"
+
 
 def load_environment(env_file=None):
     """
-    Load environment variables from a .env file.
+    Load environment variables from a .env file and apply sensible defaults.
+
+    After loading the dotenv file, sets defaults for path-based variables that
+    can be inferred from the project layout. Variables already set (via .env or
+    the shell environment) are never overwritten.
 
     Args:
         env_file: Optional path to a .env file. If provided, that file is
@@ -44,6 +53,23 @@ def load_environment(env_file=None):
         load_dotenv(env_path, override=True)
     else:
         load_dotenv(find_dotenv())
+
+    # Project root derived from package location (stable regardless of cwd):
+    # src/avo_alarms/utils/setup_utils.py → 3 parents up = project root
+    _project_root = PROJECT_ROOT
+
+    # --- Path defaults (overridden by .env or shell exports) ---
+    os.environ.setdefault("HOME_DIR", str(_project_root))
+    os.environ.setdefault("CONFIGS_DIR", str(_project_root / "config"))
+    os.environ.setdefault("LOGS_DIR", str(_project_root / "logs"))
+    os.environ.setdefault("LOCK_DIR", str(_project_root / "lock_files"))
+    os.environ.setdefault("TMP_FIGURE_DIR", str(TMP_DIR))
+    os.environ.setdefault("DB_FILE", str(TMP_DIR / "alarms_sent.db"))
+    os.environ.setdefault("DISTRIBUTION_FILE", str(_project_root / "config" / "distribution.yml"))
+    os.environ.setdefault("PHONEBOOK_FILE", str(_project_root / "config" / "phonebook.yml"))
+
+    # --- Non-path defaults ---
+    os.environ.setdefault("TIMEZONE", "US/Alaska")
 
 
 class StderrToLogger(io.TextIOBase):

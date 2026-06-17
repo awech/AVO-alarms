@@ -17,7 +17,7 @@ os.chdir(script_dir.parent)
 # add to path
 sys.path.append(os.getcwd())
 
-plt.style.use(Path("utils") / "alarms.mplstyle")
+plt.style.use(Path("src/avo_alarms/data") / "alarms.mplstyle")
 from utils import plotting
 
 

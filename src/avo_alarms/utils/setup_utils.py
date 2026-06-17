@@ -226,7 +226,8 @@ def load_volcano_list(volcano_file=None):
     ----------
     volcano_file : str, Path, or None
         Path to the volcano list file (.xlsx, .csv, or .txt). If None (default),
-        loads from VOLCANO_LIST environment variable.
+        loads from VOLCANO_LIST environment variable. If that is also unset,
+        falls back to the bundled volcano_list.xlsx in avo_alarms.data.
 
     Returns
     -------
@@ -241,9 +242,9 @@ def load_volcano_list(volcano_file=None):
     if volcano_file is None:
         volcano_file = os.environ.get("VOLCANO_LIST")
         if volcano_file is None:
-            raise ValueError(
-                "VOLCANO_LIST environment variable not set and no volcano_file provided"
-            )
+            from importlib.resources import files
+
+            volcano_file = files("avo_alarms.data").joinpath("volcano_list.xlsx")
     
     volcano_file = Path(volcano_file)
     

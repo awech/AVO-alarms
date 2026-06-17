@@ -20,12 +20,14 @@ from pathlib import Path
 
 import pytest
 
+from importlib.resources import files
+
 from tests.alarms.doubles import AlarmDoubles, CallRecorder, FakeAlarmDB, install
 
 # Repo root is two levels up from tests/alarms/.
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONFIG_DIR = REPO_ROOT / "config"
-AUX_DIR = REPO_ROOT / "alarm_aux_files"
+DATA_DIR = files("avo_alarms.data")
 
 # ---------------------------------------------------------------------------
 # Environment setup (applied at import so it is in place before any avo_alarms
@@ -35,7 +37,7 @@ AUX_DIR = REPO_ROOT / "alarm_aux_files"
 os.environ["CONFIGS_DIR"] = str(CONFIG_DIR)
 os.environ.setdefault("HOME_DIR", str(REPO_ROOT))
 # Keep the harness self-contained: point data files at in-repo copies / temp.
-os.environ.setdefault("VOLCANO_LIST", str(AUX_DIR / "volcano_list.xlsx"))
+os.environ.setdefault("VOLCANO_LIST", str(DATA_DIR.joinpath("volcano_list.xlsx")))
 os.environ.setdefault("TMP_FIGURE_DIR", str(REPO_ROOT / "tmp_files"))
 os.environ.setdefault("TIMEZONE", "UTC")
 # FDSN base URL used by the Swarm alarm to build its (mocked) download request.

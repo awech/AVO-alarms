@@ -5,6 +5,7 @@ import os
 import time
 import traceback
 from importlib import import_module
+from importlib.resources import files
 from pathlib import Path
 
 from avo_alarms.utils import messaging
@@ -129,7 +130,7 @@ def main():
         message = "".join(f"{a}\n" for a in b.splitlines())
         message = f"{str(args.time)}\n\n{message}"
         subject = config.alarm_name + " error"
-        filename = Path("alarm_aux_files") / "oops.jpg"
+        filename = files("avo_alarms.data").joinpath("oops.jpg")
         messaging.send_alert("Error", subject, message, attachment=filename)
     finally:
         # Always release the lock

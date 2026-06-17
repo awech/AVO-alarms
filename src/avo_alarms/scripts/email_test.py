@@ -1,6 +1,7 @@
 import argparse
 import os
 import socket
+from importlib.resources import files
 from pathlib import Path
 
 from obspy import UTCDateTime
@@ -54,7 +55,7 @@ def main():
         message = f"{T0.strftime('%Y-%m-%d %H:%M')} from {hostname} user {os.environ.get('LOGNAME')}"
         subject = "Alarm Email Test"
 
-        attachment = Path(os.environ["HOME_DIR"]) / "alarm_aux_files" / "oops.jpg"
+        attachment = files("avo_alarms.data").joinpath("oops.jpg")
         send_alert("Error", subject, message, attachment)
         logger.info("Finished")
     finally:

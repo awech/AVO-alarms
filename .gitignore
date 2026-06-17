@@ -19,5 +19,7 @@ phonebook.yml
 build/
 dist/
 
-alarm_aux_files/*.db*
-alarm_aux_files/*.xlsx
+# Runtime database (path set via DB_FILE env var)
+*.db
+*.db-wal
+*.db-shm

@@ -8,7 +8,6 @@ logs/*.log
 .env
 
 .vscode/
-.vscode/*
 
 .gitlab-ci.yml
 

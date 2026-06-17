@@ -83,6 +83,8 @@ def load_environment(env_file=None):
             
     # --- Non-path defaults ---
     os.environ.setdefault("TIMEZONE", "US/Alaska")
+    os.environ.setdefault("LOG_HOUR_INTERVAL", "12")
+    os.environ.setdefault("LOG_DAYS_KEEP", "7")
 
 
 class StderrToLogger(io.TextIOBase):
@@ -413,32 +415,32 @@ def setup_root_logger(
         # Create log directory if it doesn't exist
         Path(log_dir).mkdir(parents=True, exist_ok=True)
 
-        # Generate filename with current time rounded to nearest 4-hour mark
-        # Time format: YYYYMMDD-HH where HH is 00, 04, 08, 12, 16, or 20
+        # Generate filename with current time rounded to nearest interval
+        log_hour_interval = int(os.environ["LOG_HOUR_INTERVAL"])
+        log_days_keep = int(os.environ["LOG_DAYS_KEEP"])
         current_time = time.localtime()
         hour = current_time.tm_hour
-        rounded_hour = (hour // 4) * 4
+        rounded_hour = (hour // log_hour_interval) * log_hour_interval
         current_time_str = f"{time.strftime('%Y%m%d', current_time)}-{rounded_hour:02d}"
         log_file = os.path.join(log_dir, f"{config_name}-{current_time_str}.log")
 
         # TimedRotatingFileHandler
-        # when='H', interval=12 -> rotate every 12 hours
-        # backupCount=14 -> keep 14 rotations = 7 days (14 / 2 rotations per day)
+        rotations_per_day = 24 // log_hour_interval
+        backup_count = log_days_keep * rotations_per_day
         handler = logging.handlers.TimedRotatingFileHandler(
             filename=log_file,
             when="H",
-            interval=12,
-            backupCount=14,
+            interval=log_hour_interval,
+            backupCount=backup_count,
             encoding="utf-8",
         )
 
-        # Custom namer: when file rotates, rename with timestamp rounded to 4-hour mark
+        # Custom namer: when file rotates, rename with timestamp rounded to interval
         def namer(default_name):
-            # Rotate timestamp rounded to nearest 4-hour mark (00, 04, 08, 12, 16, 20)
             rotation_time = time.localtime()
             rotation_hour = rotation_time.tm_hour
-            rounded_hour = (rotation_hour // 4) * 4
-            rotation_time_str = f"{time.strftime('%Y%m%d', rotation_time)}-{rounded_hour:02d}"
+            rounded_hr = (rotation_hour // log_hour_interval) * log_hour_interval
+            rotation_time_str = f"{time.strftime('%Y%m%d', rotation_time)}-{rounded_hr:02d}"
             return os.path.join(log_dir, f"{config_name}-{rotation_time_str}.log")
 
         handler.namer = namer

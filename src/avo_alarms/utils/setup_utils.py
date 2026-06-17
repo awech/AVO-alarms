@@ -62,7 +62,7 @@ def load_environment(env_file=None):
     os.environ.setdefault("HOME_DIR", str(_project_root))
     os.environ.setdefault("CONFIGS_DIR", str(_project_root / "config"))
     os.environ.setdefault("LOGS_DIR", str(_project_root / "logs"))
-    os.environ.setdefault("LOCK_DIR", str(_project_root / "lock_files"))
+    os.environ.setdefault("LOCK_DIR", str(_project_root / "locks"))
     os.environ.setdefault("TMP_FIGURE_DIR", str(TMP_DIR))
     
     # --- File Path defaults (overridden by .env or shell exports) ---

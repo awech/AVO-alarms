@@ -3,9 +3,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
-logs/*.out
 logs/*.log
-logs/*.lock
 
 .env
 

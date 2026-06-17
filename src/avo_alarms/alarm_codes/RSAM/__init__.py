@@ -23,18 +23,9 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         logger.warning("Forcing trigger by setting min_sta = 0")
         config.min_sta = 0
 
-    # Reconstruct the ordered station list from the canonical split schema:
-    # all rsam_stations first, then plot-only infrasound channels carrying a
-    # sentinel value (so they never exceed threshold), then the arrestor LAST.
-    SENTINEL = 1e7  # plot-only channels never exceed the detection threshold
-    stations = (
-        list(config.rsam_stations)
-        + [{"nslc": ch, "value": SENTINEL} for ch in config.infrasound]
-        + [config.arrestor]
-    )
-    NSLC = DataFrame.from_dict(stations)
-    lvlv = np.array(NSLC["value"])
-    nslc = NSLC["nslc"].tolist()
+    all_stas = config.rsam_stations + [config.arrestor]
+    nslc = [sta["nslc"] for sta in all_stas]
+    lvlv = np.array([sta["value"] for sta in all_stas])
     stas = [sta.split(".")[1] for sta in nslc]
 
     t1 = T0 - config.duration
@@ -102,6 +93,8 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         state = "OK"
 
     if state == "CRITICAL":
+        if hasattr(config, "infrasound"):
+            nslc[-1:len(config.infrasound)] = config.infrasound
         run_send_sequence(
             config,
             T0,

@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "avo-alarms"
+name = "volc-alarms"
 version = "0.1.0"
 description = "Various volcano monitoring alarms."
 readme = "README.md"
@@ -18,11 +18,13 @@ dependencies = [
     "cartopy",
     "cmcrameri",
     "matplotlib",
+    "numba",
     "numpy",
     "python-dotenv",
     "utm",
     "scikit-learn",
     "requests",
+    "scipy",
     "tabulate",
 ]
 classifiers = [
@@ -50,15 +52,15 @@ avo = [
 ]
 
 [project.scripts]
-run-alarm = "avo_alarms.scripts.run_alarm:main"
-email-test = "avo_alarms.scripts.email_test:main"
-generic-alarm = "avo_alarms.scripts.generic_alarm:main"
-update-metadata = "avo_alarms.scripts.update_metadata:main"
-update-html = "avo_alarms.scripts.notification_html:main"
-list-alerts = "avo_alarms.scripts.list_alerts:main"
+run-alarm = "volc_alarms.scripts.run_alarm:main"
+email-test = "volc_alarms.scripts.email_test:main"
+generic-alarm = "volc_alarms.scripts.generic_alarm:main"
+update-metadata = "volc_alarms.scripts.update_metadata:main"
+update-html = "volc_alarms.scripts.notification_html:main"
+list-alerts = "volc_alarms.scripts.list_alerts:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/avo_alarms"]
+packages = ["src/volc_alarms", "src/lts_array"]
 
 [tool.pytest.ini_options]
 minversion = "7.0"

@@ -23,7 +23,16 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         logger.warning("Forcing trigger by setting min_sta = 0")
         config.min_sta = 0
 
-    NSLC = DataFrame.from_dict(config.NSLC)
+    # Reconstruct the ordered station list from the canonical split schema:
+    # all rsam_stations first, then plot-only infrasound channels carrying a
+    # sentinel value (so they never exceed threshold), then the arrestor LAST.
+    SENTINEL = 1e7  # plot-only channels never exceed the detection threshold
+    stations = (
+        list(config.rsam_stations)
+        + [{"nslc": ch, "value": SENTINEL} for ch in config.infrasound]
+        + [config.arrestor]
+    )
+    NSLC = DataFrame.from_dict(stations)
     lvlv = np.array(NSLC["value"])
     nslc = NSLC["nslc"].tolist()
     stas = [sta.split(".")[1] for sta in nslc]
@@ -43,8 +52,8 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     #### calculate reduced displacement ####
     DR = []
     try:
-        if hasattr(config, "VOLCANO_NAME"):
-            DR = np.array([RSAM_to_DR(tr, config.VOLCANO_NAME) for tr in st])
+        if hasattr(config, "volcano_name"):
+            DR = np.array([RSAM_to_DR(tr, config.volcano_name) for tr in st])
             logger.info("Successfully calculated Reduced Displacement")
     except Exception as e:
         logger.warning(e)

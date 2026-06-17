@@ -169,8 +169,8 @@ class FakeAlarmDB:
     def record_send(self, config, T0, volcano=None, event_id=None, test=False) -> None:
         # Mirror the real record_send field-resolution logic so captured rows
         # match the production schema.
-        if hasattr(config, "VOLCANO_NAME"):
-            volcano = config.VOLCANO_NAME
+        if hasattr(config, "volcano_name"):
+            volcano = getattr(config, "volcano_name", None)
         event_ids = event_id if isinstance(event_id, list) else [event_id]
         for ev_id in event_ids:
             self.records.append(

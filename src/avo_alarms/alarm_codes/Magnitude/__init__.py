@@ -17,17 +17,17 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
 
     T0_str = T0.strftime('%Y-%m-%d %H:%M')
     T2 = T0
-    T1 = T2 - config.DURATION
+    T1 = T2 - config.duration
     if force_flag:
-        logger.warning("Forcing trigger by setting MAGMIN = -5")
-        config.MAGMIN = -5
+        logger.warning("Forcing trigger by setting magmin = -5")
+        config.magmin = -5
 
     URL = (
         f"{os.getenv('FDSN_URL')}"
         f"starttime={T1.strftime('%Y-%m-%dT%H:%M:%S')}"
         f"&endtime={T2.strftime('%Y-%m-%dT%H:%M:%S')}"
-        f"&minmagnitude={config.MAGMIN}"
-        f"&maxdepth={config.MAXDEP}"
+        f"&minmagnitude={config.magmin}"
+        f"&maxdepth={config.maxdep}"
         f"&format=csv"
     )
     logger.info("Downloading events...")
@@ -49,7 +49,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
 
     # Compare new event distance with volcanoes
     catalog_df = processing.find_nearest_volcano(catalog_df)
-    catalog_df = catalog_df[catalog_df["v_distance"] < config.DISTANCE]
+    catalog_df = catalog_df[catalog_df["v_distance"] < config.distance]
 
     # New events, but not close enough to volcanoes
     if len(catalog_df) == 0:

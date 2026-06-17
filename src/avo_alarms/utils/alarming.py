@@ -146,8 +146,8 @@ def record_send(config, T0, volcano=None, event_id=None, test=False):
     process_time = iso_utc(T0.datetime)
     send_time = iso_utc(now_utc())
 
-    if hasattr(config, "VOLCANO_NAME"):
-        volcano = config.VOLCANO_NAME
+    if hasattr(config, "volcano_name"):
+        volcano = getattr(config, "volcano_name", None)
 
     if not isinstance(event_id, list):
         event_id = [event_id]
@@ -172,11 +172,11 @@ def can_send(config, volcano="*", T0=None, test=False):
     WINDOW_SECONDS = 3600
     N_ALERTS = 3
 
-    if hasattr(config, "ALERT_MEMORY"):
-        WINDOW_SECONDS = config.ALERT_MEMORY
+    if hasattr(config, "alert_memory"):
+        WINDOW_SECONDS = config.alert_memory
 
-    if hasattr(config, "MAX_ALERTS"):
-        N_ALERTS = config.MAX_ALERTS
+    if hasattr(config, "max_alerts"):
+        N_ALERTS = config.max_alerts
 
     if not T0:
         now = now_utc()

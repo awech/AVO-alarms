@@ -8,7 +8,7 @@
     {
       "send": true,
       "state": "WARNING",
-      "state_message": "2025-01-01 00:00 (UTC) RSAM data missing! CEAP: 0/650, CERA: 0/750, CETU: 0/650, CERB: 0/10000000, CESW: 0/10000000, CESW: 0/900, Arrestor (AMKA): 0/350[3 station minimum,1 -- 5 Hz]"
+      "state_message": "2025-01-01 00:00 (UTC) RSAM data missing! CEAP: 0/650, CERA: 0/750, CETU: 0/650, CESW: 0/900, CERB: 0/10000000, CESW: 0/10000000, Arrestor (AMKA): 0/350[3 station minimum,1 -- 5 Hz]"
     }
   ],
   "os_remove": [],

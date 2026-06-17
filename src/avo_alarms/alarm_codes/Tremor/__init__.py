@@ -33,8 +33,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     tremor_df['time'] = tremor_df['time'].dt.tz_localize(None)
 
     ######### download data #########
-    NSLC = pd.DataFrame.from_dict(config.NSLC)
-    nslc = NSLC["nslc"].tolist()
+    nslc = list(config.nslc)
     t1 = T0 - 1.5 * config.window_length - config.taper
     t2 = T0 + config.taper
     st = downloading.download_waveforms(nslc, t1, t2, fill_value=0)
@@ -128,7 +127,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
                 T0,
                 state,
                 state_message,
-                figure_factory=lambda: figure.make_figure(NSLC["nslc"].tolist(), T0, config, test=test_flag),
+                figure_factory=lambda: figure.make_figure(nslc, T0, config, test=test_flag),
                 message_factory=lambda: message.create_message(T0 - config.duration, T0, config.alarm_name, duration_text),
                 record_kwargs={"volcano": config.volcano},
                 can_send_kwargs={},

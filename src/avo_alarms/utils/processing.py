@@ -254,7 +254,17 @@ def Dr_to_RSAM(config, DR, volcano_name, base=25):
     T0 = UTCDateTime.utcnow()
     VOLCS = load_volcano_list()
     volcs = VOLCS[VOLCS["Name"] == volcano_name].copy()
-    NSLC = pd.DataFrame.from_dict(config.NSLC)
+
+    # Reconstruct the ordered station list from the canonical split schema
+    # (rsam_stations, plot-only infrasound channels with the sentinel value,
+    # arrestor last) the same way RSAM.run_alarm does.
+    SENTINEL = 1e7  # plot-only channels never exceed the detection threshold
+    stations = (
+        list(config.rsam_stations)
+        + [{"nslc": ch, "value": SENTINEL} for ch in config.infrasound]
+        + [config.arrestor]
+    )
+    NSLC = pd.DataFrame.from_dict(stations)
 
     for nslc in NSLC.nslc:
         net, sta, loc, chan = nslc.split(".")

@@ -8,7 +8,6 @@ When FROMCRON environment variable is set, logs are written to rotating
 files (4-hour intervals, 2-week retention). Otherwise, logs go to console.
 """
 
-import importlib.util
 import io
 import logging
 import logging.handlers
@@ -17,8 +16,10 @@ import re
 import sys
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pandas as pd
+import yaml
 from dotenv import load_dotenv, find_dotenv
 from obspy import UTCDateTime as utc
 
@@ -77,64 +78,81 @@ class StderrToLogger(io.TextIOBase):
 # TODO consider adding function that reads config and .env and sets all defaults
 # TODO should include alarm distribution .yml files, datasource, icinga, logging, lockfile directories
 
+def looks_like_path(value):
+    """Check if a string value looks like a file path."""
+    if not isinstance(value, str):
+        return False
+
+    # Check for path separators
+    if '/' in value or '\\' in value:
+        return True
+
+    # Check for relative/home/env var paths
+    if value.startswith(('.', '~', '$')):
+        return True
+
+    # Check for filename with extension pattern
+    # Matches patterns like "file.txt", "config.yml", etc.
+    if re.search(r'[a-zA-Z0-9_-]+\.[a-zA-Z0-9]{2,}$', value):
+        return True
+
+    return False
+
+
 def load_config(config_name):
     """
-    Load configuration from a Python file in CONFIGS_DIR.
+    Load configuration from a YAML file in CONFIGS_DIR.
 
-    Loads a Python module from CONFIGS_DIR/{config_name}.py and converts
-    any string attributes that look like file paths to pathlib.Path objects.
+    Reads CONFIGS_DIR/{config_name}.yml, parses it with ``yaml.safe_load``,
+    and wraps the resulting mapping in a ``types.SimpleNamespace`` so that
+    top-level keys are exposed as attributes. Top-level scalar strings that
+    look like file paths are converted to ``pathlib.Path`` objects; nested
+    list/dict members are left as the native parsed YAML types.
 
     Parameters
     ----------
     config_name : str
-        Name of the config file (without .py extension)
+        Name of the config file (without .yml extension)
 
     Returns
     -------
-    module
-        The loaded config module with path strings converted to Path objects
+    types.SimpleNamespace
+        The parsed config with top-level path strings converted to Path
+        objects. When ``alarm_type == "Infrasound"`` the targets are enriched
+        via :func:`update_infrasound_config`.
+
+    Raises
+    ------
+    FileNotFoundError
+        If CONFIGS_DIR/{config_name}.yml does not exist.
+    yaml.YAMLError
+        If the file is not valid YAML.
+    TypeError
+        If the YAML root is not a mapping.
     """
-    config_path = Path(os.environ.get("CONFIGS_DIR")) / f"{config_name}.py"
-    spec = importlib.util.spec_from_file_location(config_name, config_path)
-    config = importlib.util.module_from_spec(spec)
-    sys.modules[config_name] = config
-    spec.loader.exec_module(config)
-    
-    def looks_like_path(value):
-        """Check if a string value looks like a file path."""
-        if not isinstance(value, str):
-            return False
-        
-        # Check for path separators
-        if '/' in value or '\\' in value:
-            return True
-        
-        # Check for relative/home/env var paths
-        if value.startswith(('.', '~', '$')):
-            return True
-        
-        # Check for filename with extension pattern
-        # Matches patterns like "file.txt", "config.yml", etc.
-        if re.search(r'[a-zA-Z0-9_-]+\.[a-zA-Z0-9]{2,}$', value):
-            return True
-        
-        return False
-    
-    # Iterate through config attributes and convert path-like strings to Path objects
-    for attr_name in dir(config):
-        # Skip private/magic attributes and imported modules
-        if attr_name.startswith('_'):
-            continue
-        
-        try:
-            attr_value = getattr(config, attr_name)
-            # Only process strings (skip callables, modules, etc.)
-            if isinstance(attr_value, str) and looks_like_path(attr_value):
-                setattr(config, attr_name, Path(attr_value))
-        except (TypeError, AttributeError):
-            # Some attributes might not be settable or might cause issues
-            continue
-    
+    config_path = Path(os.environ.get("CONFIGS_DIR")) / f"{config_name}.yml"
+    if not config_path.is_file():
+        raise FileNotFoundError(f"Config file not found: {config_path}")
+
+    with open(config_path, "r") as f:
+        data = yaml.safe_load(f)
+
+    # The YAML root must be a mapping; bail out without returning a partial
+    # config object if it is a sequence, scalar, or empty document.
+    if not isinstance(data, dict):
+        raise TypeError(
+            f"Config file {config_path} root must be a YAML mapping, "
+            f"got {type(data).__name__}"
+        )
+
+    config = SimpleNamespace(**data)
+
+    # Convert top-level scalar path-like strings to Path objects. Nested
+    # list/dict members (e.g. NSLC strings) are intentionally left untouched.
+    for key, value in vars(config).items():
+        if isinstance(value, str) and looks_like_path(value):
+            setattr(config, key, Path(value))
+
     if config.alarm_type == "Infrasound":
         config = update_infrasound_config(config)
 
@@ -142,22 +160,58 @@ def load_config(config_name):
 
 
 def update_infrasound_config(config):
+    """
+    Enrich Infrasound targets with location and velocity defaults.
 
+    For each entry in ``config.targets`` (the canonical lowercase key), fill
+    ``lat``/``lon`` from the Volcano_List row matching the target ``name`` when
+    either is absent, and default ``vmin``/``vmax`` from the
+    ``INFRASOUND_VMIN``/``INFRASOUND_VMAX`` environment variables (0.28/0.45)
+    when absent. Pre-existing ``lat``/``lon``/``vmin``/``vmax`` values are
+    preserved.
+
+    Parameters
+    ----------
+    config : types.SimpleNamespace
+        Parsed Infrasound config exposing ``targets`` as a list of dicts.
+
+    Returns
+    -------
+    types.SimpleNamespace
+        The same Config_Object with each target enriched in place.
+
+    Raises
+    ------
+    ValueError
+        If a target lacks explicit ``lat``/``lon`` and its ``name`` is not
+        found in the Volcano_List (Req 14.4).
+    """
     df = load_volcano_list()
     VMIN = os.environ.get("INFRASOUND_VMIN", 0.28)
     VMAX = os.environ.get("INFRASOUND_VMAX", 0.45)
 
-    for i, target in enumerate(config.TARGETS):
+    for i, target in enumerate(config.targets):
         if "lat" not in target or "lon" not in target:
             v_name = target["name"]
-            v_row = df[df["Name"] == v_name].squeeze()
-            tmp_dict = {"name": v_row["Name"], "lon": v_row.Longitude.item(), "lat":v_row.Latitude.item()}
-            config.TARGETS[i].update(tmp_dict)
+            matches = df[df["Name"] == v_name]
+            if matches.empty:
+                raise ValueError(
+                    f"Infrasound target '{v_name}' not found in the volcano "
+                    f"list and no explicit lat/lon provided; cannot enrich "
+                    f"target coordinates."
+                )
+            v_row = matches.squeeze()
+            tmp_dict = {
+                "name": v_row["Name"],
+                "lon": v_row.Longitude.item(),
+                "lat": v_row.Latitude.item(),
+            }
+            config.targets[i].update(tmp_dict)
         if "vmin" not in target:
-            config.TARGETS[i].update({"vmin": VMIN})
+            config.targets[i].update({"vmin": VMIN})
         if "vmax" not in target:
-            config.TARGETS[i].update({"vmax": VMAX})
-            
+            config.targets[i].update({"vmax": VMAX})
+
     return config
 
 

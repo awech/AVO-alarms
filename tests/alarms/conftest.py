@@ -5,13 +5,12 @@ need:
 
 * points ``CONFIGS_DIR`` at the in-repo ``config/`` directory and loads real
   config objects through ``setup_utils.load_config`` (configs are *not* mocked --
-  Req 10.1), so ``run_alarm`` is driven with genuine config modules;
+  Req 10.1), so ``run_alarm`` is driven with genuine config data;
 * installs the shared test doubles (see ``doubles.py``) that replace every
   external side effect (Req 12.1);
 * provides a helper to set ``FROMCRON`` per test.
 
-The ``config/*.yml`` files alongside the ``.py`` config modules are not
-consumed.
+``setup_utils.load_config`` reads the ``config/*.yml`` files exclusively.
 """
 
 from __future__ import annotations
@@ -32,7 +31,7 @@ AUX_DIR = REPO_ROOT / "alarm_aux_files"
 # Environment setup (applied at import so it is in place before any avo_alarms
 # module that reads these vars at call time runs).
 # ---------------------------------------------------------------------------
-# Drive run_alarm with the real .py config modules checked into the repo.
+# Drive run_alarm with the real .yml config files checked into the repo.
 os.environ["CONFIGS_DIR"] = str(CONFIG_DIR)
 os.environ.setdefault("HOME_DIR", str(REPO_ROOT))
 # Keep the harness self-contained: point data files at in-repo copies / temp.

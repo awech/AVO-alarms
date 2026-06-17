@@ -1,4 +1,3 @@
-import importlib
 import io
 import os
 import socket
@@ -9,6 +8,7 @@ import numpy as np
 import pandas as pd
 import requests
 import urllib3
+import yaml
 from obspy import Catalog, Stream, Trace, UTCDateTime
 from obspy.clients.earthworm import Client as EW_Client
 from obspy.clients.fdsn import Client as FDSN_Client
@@ -251,27 +251,82 @@ def download_vaa_from_nws_api():
     return vaa_id_list
 
 
+def _extract_nslc_from_config(config):
+    """Extract NSLC identifiers from a single parsed YAML config (canonical schema).
+
+    The canonical schema differs per seismic alarm:
+      - RSAM: ``rsam_stations[*].nslc`` + ``infrasound[*]`` (plain strings)
+        + ``arrestor.nslc``.
+      - Tremor / Infrasound: ``nslc[*]`` as plain strings.
+
+    Parameters
+    ----------
+    config : dict
+        The mapping produced by ``yaml.safe_load`` for one config file.
+
+    Returns
+    -------
+    list of str
+        The NSLC strings found in this config (not de-duplicated).
+    """
+    nslc = []
+
+    # RSAM-shaped config
+    if "rsam_stations" in config:
+        for station in config.get("rsam_stations", []):
+            nslc.append(station["nslc"])
+        # infrasound channels are plain NSLC strings (plot-only)
+        for channel in config.get("infrasound", []):
+            nslc.append(channel)
+        # arrestor is a single mapping with an nslc key
+        arrestor = config.get("arrestor")
+        if arrestor is not None:
+            nslc.append(arrestor["nslc"])
+
+    # Tremor / Infrasound: top-level `nslc` is a list of plain strings
+    elif "nslc" in config:
+        for entry in config["nslc"]:
+            nslc.append(entry)
+
+    return nslc
+
+
+def _collect_station_nslc(configs_dir):
+    """Glob the RSAM/Tremor/Infrasound `.yml` configs and collect unique NSLC.
+
+    Parameters
+    ----------
+    configs_dir : str or Path
+        Directory containing the alarm `.yml` config files (``CONFIGS_DIR``).
+
+    Returns
+    -------
+    numpy.ndarray
+        The sorted, de-duplicated union of NSLC across the seismic alarm configs.
+    """
+    configs_dir = Path(configs_dir)
+    files = list(configs_dir.glob("*RSAM*.yml", case_sensitive=False))
+    files += list(configs_dir.glob("*Tremor*.yml", case_sensitive=False))
+    files += list(configs_dir.glob("*Infrasound*.yml", case_sensitive=False))
+
+    NSLC = []
+    for file_path in files:
+        with open(file_path, "r") as f:
+            config = yaml.safe_load(f)
+        logger.info(file_path)
+        NSLC.extend(_extract_nslc_from_config(config))
+
+    NSLC = np.array(NSLC)
+    NSLC = np.unique(NSLC)
+    return NSLC
+
+
 def download_station_xml():
     """Download and update station metadata XML file from IRIS."""
 
     client = IRIS_client()
 
-    files = list(Path(os.environ["CONFIGS_DIR"]).glob("*RSAM*.py", case_sensitive=False))
-    files += list(Path(os.environ["CONFIGS_DIR"]).glob("*Tremor*.py", case_sensitive=False))
-    files += list(Path(os.environ["CONFIGS_DIR"]).glob("*Infrasound*.py", case_sensitive=False))
-
-    NSLC = []
-
-    for file_path in files:
-        file_name = Path(file_path).stem  # Get filename without extension
-        spec = importlib.util.spec_from_file_location(file_name, file_path)
-        config = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(config)
-        logger.info(config)
-        for nslc_dict in config.NSLC:
-            NSLC.append(nslc_dict["nslc"])
-    NSLC = np.array(NSLC)
-    NSLC = np.unique(NSLC)
+    NSLC = _collect_station_nslc(os.environ["CONFIGS_DIR"])
 
     logger.info("______ Begin Updating Metadata ______")
     for nslc in NSLC:

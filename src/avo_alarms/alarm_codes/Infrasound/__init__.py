@@ -1,6 +1,5 @@
 import numpy as np
 from obspy import Stream
-from pandas import DataFrame
 
 from avo_alarms.utils import messaging, processing, downloading, alarming
 from avo_alarms.utils.alarm_flow import apply_cron_latency_backup, run_send_sequence
@@ -19,10 +18,9 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     state_message = f"{T0.strftime('%Y-%m-%d %H:%M')} (UTC) {config.alarm_name}"
 
     #### download data ####
-    NSLC = DataFrame.from_dict(config.NSLC)
     t1 = T0 - config.duration
     t2 = T0
-    st = downloading.download_waveforms(NSLC["nslc"].tolist(), t1, t2, fill_value=0)
+    st = downloading.download_waveforms(list(config.nslc), t1, t2, fill_value=0)
     st = processing.add_metadata(st)
 
     #### check for enough data ####
@@ -64,7 +62,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         logger.warning("Running in force trigger mode")
         min_pa = 0
     else:
-        min_pa = np.array([v["min_pa"] for v in config.TARGETS]).min()
+        min_pa = np.array([v["min_pa"] for v in config.targets]).min()
     st = Stream([tr for tr in st if np.any(np.abs(tr.data) > min_pa)])
     if len(st) < config.min_chan and not force_flag:
         state_message = f"{state_message} - not enough channels exceeding amplitude threshold!"
@@ -90,18 +88,18 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     velocity, azimuth, rms = detection.inversion(
         cmbm2n, cmbm2, intsd, ints_az, lags_inds1, lags_inds2, lags, mpk
     )
-    d_Azimuth = azimuth - np.array([t["back_azimuth"] for t in config.TARGETS])
-    az_tolerance = np.array([t["az_tolerance"] for t in config.TARGETS])
+    d_Azimuth = azimuth - np.array([t["back_azimuth"] for t in config.targets])
+    az_tolerance = np.array([t["az_tolerance"] for t in config.targets])
     #### check if this is airwave velocity from a target in config file list ####
     if np.any(np.abs(d_Azimuth) < az_tolerance) or force_flag:
         v_ind = np.argmin(np.abs(d_Azimuth))
         mx_pressure = np.max(np.array([np.max(np.abs(tr.data)) for tr in st]))
         if (
-            config.TARGETS[v_ind]["vmin"] < velocity < config.TARGETS[v_ind]["vmax"]
-            and mx_pressure > config.TARGETS[v_ind]["min_pa"]
+            config.targets[v_ind]["vmin"] < velocity < config.targets[v_ind]["vmax"]
+            and mx_pressure > config.targets[v_ind]["min_pa"]
         ) or force_flag:
             #### DETECTION ####
-            target = config.TARGETS[v_ind]
+            target = config.targets[v_ind]
             d_Azimuth = d_Azimuth[v_ind]
 
             logger.info("Airwave Detection!!!")

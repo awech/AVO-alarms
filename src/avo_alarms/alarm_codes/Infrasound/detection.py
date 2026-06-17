@@ -13,7 +13,7 @@ logger = get_logger(__name__)
 def get_target_backazimuth(st, config):
     lon0 = np.mean([tr.stats.coordinates.longitude for tr in st])
     lat0 = np.mean([tr.stats.coordinates.latitude for tr in st])
-    for target in config.TARGETS:
+    for target in config.targets:
         if "back_azimuth" not in target:
             tmp = gps2dist_azimuth(lat0, lon0, target["lat"], target["lon"])
             target["back_azimuth"] = tmp[1]
@@ -56,7 +56,7 @@ def calc_triggers(st, config, intsd, force=False):
             dt = index / st[0].stats.sampling_rate
             #### check that the best lag is at least the vmin value
             #### and check for minimum cross correlation value
-            all_vmin = np.array([v["vmin"] for v in config.TARGETS]).min()
+            all_vmin = np.array([v["vmin"] for v in config.targets]).min()
             if (np.abs(dt) < intsd[ii, jj] / all_vmin and value > config.min_cc) or force:
                 lags = np.append(lags, dt)
                 lags_inds1 = np.append(lags_inds1, ii)

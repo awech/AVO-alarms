@@ -19,7 +19,7 @@ def build_download_url(T0, config):
         f"{os.environ['FDSN_URL']}"
         f"starttime={T1.strftime('%Y-%m-%dT%H:%M:%S')}"
         f"&endtime={T2.strftime('%Y-%m-%dT%H:%M:%S')}"
-        f"&maxdepth={config.MAXDEP}"
+        f"&maxdepth={config.maxdep}"
         "&format=csv"
     )
     return URL
@@ -111,21 +111,23 @@ def get_swarms(DF, T0, config):
 
     SWARMS = []
     for params in config.swarm_parameters:
+        # read the cluster name for this parameter set (snake-case key)
+        logger.info(f"Clustering with '{params['name']}' swarm parameters")
         # scale time to match distance
-        cat_df = df.copy()[df["time"] > (T0 - params["MAX_EVT_TIME"]).strftime(t_str_fmt)]
+        cat_df = df.copy()[df["time"] > (T0 - params["max_evt_time"]).strftime(t_str_fmt)]
         if len(cat_df) == 0:
             continue
         t = cat_df.time
         dtime = np.array([(t0 - t.min()).total_seconds() for t0 in t])
-        dtime = dtime * (params["MAX_EVT_DISTANCE"] / float(params["MAX_EVT_TIME"]))
+        dtime = dtime * (params["max_evt_distance"] / float(params["max_evt_time"]))
         # put distance and time together
         X = np.array([cat_df["x"], cat_df["y"], dtime]).T
         db = DBSCAN(
-            eps=params["MAX_EVT_DISTANCE"], min_samples=params["MIN_NUM_EVT"]
+            eps=params["max_evt_distance"], min_samples=params["min_num_evt"]
         ).fit(X)
 
         cat_df.loc[:, "label"] = db.labels_
-        cat_df.loc[:, "param_duration"] = float(params["MAX_EVT_TIME"])
+        cat_df.loc[:, "param_duration"] = float(params["max_evt_time"])
         all_detects = cat_df[cat_df["label"] > -1]
         # NOISE = cat_df[cat_df['label']==-1]
 

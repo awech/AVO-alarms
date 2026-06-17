@@ -19,7 +19,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     # Download the event data
     T0_str = T0.strftime("%Y-%m-%d %H:%M")
 
-    config.DURATION = np.array([swm['MAX_EVT_TIME'] for swm in config.swarm_parameters]).max()
+    config.DURATION = np.array([swm['max_evt_time'] for swm in config.swarm_parameters]).max()
     logger.info(f"Downloading events {config.DURATION:g}s before {T0_str}")
     URL = build_download_url(T0, config)
     eq_df = downloading.download_hypocenters_csv(URL)
@@ -35,7 +35,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     logger.info(f"{len(eq_df):g} earthquakes detected")
     logger.info("Filtering out regional VTs")
     eq_df = processing.find_nearest_volcano(eq_df)
-    eq_df = eq_df[eq_df["v_distance"] < config.VOLCANO_DISTANCE]
+    eq_df = eq_df[eq_df["v_distance"] < config.volcano_distance]
     logger.info(f"{len(eq_df):g} earthquakes near volcanoes")
 
     # No quakes close enough to volcanoes

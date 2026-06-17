@@ -11,13 +11,25 @@ from avo_alarms.utils.setup_utils import get_logger
 logger = get_logger(__name__)
 
 
-def test_traveltime(st, config):
+def build_grid(config):
+    """Reconstruct the search-grid arrays from the scalar bounds/steps in
+    ``config.grid``. Reproduces the arrays the old ``.py`` ``grid`` definition
+    produced via ``arange(min, max + 0.001, step)`` for each dimension."""
+    g = config.grid
+    return {
+        "lons": np.arange(g["lon_min"], g["lon_max"] + 0.001, g["lon_step"]),
+        "lats": np.arange(g["lat_min"], g["lat_max"] + 0.001, g["lat_step"]),
+        "deps": np.arange(g["depth_min"], g["depth_max"] + 0.001, g["depth_step"]),
+    }
+
+
+def test_traveltime(st, config, grid):
     if not config.grid_file.exists():
         logger.warning(f"{config.grid_file} missing")
         return False
 
     npzfile = np.load(config.grid_file)
-    new_grd = config.grid
+    new_grd = grid
     if not np.array_equal(new_grd["lats"], npzfile["lats"]):
         logger.warning("Latitude grid nodes do not match. Calculate new travel times")
         return False
@@ -37,8 +49,9 @@ def test_traveltime(st, config):
 
 def run_enveloc(st, band_env, high_env, config):
 
+    grid = build_grid(config)
     grid_file = Path("tmp_files") / config.grid_file
-    if test_traveltime(st, config):
+    if test_traveltime(st, config, grid):
         XC = XCOR(
             band_env,
             plot=False,
@@ -47,7 +60,7 @@ def run_enveloc(st, band_env, high_env, config):
             Cmin=config.Cmin,
             Cmax=config.Cmax,
             env_hp=high_env,
-            grid_size=config.grid,
+            grid_size=grid,
             tt_file=grid_file,
             phase_types=config.phase_list,
         )
@@ -61,7 +74,7 @@ def run_enveloc(st, band_env, high_env, config):
             Cmin=config.Cmin,
             Cmax=config.Cmax,
             env_hp=high_env,
-            grid_size=config.grid,
+            grid_size=grid,
         )
         XC.save_traveltimes(grid_file)
     loc = XC.locate(

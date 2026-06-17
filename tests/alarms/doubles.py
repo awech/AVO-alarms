@@ -278,7 +278,7 @@ def install(handle: AlarmDoubles) -> AlarmDoubles:
     is sufficient). ``os.remove`` is patched on the ``os`` module for the test's
     duration; monkeypatch reverts it afterward.
     """
-    from avo_alarms.utils import alarming, downloading, messaging, plotting
+    from volc_alarms.utils import alarming, downloading, messaging, plotting
 
     rec = handle.recorder
     mp = handle.monkeypatch
@@ -381,36 +381,36 @@ def install(handle: AlarmDoubles) -> AlarmDoubles:
     # --- relocated download helpers: also patch at new homes ----------
     # Functions that have been moved into alarm-package detection modules
     # must be patched there as well (the alarm imports from .detection).
-    from avo_alarms.alarm_codes import VAA as vaa_pkg
-    from avo_alarms.alarm_codes.VAA import detection as vaa_detection
+    from volc_alarms import VAA as vaa_pkg
+    from volc_alarms.alarms.VAA import detection as vaa_detection
 
     _vaa_double = _make_download_double("download_mesonet_vaa_list")
     mp.setattr(vaa_detection, "download_mesonet_vaa_list", _vaa_double)
     mp.setattr(vaa_pkg, "download_mesonet_vaa_list", _vaa_double)
 
-    from avo_alarms.alarm_codes import Pilot_Report as pirep_pkg
-    from avo_alarms.alarm_codes.Pilot_Report import detection as pirep_detection
+    from volc_alarms import Pilot_Report as pirep_pkg
+    from volc_alarms.alarms.Pilot_Report import detection as pirep_detection
 
     _pirep_download_double = _make_download_double("download_pilot_reports")
     mp.setattr(pirep_detection, "download_pilot_reports", _pirep_download_double)
     mp.setattr(pirep_pkg, "download_pilot_reports", _pirep_download_double)
 
-    from avo_alarms.alarm_codes import Lightning as lightning_pkg
-    from avo_alarms.alarm_codes.Lightning import detection as lightning_detection
+    from volc_alarms import Lightning as lightning_pkg
+    from volc_alarms.alarms.Lightning import detection as lightning_detection
 
     _lightning_double = _make_download_double("download_lightning")
     mp.setattr(lightning_detection, "download_lightning", _lightning_double)
     mp.setattr(lightning_pkg, "download_lightning", _lightning_double)
 
-    from avo_alarms.alarm_codes import SO2 as so2_pkg
-    from avo_alarms.alarm_codes.SO2 import detection as so2_detection
+    from volc_alarms import SO2 as so2_pkg
+    from volc_alarms.alarms.SO2 import detection as so2_detection
 
     _so2_double = _make_download_double("download_SO2")
     mp.setattr(so2_detection, "download_SO2", _so2_double)
     mp.setattr(so2_pkg, "download_SO2", _so2_double)
 
-    from avo_alarms.alarm_codes import NOAA_CIMSS as cimss_pkg
-    from avo_alarms.alarm_codes.NOAA_CIMSS import detection as cimss_detection
+    from volc_alarms import NOAA_CIMSS as cimss_pkg
+    from volc_alarms.alarms.NOAA_CIMSS import detection as cimss_detection
 
     _cimss_vv_double = _make_download_double("download_cimss_vv_api")
     mp.setattr(cimss_detection, "download_cimss_vv_api", _cimss_vv_double)

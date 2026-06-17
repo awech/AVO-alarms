@@ -17,7 +17,7 @@ import os
 
 from obspy import Stream, UTCDateTime
 
-from avo_alarms.utils import alarming, downloading, messaging, plotting
+from volc_alarms.utils import alarming, downloading, messaging, plotting
 
 
 def test_load_real_config_from_repo_config_dir(load_alarm_config):
@@ -91,9 +91,9 @@ def test_relocated_download_doubles_return_canned_fixtures(alarm_doubles):
     After task 10.1, these functions live in their owning alarm packages
     (not in utils/downloading), so we call them from their new homes.
     """
-    from avo_alarms.alarm_codes.Pilot_Report import detection as pirep_detection
-    from avo_alarms.alarm_codes.SO2 import detection as so2_detection
-    from avo_alarms.alarm_codes.Lightning import detection as lightning_detection
+    from volc_alarms.alarms.Pilot_Report import detection as pirep_detection
+    from volc_alarms.alarms.SO2 import detection as so2_detection
+    from volc_alarms.alarms.Lightning import detection as lightning_detection
 
     assert pirep_detection.download_pilot_reports(None, None) == ("OK", None)
     assert so2_detection.download_SO2() == (None, None)
@@ -115,7 +115,7 @@ def test_fromcron_helper_toggles_environment(fromcron):
 
 def test_patch_figure_builder_returns_sentinel(alarm_doubles):
     """patch_figure_builder swaps an alarm's make_figure for a sentinel double."""
-    from avo_alarms.alarm_codes import RSAM
+    from volc_alarms import RSAM
 
     alarm_doubles.patch_figure_builder(RSAM, "make_figure")
     result = RSAM.make_figure(["AV.PS4A..BHZ"], UTCDateTime("2024-01-01"), object())

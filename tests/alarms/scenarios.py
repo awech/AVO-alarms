@@ -56,7 +56,7 @@ def _passthrough_add_metadata(doubles):
     with placeholder coordinates preserves the observable outcome while keeping
     the run offline. (Documented in baselines/README.md.)
     """
-    from avo_alarms.utils import processing
+    from volc_alarms.utils import processing
 
     def _double(st):
         for tr in st:
@@ -104,7 +104,7 @@ def _make_trace(nslc, T1, data, sampling_rate=100.0):
 def rsam_representative(doubles, load_config):
     """Default zero-filled waveforms -> 'RSAM data missing!' WARNING."""
     config = load_config("RSAM")
-    from avo_alarms.alarm_codes import RSAM
+    from volc_alarms import RSAM
 
     doubles.patch_figure_builder(RSAM, "make_figure")
     RSAM.run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True)
@@ -113,7 +113,7 @@ def rsam_representative(doubles, load_config):
 def rsam_critical(doubles, load_config):
     """Crafted waveforms (3 source stations hot, arrestor quiet) -> CRITICAL send."""
     config = load_config("RSAM")
-    from avo_alarms.alarm_codes import RSAM
+    from volc_alarms import RSAM
 
     hot = {"CEAP", "CERA", "CETU"}  # exceed their levels -> detection
     arrestor = "AMKA"  # must stay below its level
@@ -146,7 +146,7 @@ def rsam_critical(doubles, load_config):
 def infrasound_representative(doubles, load_config):
     """Default zero-filled waveforms -> 'Not enough channels!' WARNING."""
     config = load_config("Infrasound")
-    from avo_alarms.alarm_codes import Infrasound
+    from volc_alarms import Infrasound
 
     _passthrough_add_metadata(doubles)
     doubles.patch_figure_builder(Infrasound, "make_figure")
@@ -160,7 +160,7 @@ def tremor_representative(doubles, load_config):
     """Empty tremor DB + zero-filled waveforms -> 'Data missing!' WARNING."""
     _clean_test_db()
     config = load_config("Tremor")
-    from avo_alarms.alarm_codes import Tremor
+    from volc_alarms import Tremor
 
     _passthrough_add_metadata(doubles)
     Tremor.run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True)
@@ -172,7 +172,7 @@ def tremor_representative(doubles, load_config):
 def lightning_representative(doubles, load_config):
     """Default download returns None -> Volcview-API error WARNING."""
     config = load_config("Lightning")
-    from avo_alarms.alarm_codes import Lightning
+    from volc_alarms import Lightning
 
     doubles.download_returns["download_lightning"] = None
     Lightning.run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True)
@@ -181,7 +181,7 @@ def lightning_representative(doubles, load_config):
 def lightning_critical(doubles, load_config):
     """Recorded proximal strokes -> CRITICAL send with event-id list record."""
     config = load_config("Lightning")
-    from avo_alarms.alarm_codes import Lightning
+    from volc_alarms import Lightning
 
     # Two proximal strokes near a single volcano within the look-back window.
     strokes = pd.DataFrame(
@@ -209,7 +209,7 @@ def lightning_critical(doubles, load_config):
 def noaa_cimss_representative(doubles, load_config):
     """Default download returns None -> Volcview-API error WARNING."""
     config = load_config("NOAA_CIMSS")
-    from avo_alarms.alarm_codes import NOAA_CIMSS
+    from volc_alarms import NOAA_CIMSS
 
     doubles.download_returns["download_cimss_vv_api"] = None
     NOAA_CIMSS.run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True)
@@ -221,7 +221,7 @@ def noaa_cimss_representative(doubles, load_config):
 def pilot_report_representative(doubles, load_config):
     """Default download returns ('OK', None) -> 'No new pilot reports' OK."""
     config = load_config("PIREP")
-    from avo_alarms.alarm_codes import Pilot_Report
+    from volc_alarms import Pilot_Report
 
     doubles.download_returns["download_pilot_reports"] = ("OK", None)
     Pilot_Report.run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True)
@@ -233,7 +233,7 @@ def pilot_report_representative(doubles, load_config):
 def so2_representative(doubles, load_config):
     """Default download returns (None, None) -> webpage error WARNING."""
     config = load_config("SO2")
-    from avo_alarms.alarm_codes import SO2
+    from volc_alarms import SO2
 
     doubles.download_returns["download_SO2"] = (None, None)
     SO2.run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True)
@@ -245,7 +245,7 @@ def so2_representative(doubles, load_config):
 def vaa_representative(doubles, load_config):
     """Default download returns None -> webpage error WARNING."""
     config = load_config("VAA")
-    from avo_alarms.alarm_codes import VAA
+    from volc_alarms import VAA
 
     doubles.download_returns["download_mesonet_vaa_list"] = None
     VAA.run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True)
@@ -257,7 +257,7 @@ def vaa_representative(doubles, load_config):
 def magnitude_representative(doubles, load_config):
     """Default empty FDSN catalog -> 'No new earthquakes' OK."""
     config = load_config("Magnitude")
-    from avo_alarms.alarm_codes import Magnitude
+    from volc_alarms import Magnitude
 
     Magnitude.run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True)
 
@@ -269,7 +269,7 @@ def swarm_representative(doubles, load_config):
     """Default empty FDSN catalog -> 'No new swarm activity' OK."""
     _clean_test_db()
     config = load_config("Swarm")
-    from avo_alarms.alarm_codes import Swarm
+    from volc_alarms import Swarm
 
     Swarm.run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True)
 

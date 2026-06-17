@@ -17,7 +17,7 @@ os.chdir(script_dir.parent)
 # add to path
 sys.path.append(os.getcwd())
 
-plt.style.use(Path("src/avo_alarms/data") / "alarms.mplstyle")
+plt.style.use(Path("src/volc_alarms/data") / "alarms.mplstyle")
 from utils import plotting
 
 
@@ -28,7 +28,7 @@ start = time.time()
 
 output_folder = Path("tests") / "outputs"
 
-df = pd.read_excel(Path("src/avo_alarms/data") / "volcano_list.xlsx").set_index("Name")
+df = pd.read_excel(Path("src/volc_alarms/data") / "volcano_list.xlsx").set_index("Name")
 volcano = "Spurr"
 
 
@@ -60,7 +60,7 @@ for a in ax:
 
 
 print("saving basemap example")
-plt.savefig(output_folder / "avo-alarms_map-basemap_example.png")
+plt.savefig(output_folder / "volc-alarms_map-basemap_example.png")
 
 
 ######################################################################
@@ -92,7 +92,7 @@ for a in ax:
     ax[a].set_title(f"projection = '{a}'", fontsize=10)
 
 print("saving projection example")
-plt.savefig(output_folder / "avo-alarms_map-projection_example.png")
+plt.savefig(output_folder / "volc-alarms_map-projection_example.png")
 
 ######################################################################
 #######################################################################
@@ -161,6 +161,6 @@ plotting.add_inset_polygon(
 ax_inset.add_feature(cfeature.RIVERS, linewidth=0.5, linestyle=":")
 
 print("saving template example")
-plt.savefig(output_folder / "avo-alarms_map-general_example.png")
+plt.savefig(output_folder / "volc-alarms_map-general_example.png")
 end = time.time()
 print(f"DONE in {end - start:.2f} seconds")

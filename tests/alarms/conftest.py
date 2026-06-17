@@ -27,10 +27,10 @@ from tests.alarms.doubles import AlarmDoubles, CallRecorder, FakeAlarmDB, instal
 # Repo root is two levels up from tests/alarms/.
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONFIG_DIR = REPO_ROOT / "config"
-DATA_DIR = files("avo_alarms.data")
+DATA_DIR = files("volc_alarms.data")
 
 # ---------------------------------------------------------------------------
-# Environment setup (applied at import so it is in place before any avo_alarms
+# Environment setup (applied at import so it is in place before any volc_alarms
 # module that reads these vars at call time runs).
 # ---------------------------------------------------------------------------
 # Drive run_alarm with the real .yml config files checked into the repo.
@@ -101,7 +101,7 @@ def load_alarm_config():
     ``load_alarm_config("RSAM")`` returns the genuine config object that
     ``run_alarm`` expects (Req 10.1, 10.2).
     """
-    from avo_alarms.utils import setup_utils
+    from volc_alarms.utils import setup_utils
 
     def _load(config_name: str):
         return setup_utils.load_config(config_name)

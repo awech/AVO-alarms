@@ -11,7 +11,7 @@ import urllib3
 from obspy import UTCDateTime as utc
 from obspy.geodetics.base import gps2dist_azimuth
 
-from avo_alarms.utils.setup_utils import get_logger, load_volcano_list
+from avo_alarms.utils.setup_utils import get_logger, load_volcano_list, TMP_DIR
 
 urllib3.disable_warnings()
 
@@ -81,7 +81,7 @@ def get_cimss_image(soup, alert, config):
 
     base_url = "://".join(urlparse(alert.alert_url)[:2])
     image_files = soup.find(class_="alert_images").find_all("img")
-    img_file = Path("tmp_files/noaa_out_.png")
+    img_file = TMP_DIR / "noaa_out_.png"
     for i, img in enumerate(image_files):
         img.get("src")
         im_url = urljoin(base_url, img.get("src"))

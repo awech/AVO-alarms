@@ -8,7 +8,7 @@ import requests
 import shapefile
 from shutil import rmtree
 
-from avo_alarms.utils.setup_utils import get_logger, load_volcano_list
+from avo_alarms.utils.setup_utils import get_logger, load_volcano_list, TMP_DIR
 
 logger = get_logger(__name__)
 
@@ -39,7 +39,7 @@ def download_pilot_reports(T0, config):
 
     state = "OK"
     archive = None
-    tmp_zipfile = Path("tmp_files") / "pireps.zip"
+    tmp_zipfile = TMP_DIR / "pireps.zip"
     try:
         with open(tmp_zipfile, "wb") as f:
             resp = requests.get(pirep_url, verify=False, timeout=10)
@@ -65,7 +65,7 @@ def pirep_archive_to_dataframe(T0, config, archive):
     T2 = T0
     T1 = T2 - config.duration
 
-    tmp_zipped_dir = Path("tmp_files") / "tmp_zipped_dir"
+    tmp_zipped_dir = TMP_DIR / "tmp_zipped_dir"
     archive.extractall(path=tmp_zipped_dir)
     T1_str = T1.strftime('%Y%m%d%H%M')
     T2_str = T2.strftime('%Y%m%d%H%M')

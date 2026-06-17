@@ -5,13 +5,14 @@ import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 
 from avo_alarms.utils import plotting
+from avo_alarms.utils.setup_utils import TMP_DIR
 
 
 def plot_fig(config):
 
     plt.figure(figsize=(3, 4.4))
 
-    img_file_name = Path("tmp_files/sacs_out_.png")
+    img_file_name = TMP_DIR / "sacs_out_.png"
     tmp_file1 = Path(str(img_file_name).replace(".png", "1.png"))
     tmp_file2 = Path(str(img_file_name).replace(".png", "2.png"))
     img1 = mpimg.imread(tmp_file1)

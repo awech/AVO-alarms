@@ -6,7 +6,7 @@ from enveloc.core import XCOR
 from obspy import UTCDateTime
 from obspy.signal.filter import envelope
 
-from avo_alarms.utils.setup_utils import get_logger
+from avo_alarms.utils.setup_utils import get_logger, TMP_DIR
 
 logger = get_logger(__name__)
 
@@ -50,7 +50,7 @@ def test_traveltime(st, config, grid):
 def run_enveloc(st, band_env, high_env, config):
 
     grid = build_grid(config)
-    grid_file = Path("tmp_files") / config.grid_file
+    grid_file = TMP_DIR / config.grid_file
     if test_traveltime(st, config, grid):
         XC = XCOR(
             band_env,

@@ -5,7 +5,7 @@ from urllib.parse import urlparse, urljoin
 
 import requests
 
-from avo_alarms.utils.setup_utils import get_logger
+from avo_alarms.utils.setup_utils import get_logger, TMP_DIR
 
 logger = get_logger(__name__)
 
@@ -37,7 +37,7 @@ def get_so2_images(soup, config):
     base_url = "://".join(urlparse(os.environ["SACS_URL"])[:2])
     imgs = soup.find_all("img")
     img_files = []
-    img_file_name = Path("tmp_files/sacs_out_.png")
+    img_file_name = TMP_DIR / "sacs_out_.png"
     for im in imgs:
         if "/alert" in im.get("src"):
             img_files.append(urljoin(base_url, im.get("src")))

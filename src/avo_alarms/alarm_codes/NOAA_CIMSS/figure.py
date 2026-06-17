@@ -5,7 +5,7 @@ import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 
 from avo_alarms.utils import plotting
-from avo_alarms.utils.setup_utils import get_logger
+from avo_alarms.utils.setup_utils import get_logger, TMP_DIR
 
 logger = get_logger(__name__)
 
@@ -26,7 +26,7 @@ def plot_fig(alert, config, test=False):
     ax["img1"].set_title(title_str, fontsize=8)
     
     # read in images downloaded from NOAA/CIMSS webpage
-    img_file = Path("tmp_files/noaa_out_.png")
+    img_file = TMP_DIR / "noaa_out_.png"
     tmp_file1 = Path(str(img_file).replace(".png", "1.png"))
     tmp_file2 = Path(str(img_file).replace(".png", "2.png"))
     img1 = mpimg.imread(tmp_file1)

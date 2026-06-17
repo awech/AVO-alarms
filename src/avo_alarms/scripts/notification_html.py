@@ -47,10 +47,10 @@ def main():
         return
 
     try:
-        home_dir = Path(os.environ["HOME_DIR"])
-        with open(home_dir / "distribution.yml", "r") as file:
+        dist_file = Path(os.environ.get("DISTRIBUTION_FILE", "config/distribution.yml"))
+        with open(dist_file, "r") as file:
             distribution = yaml.safe_load(file)
-        alarms = [alarm for alarm in distribution if alarm not in ["USERS", "Error"]]
+        alarms = [alarm for alarm in distribution if alarm != "Error"]
         users = []
         for alarm in alarms:
             users += distribution[alarm]

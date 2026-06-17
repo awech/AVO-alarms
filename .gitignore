@@ -7,7 +7,6 @@ logs/*.out
 logs/*.log
 logs/*.lock
 
-phonebook.yml
 .env
 
 .vscode/

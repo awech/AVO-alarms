@@ -130,13 +130,13 @@ def get_recipients_list(alarm_name, test=False):
     """
 
     # read & parse notification list
-    config_dir = Path(os.environ["CONFIGS_DIR"])
-    with open(config_dir / "distribution.yml", "r") as file:
+    dist_file = Path(os.environ.get("DISTRIBUTION_FILE", "config/distribution.yml"))
+    with open(dist_file, "r") as file:
         distribution = yaml.safe_load(file)
 
     # read & parse phonebook
-    home_dir = Path(os.environ["HOME_DIR"])
-    with open(home_dir / "phonebook.yml", "r") as file:
+    phonebook_file = Path(os.environ.get("PHONEBOOK_FILE", "config/phonebook.yml"))
+    with open(phonebook_file, "r") as file:
         users = yaml.safe_load(file) 
 
     alarm_key = alarm_name

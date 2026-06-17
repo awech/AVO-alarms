@@ -347,7 +347,7 @@ def add_metadata(st):
         Stream: Stream with updated metadata.
     """
 
-    xml_file = Path(os.getenv("STATION_XML", "blank"))
+    xml_file = Path(os.environ["STATION_XML"])
     if not xml_file.exists():
         logger.error("Station XML file missing")
         return

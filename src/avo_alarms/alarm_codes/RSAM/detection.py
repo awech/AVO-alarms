@@ -39,7 +39,7 @@ def RSAM_to_DR(tr, volcano_name, VELOCITY=1.5, FREQ=2, Q=200):
     VOLCS = load_volcano_list()
     volcs = VOLCS[VOLCS["Name"] == volcano_name].copy()
 
-    xml_file = Path(os.getenv("STATION_XML", "blank"))
+    xml_file = Path(os.environ["STATION_XML"])
     if not xml_file.exists():
         logger.error("Station XML file missing")
         return

@@ -58,16 +58,29 @@ def load_environment(env_file=None):
     # src/avo_alarms/utils/setup_utils.py → 3 parents up = project root
     _project_root = PROJECT_ROOT
 
-    # --- Path defaults (overridden by .env or shell exports) ---
+    # --- Directory Path defaults (overridden by .env or shell exports) ---
     os.environ.setdefault("HOME_DIR", str(_project_root))
     os.environ.setdefault("CONFIGS_DIR", str(_project_root / "config"))
     os.environ.setdefault("LOGS_DIR", str(_project_root / "logs"))
     os.environ.setdefault("LOCK_DIR", str(_project_root / "lock_files"))
     os.environ.setdefault("TMP_FIGURE_DIR", str(TMP_DIR))
+    
+    # --- File Path defaults (overridden by .env or shell exports) ---
     os.environ.setdefault("DB_FILE", str(TMP_DIR / "alarms_sent.db"))
     os.environ.setdefault("DISTRIBUTION_FILE", str(_project_root / "config" / "distribution.yml"))
     os.environ.setdefault("PHONEBOOK_FILE", str(_project_root / "config" / "phonebook.yml"))
+    os.environ.setdefault("VOLCANO_LIST", str(_project_root / "src" / "avo_alarms" / "data" / "volcano_list.xlsx"))
+    os.environ.setdefault("STATION_XML", str(TMP_DIR / "stations.xml"))
+    os.environ.setdefault("WWW_FILE", str(TMP_DIR / "index.html"))
 
+    # --- URL defaults (overridden by .env or shell exports) ---
+    PIREP_URL = "https://mesonet.agron.iastate.edu/cgi-bin/request/gis/pireps.py"
+    VAA_URL = "https://mesonet.agron.iastate.edu/api/1/nws/afos/list.json?pil=VAA"
+    SACS_URL = "http://sacs.aeronomie.be/lastNOTIFICATION.php"
+    os.environ.setdefault("PIREP_URL", PIREP_URL)
+    os.environ.setdefault("VAA_URL", VAA_URL)
+    os.environ.setdefault("SACS_URL", SACS_URL)
+            
     # --- Non-path defaults ---
     os.environ.setdefault("TIMEZONE", "US/Alaska")
 
@@ -100,9 +113,6 @@ class StderrToLogger(io.TextIOBase):
         """Return False since we're not a terminal."""
         return False
 
-
-# TODO consider adding function that reads config and .env and sets all defaults
-# TODO should include alarm distribution .yml files, datasource, icinga, logging, lockfile directories
 
 def looks_like_path(value):
     """Check if a string value looks like a file path."""
@@ -268,8 +278,8 @@ def load_volcano_list(volcano_file=None):
     if volcano_file is None:
         volcano_file = os.environ.get("VOLCANO_LIST")
         if volcano_file is None:
+            # Fallback if load_environment() hasn't been called yet
             from importlib.resources import files
-
             volcano_file = files("avo_alarms.data").joinpath("volcano_list.xlsx")
     
     volcano_file = Path(volcano_file)

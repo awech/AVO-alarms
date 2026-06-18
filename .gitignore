@@ -1,23 +1,19 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.pyc
+.pytest_cache/
+.coverage
 
-logs/*.out
 logs/*.log
-logs/*.lock
-
-phonebook.yml
 .env
-
 .vscode/
-.vscode/*
-
-.gitlab-ci.yml
 
 *.egg-info/
 .eggs/
 build/
 dist/
 
-alarm_aux_files/*.db*
-alarm_aux_files/*.xlsx
+# Runtime database (path set via DB_FILE env var)
+*.db
+*.db-wal
+*.db-shm

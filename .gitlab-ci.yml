@@ -1,0 +1,42 @@
+---
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - .cache/pip
+
+stages:
+  - test
+
+# ---------------------------------------------------------------------------
+# Main test + coverage (runs on the primary Python version)
+# ---------------------------------------------------------------------------
+test:
+  image: python:3.13
+  stage: test
+  before_script:
+    - pip install --upgrade pip
+    - pip install -e ".[avo]"
+    - pip install pytest coverage
+  script:
+    - coverage run -m pytest -ra
+    - coverage report
+  coverage: '/(?i)total.*? ([1-9]?\d|100)\%$/'
+
+# ---------------------------------------------------------------------------
+# Multi-version compatibility (no coverage, just verify tests pass)
+# ---------------------------------------------------------------------------
+test-compat:
+  stage: test
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.10", "3.11", "3.12"]
+  image: python:${PYTHON_VERSION}
+  before_script:
+    - pip install --upgrade pip
+    - pip install -e ".[avo]"
+    - pip install pytest
+  script:
+    - pytest -ra

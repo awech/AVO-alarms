@@ -43,7 +43,8 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         strokes_df["v_name"] = strokes_df["api_vname"]
     else:
         volcs = load_volcano_list()
-        volcs = volcs[volcs["Lightning"] == "Y"]
+        if "Lightning" in volcs.columns:
+            volcs = volcs[volcs["Lightning"] == "Y"]
         strokes_df = processing.find_nearest_volcano(
             strokes_df,
             volc_df=volcs,

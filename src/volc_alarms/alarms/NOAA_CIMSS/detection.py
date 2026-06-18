@@ -115,22 +115,28 @@ def format_cimss_dataframe(cimss_df, config, T0):
     return cimss_df
 
 
-def check_ignore_volcano(cimss_df, alert_type=None):
+def check_ignore_volcano(cimss_df):
 
     volcs = load_volcano_list().set_index("Name")
     alert_dict = {"ash": "NOAA Ash", "hot": "NOAA Thermal", "ice": "NOAA Ice"}
-    
+
     cimss_df["keep"] = True
 
-    alert_name = alert_type
     for i, row in cimss_df.iterrows():
-        if alert_type is None:
-            alert_name = alert_dict[row.alert_type]
-        if alert_name not in volcs.columns:
-            logger.info(f"\'{alert_dict[row.alert_type]}\' not a column in {os.getenv('VOLCANO_LIST')}")
+        if row.v_name not in volcs.index:
             continue
-        if volcs.loc[row.v_name, alert_name] == "N":
-            logger.info(f"{row.v_name} has \'{alert_name}\' column set to \'N\'")
+
+        # Use granular column if available, otherwise fall back to "NOAA"
+        specific_col = alert_dict.get(row.alert_type)
+        if specific_col and specific_col in volcs.columns:
+            col = specific_col
+        elif "NOAA" in volcs.columns:
+            col = "NOAA"
+        else:
+            break  # no relevant column exists, keep all
+
+        if volcs.loc[row.v_name, col] == "N":
+            logger.info(f"{row.v_name} has '{col}' set to 'N'")
             cimss_df.loc[i, "keep"] = False
 
     return cimss_df

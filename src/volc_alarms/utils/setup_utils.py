@@ -69,7 +69,7 @@ def load_environment(env_file=None):
     os.environ.setdefault("DB_FILE", str(TMP_DIR / "alarms_sent.db"))
     os.environ.setdefault("DISTRIBUTION_FILE", str(_project_root / "config" / "distribution.yml"))
     os.environ.setdefault("PHONEBOOK_FILE", str(_project_root / "config" / "phonebook.yml"))
-    os.environ.setdefault("VOLCANO_LIST", str(_project_root / "src" / "volc_alarms" / "data" / "volcano_list.xlsx"))
+    os.environ.setdefault("VOLCANO_LIST", str(_project_root / "src" / "volc_alarms" / "data" / "volcano_list.csv"))
     os.environ.setdefault("STATION_XML", str(TMP_DIR / "stations.xml"))
     os.environ.setdefault("WWW_FILE", str(TMP_DIR / "index.html"))
 
@@ -328,7 +328,7 @@ def load_volcano_list(volcano_file=None):
         if volcano_file is None:
             # Fallback if load_environment() hasn't been called yet
             from importlib.resources import files
-            volcano_file = files("volc_alarms.data").joinpath("volcano_list.xlsx")
+            volcano_file = files("volc_alarms.data").joinpath("volcano_list.csv")
     
     volcano_file = Path(volcano_file)
     

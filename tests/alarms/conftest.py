@@ -34,7 +34,7 @@ DATA_DIR = files("volc_alarms.data")
 os.environ["CONFIGS_DIR"] = str(CONFIG_DIR)
 os.environ.setdefault("HOME_DIR", str(REPO_ROOT))
 # Keep the harness self-contained: point data files at in-repo copies / temp.
-os.environ.setdefault("VOLCANO_LIST", str(DATA_DIR.joinpath("volcano_list.xlsx")))
+os.environ.setdefault("VOLCANO_LIST", str(DATA_DIR.joinpath("volcano_list.csv")))
 os.environ.setdefault("TMP_FIGURE_DIR", str(REPO_ROOT / "tmp_files"))
 os.environ.setdefault("TIMEZONE", "UTC")
 # FDSN base URL used by the Swarm alarm to build its (mocked) download request.

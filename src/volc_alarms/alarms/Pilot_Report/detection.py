@@ -15,7 +15,8 @@ logger = get_logger(__name__)
 def download_pilot_reports(T0, config):
 
     volcs = load_volcano_list()
-    volcs = volcs[volcs["PIREP"] == "Y"]
+    if "PIREP" in volcs.columns:
+        volcs = volcs[volcs["PIREP"] == "Y"]
 
     T2 = T0
     T1 = T2 - config.duration

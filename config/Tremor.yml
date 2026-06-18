@@ -17,6 +17,10 @@ threshold: 25              # [minutes] required in past hour for notification
 rsam_station: AV.PS1A..BHZ # N.S.L.C - channel to be used for RSAM threshold test
 rsam_threshold: 180        # RSAM threshold for above nslc. Alarm won't send if below this level
 
+# Alerting paramters
+alert_memory: 3600     # lookback window (seconds)
+max_alerts: 3          # max alerts within that window
+
 # Waveform processing parameters
 window_length: 300         # duration value in seconds (5 * 60)
 latency: 10                # seconds between timestamps and end of data window

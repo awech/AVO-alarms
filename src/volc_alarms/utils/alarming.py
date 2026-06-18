@@ -169,21 +169,18 @@ def record_send(config, T0, volcano=None, event_id=None, test=False):
 
 def can_send(config, volcano="*", T0=None, test=False):
 
-    WINDOW_SECONDS = 3600
-    N_ALERTS = 3
-
-    if hasattr(config, "alert_memory"):
-        WINDOW_SECONDS = config.alert_memory
-
-    if hasattr(config, "max_alerts"):
-        N_ALERTS = config.max_alerts
+    # Rate-limiting only applies when both knobs are configured.
+    has_memory = hasattr(config, "alert_memory") and config.alert_memory is not None
+    has_max = hasattr(config, "max_alerts") and config.max_alerts is not None
+    if not (has_memory and has_max):
+        return True
 
     if not T0:
         now = now_utc()
     else:
         now = T0.datetime
 
-    cutoff_iso = iso_utc(now - timedelta(seconds=WINDOW_SECONDS))
+    cutoff_iso = iso_utc(now - timedelta(seconds=config.alert_memory))
     now_iso = iso_utc(now)
 
     table_name = resolve_table_name(test)
@@ -201,7 +198,7 @@ def can_send(config, volcano="*", T0=None, test=False):
     try:
         (cnt,) = conn.execute(base_sql).fetchone()
 
-        if cnt < N_ALERTS:
+        if cnt < config.max_alerts:
             return True
         else:
             return False

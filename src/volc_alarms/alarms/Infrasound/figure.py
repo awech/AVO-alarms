@@ -26,7 +26,7 @@ def make_figure(st, target, T0, config, mx_pressure, test=False):
 
     #### preprocess data ####
     infra.detrend("demean")
-    infra.taper(max_percentage=None, max_length=config.taper_val)
+    infra.taper(max_percentage=None, max_length=config.taper)
     infra.filter("bandpass", freqmin=config.f1, freqmax=config.f2)
     [tr.decimate(2, no_filter=True) for tr in infra if tr.stats.sampling_rate == 100]
     [tr.decimate(2, no_filter=True) for tr in infra if tr.stats.sampling_rate == 50]

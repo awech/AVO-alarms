@@ -34,7 +34,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
 
     #### preprocess data ####
     st.detrend("demean")
-    st.taper(max_percentage=None, max_length=config.taper_val)
+    st.taper(max_percentage=None, max_length=config.taper)
     st.filter("bandpass", freqmin=config.f1, freqmax=config.f2)
 
     #### calculate rsam ####

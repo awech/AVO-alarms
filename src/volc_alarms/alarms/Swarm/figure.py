@@ -43,7 +43,7 @@ def make_figure(swarm, T0, config, test=False):
         logger.info("Downloading stations that have picks")
         CAT = Catalog()
         for i, row in swarm.iterrows():
-            evt_url = f"{os.getenv('FDSN_URL')}eventid={row.id}"
+            evt_url = f"{os.getenv('FDSN_URL')}eventid={row.event_id}"
             CAT += downloading.download_hypocenter_xml(evt_url)
         CAT = processing.addPhaseHint(CAT)
         channels = processing.eq_picks_to_dataframe(CAT)

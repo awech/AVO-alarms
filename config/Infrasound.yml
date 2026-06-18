@@ -22,7 +22,7 @@ min_cc: 0.6           # min normalized correlation coefficient to accept
 min_chan: 3           # minimum number of channels for code to run
 cc_shift_length: 6    # maximum seconds to shift in cross-correlation
 
-# Alerting paramters
+# Alerting parameters
 alert_memory: 3600     # lookback window (seconds)
 max_alerts: 3          # max alerts within that window
 

@@ -30,7 +30,7 @@ taper_val: 5           # seconds to taper beginning and end of trace before filt
 f1: 1.0                # minimum frequency for bandpass filter
 f2: 5.0                # maximum frequency for bandpass filter
 
-# Alerting paramters
+# Alerting parameters
 alert_memory: 3600     # lookback window (seconds)
 max_alerts: 3          # max alerts within that window
 

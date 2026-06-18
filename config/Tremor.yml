@@ -12,12 +12,12 @@ nslc:
   - AV.PV6A..BHZ
 
 # Alarm threshold parameters
-duration: 3600              # [seconds] how far into past to look for detections
+duration: 3600             # [seconds] how far into past to look for detections
 threshold: 25              # [minutes] required in past hour for notification
 rsam_station: AV.PS1A..BHZ # N.S.L.C - channel to be used for RSAM threshold test
 rsam_threshold: 180        # RSAM threshold for above nslc. Alarm won't send if below this level
 
-# Alerting paramters
+# Alerting parameters
 alert_memory: 3600     # lookback window (seconds)
 max_alerts: 3          # max alerts within that window
 

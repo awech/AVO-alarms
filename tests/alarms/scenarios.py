@@ -1,32 +1,23 @@
-"""Recorded input fixtures + scenario drivers for baseline capture (task 1.2).
+"""Scenario drivers for the golden baseline tests.
 
-Each scenario configures the shared doubles (and, where an alarm needs canned
-data to reach a meaningful state, the doubles' knobs / recorded fixtures), then
-drives the *current* (pre-restructure) alarm's ``run_alarm`` with the fixed
-``baseline_utils.T0``. The capture harness snapshots the observable behavior
-afterward.
+Each scenario function:
+1. Loads a real config from config/*.yml
+2. Configures the test doubles (canned waveforms, download returns, etc.)
+3. Calls the alarm's run_alarm() at a fixed time (T0)
 
-Two kinds of scenario are provided:
+After run_alarm returns, the test harness captures what happened (Icinga calls,
+messages sent, DB writes) and compares against the frozen baseline.
 
-* **representative** -- drives each of the 10 alarms to its natural offline
-  outcome with the default "no new data" doubles (an early ``OK``/``WARNING``
-  Icinga heartbeat). This exercises the detection-state + Icinga-message portion
-  of the Behavior_Baseline for every alarm.
-* **critical / send** -- where feasible offline, recorded fixtures push an alarm
-  all the way through the ``CRITICAL`` send sequence so the message subject/body,
-  ``record_send`` fields and ``os.remove`` cleanup are also captured. RSAM and
-  Lightning are driven this way (their detection logic is reachable with purely
-  canned waveform / stroke fixtures and the existing doubles).
+Scenario types:
+- "representative": exercises each alarm's default offline path (usually an
+  early OK/WARNING due to missing external data)
+- "critical": provides crafted fixtures that trigger a CRITICAL detection and
+  the full send sequence (message + DB write + cleanup)
 
-A scenario function takes ``(doubles, load_config)`` and returns ``None`` after
-calling ``run_alarm``. ``doubles`` is the ``AlarmDoubles`` handle (it owns the
-``monkeypatch`` used to patch figure builders / ``add_metadata`` for the test's
-duration). ``load_config`` is the real-config loader fixture.
-
-Alarms whose ``CRITICAL`` path cannot be reached offline without large bespoke
-fixtures (live HTML scrape, FDSN QuakeML, enveloc relocation, shapefile parse)
-are documented in ``baselines/README.md``; their representative baseline is
-still captured here.
+To add a new scenario:
+1. Write a function taking (doubles, load_config) and calling run_alarm
+2. Register it in the SCENARIOS dict at the bottom of this file
+3. Run: REGEN_BASELINES=1 pytest tests/alarms/test_baselines.py -k "your_scenario"
 """
 
 from __future__ import annotations
@@ -39,7 +30,7 @@ import pandas as pd
 from obspy import Stream, Trace
 from obspy.core.util import AttribDict
 
-from tests.alarms.baseline_utils import T0
+from tests.alarms.snapshot_utils import T0
 
 
 # ---------------------------------------------------------------------------

@@ -1,28 +1,29 @@
-"""Reusable test doubles for the alarm behavior-preservation harness.
+"""Fake replacements for external services, used to run alarms offline.
 
-This module provides the shared, side-effect-free stand-ins that let an alarm's
-``run_alarm`` be driven offline and deterministically (Req 12.1). Every external
-side effect an alarm performs is replaced:
+When testing, we don't want alarms to actually download data, send emails,
+post to Mattermost, or write to the database. This module provides fake
+versions of all those services that:
 
-* ``downloading.download_waveforms`` / ``download_hypocenters_csv`` /
-  ``download_hypocenter_xml`` and the per-alarm ``download_*`` functions
-  (``download_lightning``, ``download_cimss_vv_api``, ``download_pilot_reports``,
-  ``scrape_cimss_alert``, ``get_cimss_image``, ``download_mesonet_vaa_list``,
-  ``download_SO2``) -> return canned fixtures.
-* ``messaging.post_mattermost`` / ``send_alert`` / ``icinga`` -> record the call
-  (args + invocation order), perform no I/O.
-* ``alarming.can_send`` / ``record_send`` / ``filter_dataframe`` -> backed by an
-  in-memory store; record the call.
-* figure builders / ``plotting.save_file`` -> return a sentinel path.
-* ``os.remove`` -> record the call (no filesystem mutation).
+1. Record what was called (function name, arguments, order)
+2. Return pre-configured "canned" responses
+3. Perform no actual I/O
 
-The doubles share a single :class:`CallRecorder` so the *ordering* of calls
-across modules is captured on one timeline. This is what the golden behavior
-tests (task 1.2) and the send-sequence ordering tests (task 2.4) assert against.
+What's faked:
+- Network downloads (waveforms, earthquake catalogs, web scraping)
+- Messaging (email, Mattermost, Icinga heartbeats)
+- Database (alarm history — uses in-memory storage instead of sqlite)
+- Figure generation (returns a placeholder file path)
+- File deletion (records the call but doesn't delete anything)
 
-Doubles read their configurable return values from the :class:`AlarmDoubles`
-handle *at call time*, so a test can flip ``doubles.can_send_result = False`` (or
-swap ``doubles.waveform_factory``) before invoking ``run_alarm``.
+All fakes share a single CallRecorder so you can check the exact order
+things happened across all services (e.g., "did can_send get called before
+post_mattermost?").
+
+Key classes:
+- CallRecorder: ordered log of all fake function calls
+- FakeAlarmDB: in-memory replacement for the alarm history database
+- AlarmDoubles: the main handle that ties all the fakes together
+- install(): wires all fakes into the production code for a test run
 """
 
 from __future__ import annotations
@@ -200,8 +201,8 @@ class AlarmDoubles:
     * ``hypocenter_csv`` / ``hypocenter_xml`` -- canned download returns.
     * ``can_send_result`` -- bool returned by the ``can_send`` double (Req 8.4).
     * ``filter_dataframe_result`` -- optional ``(new_df, df)`` override.
-    * ``mm_url`` -- the sentinel URL returned by the ``post_mattermost`` double.
-    * ``sentinel_figure`` -- the sentinel path returned by figure doubles.
+    * ``mm_url`` -- the placeholder URL returned by the ``post_mattermost`` double.
+    * ``placeholder_figure`` -- the placeholder path returned by figure doubles.
     * ``download_returns`` -- per-name canned returns for the relocated
       ``download_*`` / scrape functions.
 
@@ -221,7 +222,7 @@ class AlarmDoubles:
         self.can_send_result: bool = True
         self.filter_dataframe_result: Any = None
         self.mm_url: str = "mattermost://test-server/post-id"
-        self.sentinel_figure: Path = Path("tmp_files") / "__sentinel_figure__.jpg"
+        self.placeholder_figure: Path = Path("tmp_files") / "__placeholder_figure__.jpg"
 
         # Canned returns for the per-alarm download / scrape helpers. Defaults
         # are benign "no new data" values; a test overrides as needed.
@@ -245,15 +246,15 @@ class AlarmDoubles:
 
     # -- figure-builder patching ---------------------------------------
     def patch_figure_builder(self, module, name: str = "make_figure"):
-        """Replace an alarm's figure builder with a sentinel-returning double.
+        """Replace an alarm's figure builder with a placeholder-returning double.
 
         Avoids running matplotlib entirely. The double records the call (under
-        ``"<name>"``) and returns ``self.sentinel_figure``.
+        ``"<name>"``) and returns ``self.placeholder_figure``.
         """
 
         def _figure_double(*args, **kwargs):
             self.recorder.record(name, args, kwargs)
-            return self.sentinel_figure
+            return self.placeholder_figure
 
         self.monkeypatch.setattr(module, name, _figure_double)
         return _figure_double
@@ -424,10 +425,10 @@ def install(handle: AlarmDoubles) -> AlarmDoubles:
     mp.setattr(cimss_detection, "get_cimss_image", _cimss_image_double)
     mp.setattr(cimss_pkg, "get_cimss_image", _cimss_image_double)
 
-    # --- plotting: save_file returns a sentinel path ------------------
+    # --- plotting: save_file returns a placeholder path ------------------
     def _save_file(fig, config, test=False, dpi=250):
         rec.record("save_file", (config,), {"test": test, "dpi": dpi})
-        return handle.sentinel_figure
+        return handle.placeholder_figure
 
     mp.setattr(plotting, "save_file", _save_file)
 

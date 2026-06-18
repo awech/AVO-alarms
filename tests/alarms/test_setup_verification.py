@@ -1,14 +1,14 @@
-"""Smoke tests for the behavior-preservation harness itself.
+"""Smoke tests for the test harness itself.
 
-These do not capture golden baselines (task 1.2) or refactor production code.
-They only verify that the test package imports cleanly and the shared
-fixtures/doubles are wired up and usable:
+Verifies that the shared fixtures and doubles work correctly before relying
+on them in the golden baseline tests:
 
-* real configs load through ``setup_utils.load_config`` from the in-repo
-  ``config/`` directory (Req 10.1, 10.2);
-* the doubles replace external side effects, record calls in order, and return
-  canned fixtures / sentinels (Req 12.1);
-* the ``FROMCRON`` helper toggles the environment per test.
+* Real configs load from config/ directory
+* Doubles replace external I/O and record calls in order
+* The FROMCRON fixture toggles the environment variable
+* Figure builders return placeholder paths
+
+These tests do NOT capture golden baselines or test alarm detection logic.
 """
 
 from __future__ import annotations
@@ -75,14 +75,14 @@ def test_alarming_doubles_use_in_memory_db(alarm_doubles, load_alarm_config):
 
 
 def test_save_file_and_os_remove_doubles(alarm_doubles, load_alarm_config):
-    """plotting.save_file returns the sentinel path; os.remove is recorded."""
+    """plotting.save_file returns the placeholder path; os.remove is recorded."""
     config = load_alarm_config("RSAM")
     path = plotting.save_file(fig=None, config=config)
-    assert path == alarm_doubles.sentinel_figure
+    assert path == alarm_doubles.placeholder_figure
 
     os.remove(path)
     assert alarm_doubles.recorder.called("os.remove")
-    assert alarm_doubles.recorder.last("os.remove").args[0] == alarm_doubles.sentinel_figure
+    assert alarm_doubles.recorder.last("os.remove").args[0] == alarm_doubles.placeholder_figure
 
 
 def test_relocated_download_doubles_return_canned_fixtures(alarm_doubles):
@@ -113,11 +113,11 @@ def test_fromcron_helper_toggles_environment(fromcron):
     assert "FROMCRON" not in os.environ
 
 
-def test_patch_figure_builder_returns_sentinel(alarm_doubles):
-    """patch_figure_builder swaps an alarm's make_figure for a sentinel double."""
+def test_patch_figure_builder_returns_placeholder(alarm_doubles):
+    """patch_figure_builder swaps an alarm's make_figure for a placeholder double."""
     from volc_alarms import RSAM
 
     alarm_doubles.patch_figure_builder(RSAM, "make_figure")
     result = RSAM.make_figure(["AV.PS4A..BHZ"], UTCDateTime("2024-01-01"), object())
-    assert result == alarm_doubles.sentinel_figure
+    assert result == alarm_doubles.placeholder_figure
     assert alarm_doubles.recorder.called("make_figure")

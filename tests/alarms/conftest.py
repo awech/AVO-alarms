@@ -1,16 +1,13 @@
-"""Pytest fixtures for the alarm behavior-preservation harness.
+"""Pytest fixtures for the alarm regression tests.
 
-Establishes the offline, deterministic environment the golden behavior tests
-need:
+Sets up a deterministic, offline test environment:
 
-* points ``CONFIGS_DIR`` at the in-repo ``config/`` directory and loads real
-  config objects through ``setup_utils.load_config`` (configs are *not* mocked --
-  Req 10.1), so ``run_alarm`` is driven with genuine config data;
-* installs the shared test doubles (see ``doubles.py``) that replace every
-  external side effect (Req 12.1);
-* provides a helper to set ``FROMCRON`` per test.
+* CONFIGS_DIR → real config/*.yml files in the repo (configs are NOT mocked)
+* All external services replaced by fakes (see fakes.py) — no real network,
+  database, or email calls are made
+* FROMCRON unset so no sleeps or time-backup logic fires
 
-``setup_utils.load_config`` reads the ``config/*.yml`` files exclusively.
+This conftest is shared by all tests under tests/alarms/.
 """
 
 from __future__ import annotations
@@ -22,7 +19,7 @@ import pytest
 
 from importlib.resources import files
 
-from tests.alarms.doubles import AlarmDoubles, CallRecorder, FakeAlarmDB, install
+from tests.alarms.fakes import AlarmDoubles, CallRecorder, FakeAlarmDB, install
 
 # Repo root is two levels up from tests/alarms/.
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -42,7 +39,7 @@ os.environ.setdefault("TMP_FIGURE_DIR", str(REPO_ROOT / "tmp_files"))
 os.environ.setdefault("TIMEZONE", "UTC")
 # FDSN base URL used by the Swarm alarm to build its (mocked) download request.
 os.environ.setdefault("FDSN_URL", "https://service.example.com/fdsnws/event/1/query?")
-# Never touch a real alarm-history DB; the DB doubles are in-memory regardless.
+# Never touch a real alarm-history DB; the fakes are in-memory regardless.
 os.environ.setdefault("DB_FILE", str(REPO_ROOT / "tmp_files" / "__test_alarms__.db"))
 # Make sure no test accidentally runs as if launched from cron unless it asks.
 os.environ.pop("FROMCRON", None)
@@ -83,11 +80,11 @@ def fromcron(monkeypatch):
 
 @pytest.fixture
 def alarm_doubles(monkeypatch, recorder, fake_db) -> AlarmDoubles:
-    """Install all shared test doubles and return the configurable handle.
+    """Install all fakes and return the configurable test handle.
 
-    Replaces every external side effect (downloads, Mattermost, email, Icinga,
-    DB access, figure save, ``os.remove``) with recording/canned doubles so an
-    alarm's ``run_alarm`` runs offline and deterministically (Req 12.1).
+    Replaces every external service call (downloads, Mattermost, email, Icinga,
+    DB access, figure save, os.remove) with recording fakes so an alarm's
+    run_alarm runs fully offline and deterministically.
     """
     handle = AlarmDoubles(recorder, fake_db, monkeypatch)
     return install(handle)

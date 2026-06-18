@@ -1,27 +1,24 @@
-"""Behavior-baseline capture utilities (task 1.2).
+"""Utilities for capturing and persisting golden behavior baselines.
 
-These helpers turn a single ``run_alarm`` invocation -- driven offline through the
-shared test doubles (see ``doubles.py``) -- into a *deterministic*, JSON-friendly
-snapshot of the alarm's observable behavior, and persist it as a **frozen
-fixture** under ``tests/alarms/baselines/``.
+After a scenario drives run_alarm() offline, these helpers snapshot the
+observable behavior into a deterministic, JSON-serializable dict:
 
-The captured ``Behavior_Baseline`` (Req 9.1-9.5, 12.2, 12.3) is exactly:
+- detection_state: the Icinga state (OK / WARNING / CRITICAL)
+- icinga: all Icinga heartbeat calls (state + message)
+- post_mattermost: all Mattermost posts (subject, body, flags)
+- send_alert: all email alerts (alarm_name, subject, body)
+- record_send: DB writes (alarm_id, volcano, event_id, time)
+- os_remove: file cleanup calls (normalized paths)
+- call_order: full chronological call sequence
 
-* detection ``state`` -- the state carried on the final ``messaging.icinga`` call
-  (``run_alarm`` returns ``None``, so the Icinga heartbeat is where the resolved
-  state is observable);
-* Icinga state + state message -- every ``messaging.icinga`` call (args 1/2);
-* ``CRITICAL`` message subject/body -- every ``messaging.post_mattermost`` and
-  ``messaging.send_alert`` call (subject + body);
-* ``record_send`` fields -- ``alarm_id``, ``volcano``, ``event_id`` and processed
-  time, read from the in-memory :class:`~tests.alarms.doubles.FakeAlarmDB`;
-* the ``os.remove`` cleanup call(s) -- normalized figure path(s).
+The snapshots are persisted as JSON in tests/alarms/baselines/ and compared
+on subsequent test runs to detect unintended behavior changes.
 
-Determinism is guaranteed by: a fixed ``T0`` (no wall-clock leakage), ``FROMCRON``
-left unset (no sleeps / time backup), every external side effect doubled, and
-path/URL normalization of the sentinel figure file. Later golden tests
-(tasks 5.x / 7.x / 9.x) recapture the same scenario against the *restructured*
-code and assert equality against the frozen JSON these helpers produce.
+Determinism is guaranteed by:
+- Fixed T0 (no wall-clock dependency)
+- FROMCRON unset (no sleeps)
+- All external I/O replaced by test doubles
+- Path normalization (placeholder figure → token)
 """
 
 from __future__ import annotations
@@ -30,7 +27,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from tests.alarms.doubles import AlarmDoubles, CallRecorder, FakeAlarmDB
+from tests.alarms.fakes import AlarmDoubles, CallRecorder, FakeAlarmDB
 
 # Frozen baselines live next to this module.
 BASELINES_DIR = Path(__file__).resolve().parent / "baselines"
@@ -42,18 +39,18 @@ from obspy import UTCDateTime  # noqa: E402
 
 T0 = UTCDateTime("2025-01-01T00:00:00")
 
-# Stable placeholder substituted for the sentinel figure path so snapshots do
+# Stable placeholder substituted for the placeholder figure path so snapshots do
 # not depend on an absolute/relative filesystem location.
 FIGURE_TOKEN = "<FIGURE>"
 
 
-def _norm_path(path: Any, sentinel: Path) -> str:
-    """Map the sentinel figure path (or anything derived from it) to a token."""
+def _norm_path(path: Any, placeholder: Path) -> str:
+    """Map the placeholder figure path (or anything derived from it) to a token."""
     s = str(path)
-    if s == str(sentinel):
+    if s == str(placeholder):
         return FIGURE_TOKEN
     # Renamed figures (Magnitude/Swarm) keep the tmp_files dir; collapse those too.
-    if s.startswith(str(sentinel.parent) + "/"):
+    if s.startswith(str(placeholder.parent) + "/"):
         return f"{FIGURE_TOKEN}:{Path(s).name}"
     return s
 
@@ -76,7 +73,7 @@ def _norm_record(row: dict) -> dict:
     }
 
 
-def snapshot(recorder: CallRecorder, db: FakeAlarmDB, sentinel: Path) -> dict:
+def snapshot(recorder: CallRecorder, db: FakeAlarmDB, placeholder: Path) -> dict:
     """Build the deterministic ``Behavior_Baseline`` dict for one run_alarm call.
 
     Reads only the doubled-call timeline (``recorder``) and the in-memory send
@@ -114,7 +111,7 @@ def snapshot(recorder: CallRecorder, db: FakeAlarmDB, sentinel: Path) -> dict:
     ]
 
     record_send = [_norm_record(r) for r in db.records]
-    os_remove = [_norm_path(c.args[0], sentinel) for c in recorder.of("os.remove")]
+    os_remove = [_norm_path(c.args[0], placeholder) for c in recorder.of("os.remove")]
 
     # The resolved detection state is what the final Icinga heartbeat carries.
     detection_state = icinga[-1]["state"] if icinga else None
@@ -132,7 +129,7 @@ def snapshot(recorder: CallRecorder, db: FakeAlarmDB, sentinel: Path) -> dict:
 
 def capture(doubles: AlarmDoubles) -> dict:
     """Snapshot the behavior recorded on ``doubles`` after a run_alarm call."""
-    return snapshot(doubles.recorder, doubles.db, doubles.sentinel_figure)
+    return snapshot(doubles.recorder, doubles.db, doubles.placeholder_figure)
 
 
 def baseline_path(name: str) -> Path:

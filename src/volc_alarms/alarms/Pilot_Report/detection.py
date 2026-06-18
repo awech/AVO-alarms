@@ -1,7 +1,6 @@
 import os
 import re
 import zipfile
-from pathlib import Path
 
 import pandas as pd
 import requests

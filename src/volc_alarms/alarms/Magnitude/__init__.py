@@ -2,11 +2,9 @@ import os
 import warnings
 
 from volc_alarms.utils import messaging, processing, downloading, alarming
-from volc_alarms.utils.setup_utils import get_logger, load_volcano_list
+from volc_alarms.utils.setup_utils import get_logger
 
 from .detection import process_event
-from .figure import plot_event
-from .message import create_message
 
 logger = get_logger(__name__)
 

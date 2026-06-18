@@ -1,9 +1,8 @@
 import traceback
 
 import numpy as np
-from pandas import DataFrame
 
-from volc_alarms.utils import downloading, messaging, processing
+from volc_alarms.utils import downloading, messaging
 from volc_alarms.utils.alarm_flow import apply_cron_latency_backup, run_send_sequence
 from volc_alarms.utils.setup_utils import get_logger
 

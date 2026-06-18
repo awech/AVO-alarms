@@ -1,11 +1,11 @@
 import numpy as np
 from obspy import Stream
 
-from volc_alarms.utils import messaging, processing, downloading, alarming
+from volc_alarms.utils import messaging, processing, downloading
 from volc_alarms.utils.alarm_flow import apply_cron_latency_backup, run_send_sequence
 from volc_alarms.utils.setup_utils import get_logger
 
-from . import detection, figure, message
+from . import detection
 from .figure import make_figure
 from .message import create_message
 

@@ -82,7 +82,6 @@ def main():
         # keep .keep file from getting pruned by other cron deleting old log-files
         keep_file = Path(os.getenv("LOGS_DIR")) / ".keep"
         keep_file.touch(exist_ok=True)
-        # TODO: add default lock & logs directories. Set even if not in .env file
         if "LOCK_DIR" in os.environ:
             lock_dir = os.getenv("LOCK_DIR")
         else:

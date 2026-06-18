@@ -5,7 +5,7 @@ alarm_name: SDPI Infrasound   # alarm name sent to icinga and in message alerts
 nslc:
   - AV.SDPI.01.HDF
   - AV.SDPI.02.HDF
-  # - AV.SDPI.03.HDF   # disabled to match legacy config (parity with Infrasound.py)
+  - AV.SDPI.03.HDF
   - AV.SDPI.04.HDF
   - AV.SDPI.05.HDF
   - AV.SDPI.06.HDF

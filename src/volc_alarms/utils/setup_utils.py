@@ -80,7 +80,7 @@ def load_environment(env_file=None):
     os.environ.setdefault("PIREP_URL", PIREP_URL)
     os.environ.setdefault("VAA_URL", VAA_URL)
     os.environ.setdefault("SACS_URL", SACS_URL)
-            
+
     # --- Non-path defaults ---
     os.environ.setdefault("TIMEZONE", "US/Alaska")
     os.environ.setdefault("LOG_HOUR_INTERVAL", "12")
@@ -190,6 +190,15 @@ def load_config(config_name):
     for key, value in vars(config).items():
         if isinstance(value, str) and looks_like_path(value):
             setattr(config, key, Path(value))
+
+    # Apply waveform defaults for seismo-acoustic alarm types
+    if config.alarm_type in ("RSAM", "Infrasound", "Tremor"):
+        if not hasattr(config, "taper") or config.taper is None:
+            config.taper = 5
+        if not hasattr(config, "latency") or config.latency is None:
+            config.latency = 10
+        if not hasattr(config, "duration") or config.duration is None:
+            config.duration = 180 if config.alarm_type == "Infrasound" else 300
 
     if config.alarm_type == "Infrasound":
         config = update_infrasound_config(config)

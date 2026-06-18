@@ -137,6 +137,33 @@ def looks_like_path(value):
     return False
 
 
+def _evaluate_math_expr(value):
+    """Evaluate a simple arithmetic string (e.g. '3600 * 24 * 3').
+
+    Supports chained +, -, *, / operations between numeric values.
+    Only evaluates strings composed entirely of digits, decimal points,
+    whitespace, and arithmetic operators. Returns the numeric result,
+    or the original value unchanged if it doesn't match.
+    """
+    if not isinstance(value, str):
+        return value
+
+    safe_math_re = re.compile(r"^[\d\s+\-*/.()]+$")
+
+    if not safe_math_re.match(value):
+        return value
+
+    try:
+        result = eval(value)  # noqa: S307 — input is validated above
+    except (SyntaxError, ZeroDivisionError, TypeError):
+        return value
+
+    # Return int when the result is a whole number
+    if isinstance(result, float) and result == int(result):
+        return int(result)
+    return result
+
+
 def load_config(config_name):
     """
     Load configuration from a YAML file in CONFIGS_DIR.
@@ -190,6 +217,12 @@ def load_config(config_name):
     for key, value in vars(config).items():
         if isinstance(value, str) and looks_like_path(value):
             setattr(config, key, Path(value))
+
+    # Evaluate simple arithmetic expressions (e.g. "280*2.5") for eligible keys
+    math_eligible_keys = {"value", "duration"}
+    for key in math_eligible_keys:
+        if hasattr(config, key):
+            setattr(config, key, _evaluate_math_expr(getattr(config, key)))
 
     # Apply waveform defaults for seismo-acoustic alarm types
     if config.alarm_type in ("RSAM", "Infrasound", "Tremor"):

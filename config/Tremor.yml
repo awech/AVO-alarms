@@ -53,5 +53,5 @@ grid:
 phase_list:
   - 3kmps
 
-# Supporting file locations
-grid_file: Pavlof_tremor_grid.npz   # location of grid/model file
+# Supporting file locations. Optional. Defaults to tmp_files directory
+# grid_file: Pavlof_tremor_grid.npz   # location of grid/model file

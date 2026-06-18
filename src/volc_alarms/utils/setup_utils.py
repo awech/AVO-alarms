@@ -236,6 +236,10 @@ def load_config(config_name):
     if config.alarm_type == "Infrasound":
         config = update_infrasound_config(config)
 
+    if config.alarm_type == "Tremor":
+        if not hasattr(config, "grid_file"):
+            config.grid_file = TMP_DIR / f"{config.alarm_name.replace(" ", "_")}_grid.npz"
+
     return config
 
 

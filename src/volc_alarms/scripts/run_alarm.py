@@ -100,7 +100,13 @@ def main():
         logger.warning(str(e))
         return
 
-    # TODO: implement kill switch
+    # Kill switch: if `kill: true` is in the config, send icinga warning and exit
+    config = load_config(args.config)
+    if getattr(config, "kill", False):
+        logger.warning(f"Kill switch active for {args.config} — skipping alarm")
+        messaging.icinga(config, "WARNING", f"{args.config} alarm has been killed")
+        lock.release()
+        return
 
     args = update_arguments(args)
     if args.test:
@@ -110,9 +116,6 @@ def main():
     logger.info(f"---- Running {args.config} at {args.time.strftime('%Y-%m-%d %H:%M:%S')} ----")
 
     try:
-        # load the config file from args
-        config = load_config(args.config)
-        
         # Import and run the alarm
         ALARM = import_module(f"volc_alarms.alarms.{config.alarm_type}")
         ALARM.run_alarm(

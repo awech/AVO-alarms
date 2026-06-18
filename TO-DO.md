@@ -22,7 +22,7 @@
 - [x] move distribution file to configs repository as (maybe) .yml
 - [x] implement Python logger
 - [x] add defaults to infrasound parameters that then can be overwritten if need be (`vmin`, `vmax`, `min_pa`)
-- [ ] implement a 'kill' switch - probably from config file
+- [x] implement a 'kill' switch - probably from config file
 - [x] change volcano list file to csv. Possibly need separate AVO xlsx file.
 
 ## :test_tube: Tests

@@ -3,3 +3,5 @@
 
 # Do not ignore the .gitkeep file
 !.gitignore
+!index.html
+!stations.xml

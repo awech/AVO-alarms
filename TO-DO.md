@@ -6,7 +6,7 @@
 - [x] Numerous folders with .py scripts that are much more simple and grouped by their tasks
 - [x] add `pyproject.toml` file
 - [x] change `main.py` to be run as exectuable
-- [ ] add memory to RSAM and Infrasound alarms
+- [x] add memory to RSAM and Infrasound alarms
 - [x] change all `string{}.format()` to fstring
 - [x] change all SCNL to NSLC!
 - [x] Get dependencies up to date. Make all effort to minimize
@@ -16,14 +16,14 @@
 - [ ] use os.getenv() instead of os.environ[] where appropriate
 - [x] move configs to external repository
 - [x] implement default "all" message distribution
-- [ ] allow for distribution/phonebook to be environment variables
+- [x] allow for distribution/phonebook to be environment variables
 - [x] edit notifications html script to use yml files
-- [ ] convert configs to .yml
-- [ ] move distribution file to configs repository as (maybe) .yml
+- [x] convert configs to .yml
+- [x] move distribution file to configs repository as (maybe) .yml
 - [x] implement Python logger
-- [ ] add defaults to infrasound parameters that then can be overwritten if need be (`vmin`, `vmax`, `min_pa`)
-- [ ] implement a 'kill' switch - probably from config file
-- [ ] change volcano list file to csv. Possibly need separate AVO xlsx file.
+- [x] add defaults to infrasound parameters that then can be overwritten if need be (`vmin`, `vmax`, `min_pa`)
+- [x] implement a 'kill' switch - probably from config file
+- [x] change volcano list file to csv. Possibly need separate AVO xlsx file.
 
 ## :test_tube: Tests
 - [x] sort out `test_flag` vs possible `force` flag

@@ -1,0 +1,6 @@
+alarm_type: VAA
+alarm_name: SIGMET
+
+duration: 14400       # 4 * 3600
+
+mattermost_channel_id: p69uudmgsiby8j4ydy1fafdqqe

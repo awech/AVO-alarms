@@ -38,7 +38,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
 
     strokes_df = strokes_df[strokes_df["time"] > T1.strftime("%Y-%m-%d %H:%M:%S")]
 
-    if test_flag:
+    if force_flag:
         strokes_df["v_distance"] = strokes_df["api_vdist"]
         strokes_df["v_name"] = strokes_df["api_vname"]
     else:

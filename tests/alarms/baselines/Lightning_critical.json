@@ -23,7 +23,7 @@
   ],
   "post_mattermost": [
     {
-      "body": "\n2 new strokes! (2 total)\n\n-- Most recent --\n2024-12-31 23:30 UTC\n2024-12-31 23:30 UTC\n8 km ESE of Pavlof,\n\nData source: Earth Networks",
+      "body": "\n2 new strokes! (2 total)\n\n-- Most recent --\n2024-12-31 23:30 UTC\n2024-12-31 23:30 UTC\n2 km ESE of Pavlof,\n\nData source: Earth Networks",
       "send": true,
       "subject": "--- Pavlof Lightning ---",
       "test": true,
@@ -49,7 +49,7 @@
   "send_alert": [
     {
       "alarm_name": "Lightning",
-      "body": "\n2 new strokes! (2 total)\n\n-- Most recent --\n2024-12-31 23:30 UTC\n2024-12-31 23:30 UTC\n8 km ESE of Pavlof,\n\nData source: Earth Networks\n\nmattermost://test-server/post-id",
+      "body": "\n2 new strokes! (2 total)\n\n-- Most recent --\n2024-12-31 23:30 UTC\n2024-12-31 23:30 UTC\n2 km ESE of Pavlof,\n\nData source: Earth Networks\n\nmattermost://test-server/post-id",
       "subject": "--- Pavlof Lightning ---",
       "test": true
     }

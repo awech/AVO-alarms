@@ -1,6 +1,7 @@
 {
   "call_order": [
     "download_waveforms",
+    "download_waveforms",
     "icinga"
   ],
   "detection_state": "WARNING",

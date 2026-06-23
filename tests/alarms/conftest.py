@@ -41,6 +41,8 @@ os.environ.setdefault("TIMEZONE", "UTC")
 os.environ.setdefault("FDSN_URL", "https://service.example.com/fdsnws/event/1/query?")
 # Never touch a real alarm-history DB; the fakes are in-memory regardless.
 os.environ.setdefault("DB_FILE", str(REPO_ROOT / "tmp_files" / "__test_alarms__.db"))
+# Point at the test station XML so add_metadata and RSAM_to_DR work offline.
+os.environ.setdefault("STATION_XML", str(REPO_ROOT / "tests" / "data" / "station.xml"))
 # Make sure no test accidentally runs as if launched from cron unless it asks.
 os.environ.pop("FROMCRON", None)
 

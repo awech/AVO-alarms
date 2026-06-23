@@ -99,9 +99,15 @@ def preprocess(st, config, t1, t2):
     st.taper(max_percentage=None, max_length=config.taper)
 
     band = st.copy().filter(
-        "bandpass", freqmin=config.f1, freqmax=config.f2, corners=3, zerophase=True
+        "bandpass", freqmin=config.f1, freqmax=config.f2, corners=2, zerophase=True
     )
-    high = st.copy().filter("highpass", freq=config.highpass, corners=3, zerophase=True)
+    high = st.copy().filter("highpass", freq=config.highpass, corners=2, zerophase=True)
+    
+    band.merge(fill_value=0)
+    band.trim(t1, t2, pad=True, fill_value=0)
+    
+    high.merge(fill_value=0)
+    high.trim(t1, t2, pad=True, fill_value=0)
 
     band_env = make_env(band.copy(), config, t1, t2)
     high_env = make_env(high, config, t1, t2)

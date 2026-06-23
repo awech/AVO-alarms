@@ -36,22 +36,21 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     nslc = list(config.nslc)
     t1 = T0 - 1.5 * config.window_length - config.taper
     t2 = T0 + config.taper
-    st = downloading.download_waveforms(nslc, t1, t2, fill_value=0)
+    st = downloading.download_waveforms(nslc, t1, t2)
     st = processing.add_metadata(st)
+    
 
-    ##### check for enough data #####
-    if detection.qc_checks(st) < config.min_sta:
+    ######## preprocess data ########
+    band_env, high_env, band = detection.preprocess(st, config, t1, t2)
+    if detection.qc_checks(band) < config.min_sta:
         state_message = f"{state_message} - Data missing!"
         state = "WARNING"
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
-
-    ######## preprocess data ########
-    band_env, high_env, band = detection.preprocess(st, config, t1, t2)
-    rsam_st = st.select(id=config.rsam_station)
-    rsam_st.filter(
-        "bandpass", freqmin=config.f1, freqmax=config.f2, corners=3, zerophase=True
-    )
+    
+    
+    ######### run rsam test #########
+    rsam_st = band.select(id=config.rsam_station)
     if rsam_st:
         rsam = np.sqrt(np.mean(np.square(rsam_st[0].data)))
         rsam_test = rsam

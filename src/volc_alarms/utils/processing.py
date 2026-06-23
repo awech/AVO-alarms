@@ -370,3 +370,12 @@ def add_metadata(st):
         tr.inventory = inv
 
     return st
+
+
+def preprocess_stream(st, t1, t2, config):
+    st.detrend("demean")
+    st.taper(max_percentage=None, max_length=config.taper)
+    st.filter("bandpass", freqmin=config.f1, freqmax=config.f2)
+    st.merge(fill_value=0)
+    st.trim(t1, t2, pad=True, fill_value=0)
+    return st

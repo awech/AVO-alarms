@@ -136,7 +136,27 @@ def download_hypocenter_xml(URL):
     return CAT
 
 
-def download_waveforms(nslc_list, T1, T2, fill_value=0, iris=False):
+def _qc_sub_trace(sub_trace):
+    """
+    Ensure consistent data type and sampling rate for a trace.
+
+    Casts trace data to int32 if not already, and rounds the sampling
+    rate to the nearest integer if it is not already a whole number.
+
+    Args:
+        sub_trace (obspy.Trace): A single seismic trace to check.
+
+    Returns:
+        obspy.Trace: The trace with corrected data type and sampling rate.
+    """
+    if sub_trace.data.dtype.name != "int32":
+        sub_trace.data = sub_trace.data.astype("int32")
+    if sub_trace.stats.sampling_rate != np.round(sub_trace.stats.sampling_rate):
+        sub_trace.stats.sampling_rate = np.round(sub_trace.stats.sampling_rate)
+    return sub_trace
+
+
+def download_waveforms(nslc_list, T1, T2, iris=False):
     """_summary_
 
     Parameters
@@ -147,8 +167,6 @@ def download_waveforms(nslc_list, T1, T2, fill_value=0, iris=False):
         _description_
     T2 : _type_
         _description_
-    fill_value : int, optional
-        _description_, by default 0
 
     Returns
     -------
@@ -172,7 +190,7 @@ def download_waveforms(nslc_list, T1, T2, fill_value=0, iris=False):
     if iris:
         import ssl
         ssl._create_default_https_context = ssl._create_unverified_context
-        client = FDSN_Client("IRIS")
+        client = FDSN_Client("earthscope")
     else:
         client = EW_Client(
             os.environ["WINSTON_HOST"],
@@ -181,33 +199,19 @@ def download_waveforms(nslc_list, T1, T2, fill_value=0, iris=False):
         )
 
 
-    start = time.time()
     for nslc in nslc_list:
         try:
-            if iris:
-                tr = client.get_waveforms(*nslc.split("."), T1, T2)
-            else:
-                tr = client.get_waveforms(*nslc.split("."), T1, T2, cleanup=True)
-            if len(tr) > 1:
-                logger.info(f"{len(tr):.0f} traces for {nslc}")
-                if fill_value == 0 or fill_value is None:
-                    tr.detrend("demean")
-                    tr.taper(max_percentage=0.01)
+            tr = client.get_waveforms(*nslc.split("."), T1, T2)
+            if len(tr) > 1: # pragma: no cover
+                # Handle cases with multiple traces (e.g., due to gaps)
                 for sub_trace in tr:
-                    # deal with error when sub-traces have different dtypes
-                    if sub_trace.data.dtype.name != "int32":
-                        sub_trace.data = sub_trace.data.astype("int32")
-                    if sub_trace.data.dtype != np.dtype("int32"):
-                        sub_trace.data = sub_trace.data.astype("int32")
-                    # deal with rare error when sub-traces have different sample rates
-                    if sub_trace.stats.sampling_rate != np.round(
-                        sub_trace.stats.sampling_rate
-                    ):
-                        sub_trace.stats.sampling_rate = np.round(
-                            sub_trace.stats.sampling_rate
-                        )
-                logger.info("Merging gappy data...")
-                tr.merge(fill_value=fill_value)
+                    # Ensure consistent data types and sampling rates
+                    sub_trace = _qc_sub_trace(sub_trace)
+                if not tr.get_gaps():
+                    # handle case where multiple traces returned with no gaps between them
+                    logger.info(f"{nslc}: Multiple traces returned with no gaps between. Simple merge")
+                    tr.merge()
+
         except Exception:
             logger.warning(f"Error grabbing data for {nslc}, filling with zeros")
             tr = Stream()
@@ -222,11 +226,7 @@ def download_waveforms(nslc_list, T1, T2, fill_value=0, iris=False):
                 int((T2 - T1) * tr.stats["sampling_rate"]), dtype="int32"
             )
         st += tr
-    logger.info(f"{time.time() - start:.2f} seconds")
 
-    logger.info("Detrending data...")
-    st.detrend("demean")
-    st.trim(T1, T2, pad=True, fill_value=0)
     return st
 
 

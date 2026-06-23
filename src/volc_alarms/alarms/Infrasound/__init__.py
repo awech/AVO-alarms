@@ -15,13 +15,26 @@ logger = get_logger(__name__)
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force_flag=False):
 
     T0 = apply_cron_latency_backup(config, T0)
-    state_message = f"{T0.strftime('%Y-%m-%d %H:%M')} (UTC) {config.alarm_name}"
-
-    #### download data ####
     t1 = T0 - config.duration
     t2 = T0
-    st = downloading.download_waveforms(list(config.nslc), t1, t2, fill_value=0)
+    state_message = f"{T0.strftime('%Y-%m-%d %H:%M')} (UTC) {config.alarm_name}"
+
+
+    #### download data ####
+    st = downloading.download_waveforms(list(config.nslc), t1-config.taper, t2+config.taper)
     st = processing.add_metadata(st)
+
+
+    #### preprocess data ####
+    st = processing.preprocess_stream(st, t1, t2, config)
+    for tr in st:
+        if tr.stats["sampling_rate"] == 100:
+            tr.decimate(2)
+        if tr.stats["sampling_rate"] != 50:
+            tr.resample(50.0)
+        tr.remove_sensitivity(tr.inventory)
+    st.trim(t1, t2, pad=True, fill_value=0) # force same trace length after decimation
+
 
     #### check for enough data ####
     for tr in st:
@@ -33,6 +46,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         state = "WARNING"
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
+
 
     #### check for gappy data ####
     for tr in st:
@@ -46,16 +60,6 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 
-    #### preprocess data ####
-    st.detrend("demean")
-    st.taper(max_percentage=None, max_length=config.taper)
-    st.filter("bandpass", freqmin=config.f1, freqmax=config.f2)
-    for tr in st:
-        if tr.stats["sampling_rate"] == 100:
-            tr.decimate(2)
-        if tr.stats["sampling_rate"] != 50:
-            tr.resample(50.0)
-        tr.remove_sensitivity(tr.inventory)
 
     #### check amplitude threshold ####
     if force_flag:
@@ -122,7 +126,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
             T0,
             state,
             state_message,
-            figure_factory=lambda: make_figure(st, target, T0, config, mx_pressure, test=test_flag),
+            figure_factory=lambda: make_figure(target, T0, config, mx_pressure, test=test_flag),
             message_factory=lambda: create_message(t1, t2, st, target, azimuth, d_Azimuth, velocity, mx_pressure),
             can_send_kwargs={"volcano": target["name"]},
             record_kwargs={"volcano": target["name"]},

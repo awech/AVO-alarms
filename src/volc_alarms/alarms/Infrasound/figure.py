@@ -10,17 +10,17 @@ from .detection import xcorr_align_stream
 logger = get_logger(__name__)
 
 
-def make_figure(st, target, T0, config, mx_pressure, test=False):
+def make_figure(target, T0, config, mx_pressure, test=False):
 
     start = time.time()
 
     ##### get seismic data #####
-    t_seis_win = config.seismic_plot_duration if hasattr(config, "seismic_plot_duration") else 3600
-    seis = downloading.download_waveforms(target["seismic_nslc"], T0 - t_seis_win, T0, fill_value="interpolate")
+    t_seis_win = getattr(config, "seismic_plot_duration", 3600)
+    seis = downloading.download_waveforms(target["seismic_nslc"], T0 - t_seis_win, T0)
     ##### get infrasound data #####
-    infra_nslc = [tr.id for tr in st]
-    t_infra_win = config.infrasound_plot_duration if hasattr(config, "infrasound_plot_duration") else 600
-    infra = downloading.download_waveforms(infra_nslc, T0 - t_infra_win, T0, fill_value="interpolate")
+    infra_nslc = config.nslc
+    t_infra_win = getattr(config, "infrasound_plot_duration", 600)
+    infra = downloading.download_waveforms(infra_nslc, T0 - t_infra_win, T0)
 
     logger.info(f"{time.time() - start:.2f} seconds to grab figure data.")
 
@@ -31,18 +31,22 @@ def make_figure(st, target, T0, config, mx_pressure, test=False):
     [tr.decimate(2, no_filter=True) for tr in infra if tr.stats.sampling_rate == 100]
     [tr.decimate(2, no_filter=True) for tr in infra if tr.stats.sampling_rate == 50]
     [tr.resample(25) for tr in infra if tr.stats.sampling_rate != 25]
+    infra.merge(fill_value=0)
+    infra.trim(T0 - t_infra_win, T0, pad=True, fill_value=0)
 
     seis.detrend("demean")
     [tr.decimate(2, no_filter=True) for tr in seis if tr.stats.sampling_rate == 100]
     [tr.decimate(2, no_filter=True) for tr in seis if tr.stats.sampling_rate == 50]
     [tr.resample(25) for tr in seis if tr.stats.sampling_rate != 25]
+    seis.merge()
+    seis.trim(T0 - t_seis_win, T0, pad=True)
 
     ##### stack infrasound data #####
     logger.info("stacking infrasound data")
     stack = xcorr_align_stream(infra, config)
 
     ##### set up figure #####
-    seis_list = [[f"{tr.stats.station}.{tr.stats.channel}"] for tr in seis]
+    seis_list = [[f"{i_nslc}"] for i_nslc in target["seismic_nslc"]]
     axes_list = [["stack_spec"], ["stack_trace"], ["blank"]] + seis_list
     fig, ax = plt.subplot_mosaic(axes_list, figsize=(4.5, 4.5))
     ax["blank"].axis("off")
@@ -80,14 +84,14 @@ def make_figure(st, target, T0, config, mx_pressure, test=False):
     ###################################################
 
     ################## plot seismic ###################
-    for i, tr in enumerate(seis):
-        name = f"{tr.stats.station}.{tr.stats.channel}"
-        plotting.plot_spectrogram(ax[name], tr)
-        plotting.format_spec_xaxis(ax[name], tr, seis, i, config)
-        ax[name].set_title("")
+    for i, i_nslc in enumerate(target["seismic_nslc"]):
+        tr = seis.select(id=i_nslc)[0]
+        plotting.plot_spectrogram(ax[tr.id], tr)
+        plotting.format_spec_xaxis(ax[tr.id], tr, seis, i, config)
+        ax[i_nslc].set_title("")
 
     min_stamp = round(t_seis_win / 60)
-    ax[name].set_xlabel(
+    ax[tr.id].set_xlabel(
         f"{min_stamp:.0f} Minute Seismic Local Seismic Data",
         fontsize=6,
     )

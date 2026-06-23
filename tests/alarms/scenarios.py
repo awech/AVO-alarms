@@ -28,7 +28,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from obspy import Stream, Trace
-from obspy.core.util import AttribDict
 
 from tests.alarms.snapshot_utils import T0
 
@@ -36,29 +35,6 @@ from tests.alarms.snapshot_utils import T0
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
-def _passthrough_add_metadata(doubles):
-    """Patch ``processing.add_metadata`` to attach dummy coordinates offline.
-
-    The real ``add_metadata`` reads a station XML (``STATION_XML``) and returns
-    ``None`` when it is missing, which would crash the seismic alarms before they
-    reach their observable Icinga heartbeat. For the representative paths the
-    surviving-trace coordinates are never read (the alarms early-return on
-    insufficient/gappy data), so a passthrough that simply returns the stream
-    with placeholder coordinates preserves the observable outcome while keeping
-    the run offline. (Documented in baselines/README.md.)
-    """
-    from volc_alarms.utils import processing
-
-    def _double(st):
-        for tr in st:
-            tr.stats.coordinates = AttribDict(
-                {"latitude": 0.0, "longitude": 0.0, "elevation": 0.0}
-            )
-            tr.inventory = None
-        return st
-
-    doubles.patch_callable(processing, "add_metadata", _double)
-
 
 def _clean_test_db():
     """Remove the sqlite file the un-doubled DB helpers touch, for determinism.
@@ -109,7 +85,7 @@ def rsam_critical(doubles, load_config):
     hot = {"CEAP", "CERA", "CETU"}  # exceed their levels -> detection
     arrestor = "AMKA"  # must stay below its level
 
-    def _factory(nslc_list, T1, T2, fill_value=0, iris=False, **_):
+    def _factory(nslc_list, T1, T2, iris=False, **_):
         sr = 100.0
         npts = max(int(round((T2 - T1) * sr)), 1)
         t = np.arange(npts) / sr
@@ -139,7 +115,6 @@ def infrasound_representative(doubles, load_config):
     config = load_config("Infrasound")
     from volc_alarms import Infrasound
 
-    _passthrough_add_metadata(doubles)
     doubles.patch_figure_builder(Infrasound, "make_figure")
     Infrasound.run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True)
 
@@ -153,7 +128,6 @@ def tremor_representative(doubles, load_config):
     config = load_config("Tremor")
     from volc_alarms import Tremor
 
-    _passthrough_add_metadata(doubles)
     Tremor.run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True)
 
 

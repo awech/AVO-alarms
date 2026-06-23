@@ -34,7 +34,7 @@ def test_download_waveforms_double_returns_canned_stream(alarm_doubles):
     nslc = ["AV.PS4A..BHZ", "AV.PVV..BHZ"]
     t1 = UTCDateTime("2024-01-01T00:00:00")
     t2 = t1 + 300
-    st = downloading.download_waveforms(nslc, t1, t2, fill_value=0)
+    st = downloading.download_waveforms(nslc, t1, t2)
     assert isinstance(st, Stream)
     assert len(st) == 2
     assert {tr.id for tr in st} == set(nslc)

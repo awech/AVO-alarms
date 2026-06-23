@@ -50,6 +50,10 @@ avo = [
     "mattermostdriver",
     "openpyxl"
 ]
+test = [
+    "pytest>=7.0",
+    "coverage",
+]
 
 [project.scripts]
 run-alarm = "volc_alarms.scripts.run_alarm:main"

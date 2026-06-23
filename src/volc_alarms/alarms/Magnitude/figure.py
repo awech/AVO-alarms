@@ -16,7 +16,8 @@ def plot_event(eq, volcs, config, n_stations=8, test=False):
     st = downloading.download_waveforms(
         list(plot_chans.NSLC.values), origin.time - 20, origin.time + 50
     )
-
+    st.merge()
+    
     logger.info("Plotting traces...")
     axes_list, h_ratios = plotting.get_axes_and_ratios(st)
     fig, ax = plt.subplot_mosaic(

@@ -702,7 +702,7 @@ def default_colormap(infrasound=False):
     return color_map
 
 
-def plot_spectrogram(ax, tr, sr=25, colormap=default_colormap()):
+def plot_spectrogram(ax, tr, colormap=default_colormap()):
 
     label_color = "black"
     if tr.stats.channel in ["BDF", "HDF", "EDH"]:
@@ -712,7 +712,7 @@ def plot_spectrogram(ax, tr, sr=25, colormap=default_colormap()):
     tr.spectrogram(
         title="",
         log=False,
-        samp_rate=sr,
+        samp_rate=tr.stats.sampling_rate,
         dbscale=True,
         per_lap=0.5,
         mult=25.0,
@@ -786,8 +786,10 @@ def plot_spectrogram_figure(nslc, T0, config, test=False):
 
     #### grab data ####
     start = time.time()
-    t_win = config.plot_duration if hasattr(config, "plot_duration") else 3600
-    st = downloading.download_waveforms(nslc, T0 - t_win, T0, fill_value="interpolate")
+    t_win = getattr(config, "plot_duration", 3600)
+    st = downloading.download_waveforms(
+        nslc, T0 - t_win - config.taper, T0 + config.taper
+    )
     logger.info(f"{time.time() - start:.2f} seconds to grab figure data.")
 
     #### preprocess data ####
@@ -795,15 +797,17 @@ def plot_spectrogram_figure(nslc, T0, config, test=False):
     [tr.decimate(2, no_filter=True) for tr in st if tr.stats.sampling_rate == 100]
     [tr.decimate(2, no_filter=True) for tr in st if tr.stats.sampling_rate == 50]
     [tr.resample(25) for tr in st if tr.stats.sampling_rate != 25]
+    st.merge()
+    st.trim(T0 - t_win, T0, pad=True)
 
     #### generate the figure ####
-    axes_list = [[f"{tr.stats.station}.{tr.stats.channel}"] for tr in st]
+    axes_list = [[f"{i_nslc}"] for i_nslc in nslc]
     fig, ax = plt.subplot_mosaic(axes_list, figsize=(4.5, 4.5))
 
-    for i, tr in enumerate(st):
-        name = f"{tr.stats.station}.{tr.stats.channel}"
-        plot_spectrogram(ax[name], tr)
-        format_spec_xaxis(ax[name], tr, st, i, config)
+    for i, i_nslc in enumerate(nslc):
+        tr = st.select(id=i_nslc)[0]
+        plot_spectrogram(ax[tr.id], tr)
+        format_spec_xaxis(ax[tr.id], tr, st, i, config)
 
     plt.subplots_adjust(left=0.08, right=0.94, top=0.92, bottom=0.1, hspace=0.1)
 

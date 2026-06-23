@@ -3,7 +3,7 @@ import numpy as np
 from volc_alarms.utils import messaging
 
 
-def create_message(t1, t2, stations, rms, lvlv, DR, alarm_name):
+def create_message(t1, t2, stations, rsam, levels, DR, alarm_name):
     """Build the RSAM alert subject and message body.
 
     Parameters
@@ -14,9 +14,9 @@ def create_message(t1, t2, stations, rms, lvlv, DR, alarm_name):
         End time of the detection window.
     stations : list
         List of station names.
-    rms : numpy.ndarray
-        RMS values for each station.
-    lvlv : numpy.ndarray
+    rsam : numpy.ndarray
+        rsam values for each station.
+    levels : numpy.ndarray
         Threshold values for each station.
     DR : list or numpy.ndarray
         Reduced displacement values (may be empty).
@@ -35,21 +35,21 @@ def create_message(t1, t2, stations, rms, lvlv, DR, alarm_name):
     # create the text for the message you want to send
     message = f"{messaging.format_timestring(t1, t2)}\n\n"
 
-    a = np.array([""] * len(rms[:-1]))
-    a[np.where(rms > lvlv)] = "*"
+    a = np.array([""] * len(rsam[:-1]))
+    a[np.where(rsam > levels)] = "*"
 
     if any(DR):
         sta_message = "".join(
-            f"{sta}{a[i]}: {rms[i]:.0f}/{lvlv[i]:.0f} (RD = {DR[i]:.1f})\n"
+            f"{sta}{a[i]}: {rsam[i]:.0f}/{levels[i]:.0f} (RD = {DR[i]:.1f})\n"
             for i, sta in enumerate(stations[:-1])
         )
     else:
         sta_message = "".join(
-            f"{sta}{a[i]}: {rms[i]:.0f}/{lvlv[i]:.0f}\n"
+            f"{sta}{a[i]}: {rsam[i]:.0f}/{levels[i]:.0f}\n"
             for i, sta in enumerate(stations[:-1])
         )
     sta_message = "".join(
-        [sta_message, f"\nArrestor: {stations[-1]} {rms[-1]:.0f}/{lvlv[-1]:.0f}"]
+        [sta_message, f"\nArrestor: {stations[-1]} {rsam[-1]:.0f}/{levels[-1]:.0f}"]
     )
     message = "".join([message, sta_message])
 

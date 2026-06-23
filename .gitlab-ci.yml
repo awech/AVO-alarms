@@ -18,8 +18,7 @@ test:
   stage: test
   before_script:
     - pip install --upgrade pip
-    - pip install -e ".[avo]"
-    - pip install pytest coverage
+    - pip install -e ".[avo,test]"
   script:
     - coverage run -m pytest -ra
     - coverage report
@@ -36,7 +35,6 @@ test-compat:
   image: python:${PYTHON_VERSION}
   before_script:
     - pip install --upgrade pip
-    - pip install -e ".[avo]"
-    - pip install pytest
+    - pip install -e ".[avo,test]"
   script:
     - pytest -ra

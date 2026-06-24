@@ -1,103 +1,225 @@
 import time
 
 import matplotlib.pyplot as plt
-from obspy import Stream
+from matplotlib import dates
+from matplotlib import ticker
+from matplotlib.dates import DateFormatter
+import numpy as np
 
-from volc_alarms.utils import downloading, plotting
+from volc_alarms.utils import downloading, plotting, processing
 from volc_alarms.utils.setup_utils import get_logger
-from .detection import xcorr_align_stream
+from . import detection
 
 logger = get_logger(__name__)
+
+mycolormap = "RdYlBu_r"
+box_style = {'facecolor': 'white', 'edgecolor': 'white', 'pad': 0}
+scatter_size = 8
+scatter_lw = 0.1
+
+
+def add_mccm_colorbar(ax1, ax2, fig, sc):
+    """
+    Add a colorbar for the MCCM (Multi-Channel Cross-Matching) results.
+
+    Args:
+        ax1 (matplotlib.axes.Axes): The axes for the first subplot.
+        ax2 (matplotlib.axes.Axes): The axes for the second subplot.
+        fig (matplotlib.figure.Figure): The figure containing the axes.
+        sc (matplotlib.collections.PathCollection): The scatter plot object for MCCM results.
+    """
+    
+    ctop = ax1.get_position().y1
+    cbot = ax2.get_position().y0
+    cbaxes_mccm = fig.add_axes([0.91, cbot, 0.02, ctop - cbot])
+    hc = plt.colorbar(sc, cax=cbaxes_mccm, ticks=np.arange(0.2, 1.01, 0.2))
+    hc.set_label(r'$M_{d}CCM$', fontsize=6)
 
 
 def make_figure(target, T0, config, mx_pressure, test=False):
 
     start = time.time()
+    t_win = getattr(config, "plot_duration", 3600)
+    t1 = T0 - t_win
+    t2 = T0
 
-    ##### get seismic data #####
-    t_seis_win = getattr(config, "seismic_plot_duration", 3600)
-    seis = downloading.download_waveforms(target["seismic_nslc"], T0 - t_seis_win, T0)
+    ##### determine whether local seismic data is configured #####
+    if hasattr(target, "get"):
+        local_nslc = target.get("local_nslc") or []
+    else:
+        local_nslc = getattr(target, "local_nslc", None) or []
+    has_local = len(local_nslc) > 0
+
+    ##### get local seismic data #####
+    local_st = None
+    if has_local:
+        local_st = downloading.download_waveforms(local_nslc, t1 - config.taper, t2 + config.taper)
+    else:
+        logger.info("No local_nslc configured for target; rendering infrasound-only figure.")
+
     ##### get infrasound data #####
     infra_nslc = config.nslc
-    t_infra_win = getattr(config, "infrasound_plot_duration", 600)
-    infra = downloading.download_waveforms(infra_nslc, T0 - t_infra_win, T0)
+    infra = downloading.download_waveforms(infra_nslc, t1 - config.taper, t2 + config.taper)
+    infra = processing.add_metadata(infra)
 
     logger.info(f"{time.time() - start:.2f} seconds to grab figure data.")
 
-    #### preprocess data ####
-    infra.detrend("demean")
-    infra.taper(max_percentage=None, max_length=config.taper)
-    infra.filter("bandpass", freqmin=config.f1, freqmax=config.f2)
-    [tr.decimate(2, no_filter=True) for tr in infra if tr.stats.sampling_rate == 100]
-    [tr.decimate(2, no_filter=True) for tr in infra if tr.stats.sampling_rate == 50]
-    [tr.resample(25) for tr in infra if tr.stats.sampling_rate != 25]
-    infra.merge(fill_value=0)
-    infra.trim(T0 - t_infra_win, T0, pad=True, fill_value=0)
+    #### preprocess local seismic data ####
+    if has_local:
+        local_st.detrend("demean")
+        [tr.decimate(2, no_filter=True) for tr in local_st if tr.stats.sampling_rate == 100]
+        [tr.decimate(2, no_filter=True) for tr in local_st if tr.stats.sampling_rate == 50]
+        [tr.resample(25) for tr in local_st if tr.stats.sampling_rate != 25]
+        local_st.merge()
+        local_st.trim(t1, t2, pad=True)
 
-    seis.detrend("demean")
-    [tr.decimate(2, no_filter=True) for tr in seis if tr.stats.sampling_rate == 100]
-    [tr.decimate(2, no_filter=True) for tr in seis if tr.stats.sampling_rate == 50]
-    [tr.resample(25) for tr in seis if tr.stats.sampling_rate != 25]
-    seis.merge()
-    seis.trim(T0 - t_seis_win, T0, pad=True)
+    #### preprocess infrasound data ####
+    infra = processing.preprocess_stream(infra, t1, t2, config)
+    for tr in infra:
+        tr.remove_sensitivity(tr.inventory)
 
-    ##### stack infrasound data #####
-    logger.info("stacking infrasound data")
-    stack = xcorr_align_stream(infra, config)
+    config = detection.get_target_backazimuth(infra, config)
+    lts_df, lts_dict = detection.do_LTS(infra, config)
+
+    ################## Start Figure Making ##################
+    #########################################################
 
     ##### set up figure #####
-    seis_list = [[f"{i_nslc}"] for i_nslc in target["seismic_nslc"]]
-    axes_list = [["stack_spec"], ["stack_trace"], ["blank"]] + seis_list
-    fig, ax = plt.subplot_mosaic(axes_list, figsize=(4.5, 4.5))
-    ax["blank"].axis("off")
+    if has_local:
+        local_list = [[f"{i_nslc}"] for i_nslc in local_nslc]
+        axes_list = [["infra_trace"], ["azimuth"], ["velocity"], ["divider"]] + local_list
+        # Full-height rows for data, short row for the section divider
+        n_spec = len(local_list)
+        height_ratios = [1, 1, 1, 0.35] + [1] * n_spec
+        figsize = (4.5, 6.5)
+    else:
+        axes_list = [["infra_trace"], ["azimuth"], ["velocity"]]
+        height_ratios = [1, 1, 1]
+        figsize = (4.5, 3.5)
+    fig, ax = plt.subplot_mosaic(
+        axes_list, figsize=figsize, height_ratios=height_ratios
+    )
+
+    ##### common x-axis limits in datenum space #####
+    xlim_left = dates.date2num(t1.datetime)
+    xlim_right = dates.date2num(t2.datetime)
 
     ################# plot infrasound #################
 
-    ##### plot stack spectrogram #####
-    plotting.plot_spectrogram(ax["stack_spec"], stack)
-    ax["stack_spec"].set_title(config.alarm_name + " Alarm: " + target["name"] + " detection!")
-    ax["stack_spec"].set_xticks([])
+    ##### plot infrasound trace #####
+    plot_trace_id = getattr(config, "plotchan", infra[0].id)
+    tr = infra.select(id=plot_trace_id)[0]
+    tvec = np.linspace(
+        dates.date2num(tr.stats.starttime.datetime),
+        dates.date2num(tr.stats.endtime.datetime),
+        len(tr.data),
+    )
+    ax["infra_trace"].plot(tvec, tr.data, lw=0.2, c="k")
+    ax["infra_trace"].set_title(config.alarm_name + " Alarm: " + target["name"] + " detection!", fontsize=8)
+    ax["infra_trace"].set_ylabel("Pressure [Pa]", fontsize=6)
+    # Compact y-ticks: few ticks + scientific offset for small/noise values
+    ax["infra_trace"].yaxis.set_major_locator(ticker.MaxNLocator(3))
+    _pa_fmt = ticker.ScalarFormatter(useMathText=True)
+    _pa_fmt.set_powerlimits((-1, 2))
+    ax["infra_trace"].yaxis.set_major_formatter(_pa_fmt)
+    ax["infra_trace"].yaxis.get_offset_text().set_fontsize(5)
 
-    ##### plot stack trace #####
-    ax["stack_trace"].plot(stack.times(), stack.data, color="k", linewidth=0.2)
-    ax["stack_trace"].set_yticks([])
-    ax["stack_trace"].set_xlim(stack.times()[0], stack.times()[-1])
-    stack_st = Stream(stack)
-    plotting.format_spec_xaxis(ax["stack_trace"], stack, stack_st, len(stack_st), config, duration=t_infra_win)
-    for ax_lab in ["stack_trace", "stack_spec"]:
-        ax[ax_lab].set_ylabel(
-            stack.stats.station + "\nstack",
-            fontsize=5,
-            rotation="horizontal",
-            multialignment="center",
-            horizontalalignment="right",
-            verticalalignment="center",
-            color="red",
+    ##### plot infrasound backazimuth #####
+    sc = ax["azimuth"].scatter(
+        lts_df["Time"],
+        lts_df["Azimuth"],
+        c=lts_df["MCCM"],
+        s=scatter_size,
+        edgecolors="k",
+        lw=scatter_lw,
+        cmap=mycolormap,
+    )
+    sc.set_clim([0.2, 1.0])
+    ax["azimuth"].axhline(target["back_azimuth"], ls='--', lw=1, color='gray', zorder=-1)
+    ax["azimuth"].text(lts_df["Time"][1], target["back_azimuth"], target["name"], bbox=box_style, fontsize=6, va='center', style='italic', zorder=10)
+    daz_factor = 5
+    ax["azimuth"].set_ylim([target["back_azimuth"] - daz_factor*target["az_tolerance"], target["back_azimuth"] + daz_factor*target["az_tolerance"]])
+    ax["azimuth"].set_ylabel("Backazimuth", fontsize=6)
+
+    ##### plot infrasound velocity #####
+    ax["velocity"].axhspan(
+        target["vmin"],
+        target["vmax"],
+        facecolor="gray",
+        alpha=0.25,
+        edgecolor=None,
+        )
+    ax["velocity"].scatter(
+        lts_df["Time"],
+        lts_df["Velocity"]/1000,
+        c=lts_df["MCCM"],
+        s=scatter_size,
+        edgecolors="k",
+        lw=scatter_lw,
+        cmap=mycolormap,
+    )
+    if hasattr(target, "array_label") and target["array_label"] == "Hydroacoustic":
+        ax["velocity"].set_ylim(1.2, 1.8)  # Typical range for hydroacoustic arrays
+    else:
+        ax["velocity"].set_ylim(0.15, 0.6)  # Typical range for other arrays
+    ax["velocity"].set_ylabel("Velocity [km/s]", fontsize=6)
+
+    add_mccm_colorbar(ax["azimuth"], ax["velocity"], fig, sc)
+
+    ##### plot local spectrograms #####
+    if has_local:
+        for i, i_nslc in enumerate(local_nslc):
+            tr = local_st.select(id=i_nslc)[0]
+            plotting.plot_spectrogram(ax[tr.id], tr)
+            # Rescale spectrogram x-axis from seconds to datenums
+            spec_t_start = dates.date2num(tr.stats.starttime.datetime)
+            spec_t_end = dates.date2num(tr.stats.endtime.datetime)
+            ax[tr.id].set_xlim(spec_t_start, spec_t_end)
+            # The spectrogram was plotted in seconds; remap the x-axis via image extent
+            for img in ax[tr.id].images:
+                sec_extent = img.get_extent()
+                img.set_extent([spec_t_start, spec_t_end, sec_extent[2], sec_extent[3]])
+
+    ##### synchronize all x-axes #####
+    all_ax_keys = ["infra_trace", "azimuth", "velocity"]
+    if has_local:
+        all_ax_keys += [nslc for nslc in local_nslc]
+
+    # Apply shared locator/formatter and xlim to every subplot
+    for key in all_ax_keys:
+        ax[key].set_xlim(xlim_left, xlim_right)
+        ax[key].xaxis.set_major_locator(dates.AutoDateLocator(minticks=5, maxticks=8))
+        ax[key].xaxis.set_major_formatter(DateFormatter("%H:%M"))
+        ax[key].tick_params("x", labelbottom=False, length=2)
+
+    # The mplstyle enables ytick.right; disable it on the non-spectrogram
+    # (top 3) subplots so they only show y-ticks on the left
+    for key in ["infra_trace", "azimuth", "velocity"]:
+        ax[key].tick_params("y", right=False)
+
+    # Only the bottom subplot shows tick labels + date as xlabel
+    bottom_key = all_ax_keys[-1]
+    ax[bottom_key].tick_params("x", labelbottom=True, labelsize=6)
+    ax[bottom_key].set_xlabel(t1.strftime("%Y-%b-%d"), fontsize=8)
+
+    ##### dashed divider + section labels between infrasound and spectrograms #####
+    if has_local:
+        ax["divider"].axis("off")
+        # dashed horizontal line across most of the divider axis
+        ax["divider"].axhline(0.5, xmin=0.0, xmax=1.0, color="gray", ls="--", lw=0.75)
+        # labels above and below the line
+        ax["divider"].text(
+            0.5, 0.7, "\u2191   Infrasound Array Results   \u2191",
+            transform=ax["divider"].transAxes,
+            ha="center", va="bottom", fontsize=6,
+        )
+        ax["divider"].text(
+            0.5, 0.3, "\u2193   Local Data   \u2193",
+            transform=ax["divider"].transAxes,
+            ha="center", va="top", fontsize=6,
         )
 
-    min_stamp = round(t_infra_win / 60)
-    t_stamp = infra[0].stats.starttime.strftime("%Y-%b-%d")
-    ax["stack_trace"].set_xlabel(
-        f"{min_stamp:.0f} Minute Infrasound Stack\n{t_stamp} UTC,   Peak Pressure: {mx_pressure:.1f} Pa",
-        fontsize=6,
-    )
     ###################################################
-
-    ################## plot seismic ###################
-    for i, i_nslc in enumerate(target["seismic_nslc"]):
-        tr = seis.select(id=i_nslc)[0]
-        plotting.plot_spectrogram(ax[tr.id], tr)
-        plotting.format_spec_xaxis(ax[tr.id], tr, seis, i, config)
-        ax[i_nslc].set_title("")
-
-    min_stamp = round(t_seis_win / 60)
-    ax[tr.id].set_xlabel(
-        f"{min_stamp:.0f} Minute Seismic Local Seismic Data",
-        fontsize=6,
-    )
-    ###################################################
-
-    plt.subplots_adjust(left=0.08, right=0.94, top=0.92, bottom=0.1, hspace=0.1)
 
     jpg_file = plotting.save_file(fig, config, test=test, dpi=250)
 

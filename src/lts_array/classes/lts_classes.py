@@ -502,11 +502,15 @@ def quarticEqn(a, b, c, d):
     # find R
     R = np.sqrt(a2 / 4 - (1 + 0j) * b + y)  # force complex in sqrt
     foo = 3*a2/4 - R*R - 2*b
-    if R != 0:
-        # R is already complex.
+    # Avoid dividing by zero or non-finite R which can produce warnings
+    # Use a small tolerance when testing R's magnitude.
+    eps = np.finfo(float).eps
+    if np.isfinite(R) and np.abs(R) > eps:
+        # R is sufficiently non-zero/finite; safe to divide
         D = np.sqrt(foo + (a * b - 2 * c - a2 * a / 4) / R)
-        E = np.sqrt(foo - (a * b - 2 * c - a2 * a / 4) / R)  # ...
+        E = np.sqrt(foo - (a * b - 2 * c - a2 * a / 4) / R)
     else:
+        # Fallback: use alternative expression avoiding division by R
         sqrtTerm = 2 * np.sqrt(y * y - (4 + 0j) * d)  # force complex in sqrt
         D = np.sqrt(foo + sqrtTerm)
         E = np.sqrt(foo - sqrtTerm)
@@ -724,8 +728,10 @@ def post_process(dimension_number, co_array_num, alpha, h, nits, tau, xij, coeff
         m_w, _ = np.shape(xij[weights, :])
         with np.errstate(invalid='raise'):
             try:
-                sigma_tau[jj] = np.sqrt(tau[weights, jj, :].T @ residuals / (
-                    m_w - dimension_number))[0]
+                val = np.sqrt(tau[weights, jj, :].T @ residuals / (
+                    m_w - dimension_number))
+                # ensure a Python scalar (avoid 1-element array -> scalar conversion deprecation)
+                sigma_tau[jj] = float(np.asarray(val).item())
             except FloatingPointError:
                 pass
 
@@ -749,6 +755,8 @@ def post_process(dimension_number, co_array_num, alpha, h, nits, tau, xij, coeff
         sig_theta = np.abs(np.diff(
             (np.arctan2(eVec[2:, 1], eVec[2:, 0]) * 180 / np.pi - 360)
             % 360))
+        # diff returns a 1-element array; convert to scalar
+        sig_theta = float(np.asarray(sig_theta).item())
         if sig_theta > 180:
             sig_theta = np.abs(sig_theta - 360)
 
@@ -756,7 +764,8 @@ def post_process(dimension_number, co_array_num, alpha, h, nits, tau, xij, coeff
         # Remove the 1/2's to get full values to express
         # coverage ellipse area.
         conf_int_baz[jj] = 0.5 * sig_theta
-        conf_int_vel[jj] = 0.5 * np.abs(np.diff(1 / eExtrm[:2]))
+        # extract scalar from 1-element diff result
+        conf_int_vel[jj] = float((0.5 * np.abs(np.diff(1 / eExtrm[:2]))).item())
 
         # Cast weights to int for output
         element_weights[:, jj] = weights * 1
@@ -858,7 +867,8 @@ class LsBeam:
             tf_ind = data.intervals[jj] + data.winlensamp
             try:
                 self.t[jj] = data.tvec[t0_ind + int(data.winlensamp/2)]
-            except:
+            except Exception:
+                # fallback to the current maximum t value when indexing fails
                 self.t[jj] = np.nanmax(self.t, axis=0)
 
             # Numba doesn't accept mode='full' in np.correlate currently
@@ -932,8 +942,14 @@ class OLSEstimator(LsBeam):
 
             # Calculate the sigma_tau value (Szuberla et al. 2006).
             residuals = self.tau[:, jj, :] - (self.xij @ z_final)
-            self.sigma_tau[jj] = np.sqrt(self.tau[:, jj, :].T @ residuals / (
-                self.co_array_num - self.dimension_number))[0]
+            numerator = self.tau[:, jj, :].T @ residuals
+            denom = self.co_array_num - self.dimension_number
+            if numerator / denom > 0:
+                val = np.sqrt(numerator / denom)
+            else:
+                val = np.nan
+            # ensure scalar
+            self.sigma_tau[jj] = float(np.asarray(val).item())
 
             # Calculate uncertainties from Szuberla & Olson, 2004
             # Equation 16
@@ -954,6 +970,7 @@ class OLSEstimator(LsBeam):
                 sig_theta = np.abs(np.diff(
                     (np.arctan2(eVec[2:, 1], eVec[2:, 0]) * 180 / np.pi - 360)
                     % 360))
+                sig_theta = float(np.asarray(sig_theta).item())
                 if sig_theta > 180:
                     sig_theta = np.abs(sig_theta - 360)
 
@@ -961,7 +978,7 @@ class OLSEstimator(LsBeam):
                 # Remove the 1/2's to get full values to express
                 # coverage ellipse area.
                 self.conf_int_baz[jj] = 0.5 * sig_theta
-                self.conf_int_vel[jj] = 0.5 * np.abs(np.diff(1 / eExtrm[:2]))
+                self.conf_int_vel[jj] = float((0.5 * np.abs(np.diff(1 / eExtrm[:2]))).item())
 
             except ValueError:
                 self.conf_int_baz[jj] = np.nan

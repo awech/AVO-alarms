@@ -24,6 +24,7 @@
 - [x] add defaults to infrasound parameters that then can be overwritten if need be (`vmin`, `vmax`, `min_pa`)
 - [x] implement a 'kill' switch - probably from config file
 - [x] change volcano list file to csv. Possibly need separate AVO xlsx file.
+- [x] implement LTS infrasound detections
 
 ## :test_tube: Tests
 - [x] sort out `test_flag` vs possible `force` flag
@@ -40,6 +41,7 @@
     - [ ] Tremor
     - [x] utils.messaging
     - [x] utils.plotting (fig watermark)
+- [x] implement CI/CD to test basics with every commit
 - [ ] add test data in own directory
 - [ ] implement CI/CD with test data to run tests once a month 
 

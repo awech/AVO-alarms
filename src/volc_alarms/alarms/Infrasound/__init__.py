@@ -18,6 +18,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     t1 = T0 - config.duration
     t2 = T0
     state_message = f"{T0.strftime('%Y-%m-%d %H:%M')} (UTC) {config.alarm_name}"
+    state = "OK"
 
 
     #### download data ####
@@ -76,16 +77,25 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     #### invert for velocity and back-azimuth ####
     results_df, lts_dict = detection.do_LTS(st, config)
     
+    if force_flag:
+        config.targets = [config.targets[0]]
+
     for target in config.targets:
         target_df = detection.filter_lts_results(results_df, target)
-        if len(target_df) > 0:
+        if len(target_df) == 0 and force_flag:
+            logger.warning(
+                "Force mode: no windows passed target filters; "
+                "using unfiltered LTS results for summary stats."
+            )
+            target_df = results_df
+        if len(target_df) > 0 or force_flag:
             logger.info("Airwave Detection!!!")
-            state_message = f"{state_message} - {target['name']} detection! {target_df["Pressure"].max():.1f} Pa peak pressure"
+            state_message = f"{state_message} - {target['name']} detection! {target_df['Pressure'].max():.1f} Pa peak pressure"
             state = "CRITICAL"
 
-            mx_pressure = target_df["Pressure"].max()
-            velocity = target_df["Velocity"].mean() / 1000
-            azimuth = target_df["Azimuth"].mean()
+            mx_pressure = np.nanmax(target_df["Pressure"])
+            velocity = np.nanmean(target_df["Velocity"]) / 1000
+            azimuth = np.nanmean(target_df["Azimuth"])
             d_Azimuth = azimuth - target["back_azimuth"]
             
             run_send_sequence(

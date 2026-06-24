@@ -82,6 +82,7 @@ def make_figure(target, T0, config, mx_pressure, test=False):
 
     config = detection.get_target_backazimuth(infra, config)
     lts_df, lts_dict = detection.do_LTS(infra, config)
+    logger.info("Done calculating LTS")
 
     ################## Start Figure Making ##################
     #########################################################

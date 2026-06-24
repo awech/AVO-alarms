@@ -141,8 +141,12 @@ def get_recipients_list(alarm_name, test=False):
 
     alarm_key = alarm_name
     if test:
-        alarm_key = "Error"
-        logger.info("Test mode. Sending message to 'Error' recipients")
+        if "Test" in distribution.keys():
+            alarm_key = "Test"
+            logger.info("Test mode. Sending message to 'Test' recipients")
+        else:
+            alarm_key = "Error"
+            logger.info("Test mode. No 'Test' group found; sending message to 'Error' recipients")
     else:
         if alarm_name not in distribution.keys():
             alarm_key = "All Alarms"

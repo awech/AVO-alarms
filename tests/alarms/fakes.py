@@ -128,7 +128,7 @@ def make_stream(nslc_list, T1, T2, *, sampling_rate: float = 100.0, data_fn=None
     return st
 
 
-def default_stream_factory(nslc_list, T1, T2, iris=False, **_) -> Stream:
+def default_stream_factory(nslc_list, T1, T2, **_) -> Stream:
     """Default ``download_waveforms`` replacement: zero-filled traces."""
     return make_stream(nslc_list, T1, T2)
 
@@ -332,13 +332,13 @@ def install(handle: AlarmDoubles) -> AlarmDoubles:
     mp.setattr(alarming, "filter_dataframe", _filter_dataframe)
 
     # --- downloading: shared waveform / hypocenter fetchers -----------
-    def _download_waveforms(nslc_list, T1, T2, iris=False):
+    def _download_waveforms(nslc_list, T1, T2):
         rec.record(
             "download_waveforms",
             (nslc_list, T1, T2),
-            {"iris": iris},
+            {},
         )
-        return handle.waveform_factory(nslc_list, T1, T2, iris=iris)
+        return handle.waveform_factory(nslc_list, T1, T2)
 
     def _download_hypocenters_csv(URL):
         rec.record("download_hypocenters_csv", (URL,))

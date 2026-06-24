@@ -10,7 +10,7 @@ from obspy.core.event import Event
 from pandas.errors import EmptyDataError
 
 from volc_alarms.utils.setup_utils import get_logger, load_volcano_list
-from volc_alarms.utils.downloading import IRIS_client
+from volc_alarms.utils.downloading import Earthscope_client
 
 logger = get_logger(__name__)
 
@@ -166,7 +166,7 @@ def addPhaseHint(cat):
 
 def eq_picks_to_dataframe(cat):
 
-    client = IRIS_client()
+    client = Earthscope_client()
 
     NS = []
     NSLC = []

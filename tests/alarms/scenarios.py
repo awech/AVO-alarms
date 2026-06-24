@@ -85,7 +85,7 @@ def rsam_critical(doubles, load_config):
     hot = {"CEAP", "CERA", "CETU"}  # exceed their levels -> detection
     arrestor = "AMKA"  # must stay below its level
 
-    def _factory(nslc_list, T1, T2, iris=False, **_):
+    def _factory(nslc_list, T1, T2, **_):
         sr = 100.0
         npts = max(int(round((T2 - T1) * sr)), 1)
         t = np.arange(npts) / sr

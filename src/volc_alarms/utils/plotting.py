@@ -18,7 +18,7 @@ from matplotlib.path import Path as mpath
 from matplotlib.colors import LinearSegmentedColormap
 from obspy import UTCDateTime as utc
 from volc_alarms.utils.setup_utils import get_logger, load_volcano_list
-from volc_alarms.utils import downloading, processing
+from volc_alarms.utils import downloading
 
 logger = get_logger(__name__)
 m.use("Agg")
@@ -381,7 +381,7 @@ def get_axes_and_ratios(st):
 def plot_station_traces(ax, st, plot_chans):
 
     try:
-        client = processing.IRIS_client()
+        client = downloading.Earthscope_client()
         client._attach_responses(st)
         st.remove_response()
         velocity = True

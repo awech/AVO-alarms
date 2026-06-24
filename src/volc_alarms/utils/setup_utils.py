@@ -67,7 +67,7 @@ def load_environment(env_file=None):
     
     # --- File Path defaults (overridden by .env or shell exports) ---
     os.environ.setdefault("DB_FILE", str(TMP_DIR / "alarms_sent.db"))
-    os.environ.setdefault("DISTRIBUTION_FILE", str(_project_root / "config" / "distribution.yml"))
+    os.environ.setdefault("DISTRIBUTION_FILE", str(Path(os.environ["CONFIGS_DIR"]) / "distribution.yml"))
     os.environ.setdefault("PHONEBOOK_FILE", str(_project_root / "config" / "phonebook.yml"))
     os.environ.setdefault("VOLCANO_LIST", str(_project_root / "src" / "volc_alarms" / "data" / "volcano_list.csv"))
     os.environ.setdefault("STATION_XML", str(TMP_DIR / "stations.xml"))

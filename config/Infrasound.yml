@@ -11,7 +11,7 @@ nslc:
   - AV.SDPI.06.HDF
 
 # Processing parameters
-duration: 180         # duration value in seconds (3 * 60)
+# duration: 90         # optional duration value in seconds. Default: 90 s
 latency: 10.0         # seconds between timestamps and end of data window
 taper: 5.0            # seconds to taper beginning and end of trace before filtering
 f1: 1.0               # minimum frequency for bandpass filter

@@ -277,7 +277,7 @@ def update_infrasound_config(config):
     
     # --- Infrasound defaults ---
     if not hasattr(config, "duration"):
-        config.duration = os.environ.get("INFRASOUND_DURATION", 180)
+        config.duration = os.environ.get("INFRASOUND_DURATION", 90)
     if not hasattr(config, "min_channels"):
         config.min_channels = os.environ.get("INFRASOUND_MIN_CHANNELS", 3)
     if not hasattr(config, "window_length"):

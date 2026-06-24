@@ -8,8 +8,6 @@ logs/*.log
 .env
 .vscode/
 
-*.egg-info/
-.eggs/
 build/
 dist/
 

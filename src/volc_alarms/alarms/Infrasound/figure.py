@@ -53,12 +53,14 @@ def make_figure(target, T0, config, mx_pressure, test=False):
     ##### get local seismic data #####
     local_st = None
     if has_local:
+        logger.info("Grabbing local data...")
         local_st = downloading.download_waveforms(local_nslc, t1 - config.taper, t2 + config.taper)
     else:
         logger.info("No local_nslc configured for target; rendering infrasound-only figure.")
 
     ##### get infrasound data #####
     infra_nslc = config.nslc
+    logger.info("Grabbing infrasound array data...")
     infra = downloading.download_waveforms(infra_nslc, t1 - config.taper, t2 + config.taper)
     infra = processing.add_metadata(infra)
 

@@ -56,7 +56,7 @@ def main():
         subject = "Alarm Email Test"
 
         attachment = files("volc_alarms.data").joinpath("oops.jpg")
-        send_alert("Error", subject, message, attachment)
+        send_alert("Test", subject, message, attachment)
         logger.info("Finished")
     finally:
         lock.release()

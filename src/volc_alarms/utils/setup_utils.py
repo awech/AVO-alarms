@@ -230,15 +230,22 @@ def load_config(config_name):
             config.taper = 5
         if not hasattr(config, "latency") or config.latency is None:
             config.latency = 10
-        if not hasattr(config, "duration") or config.duration is None:
-            config.duration = 180 if config.alarm_type == "Infrasound" else 300
 
     if config.alarm_type == "Infrasound":
         config = update_infrasound_config(config)
+        if not hasattr(config, "duration") or config.duration is None:
+            config.duration = os.environ.get("INFRASOUND_DURATION", 90)
+            
+    if config.alarm_type == "RSAM":
+        config = update_infrasound_config(config)
+        if not hasattr(config, "duration") or config.duration is None:
+            config.duration = os.environ.get("RSAM_DURATION", 300)
 
     if config.alarm_type == "Tremor":
         if not hasattr(config, "grid_file"):
             config.grid_file = TMP_DIR / f"{config.alarm_name.replace(' ', '_')}_grid.npz"
+        if not hasattr(config, "duration") or config.duration is None:
+            config.duration = os.environ.get("TREMOR_DURATION", 300)
 
     return config
 
@@ -276,8 +283,6 @@ def update_infrasound_config(config):
     CMIN = os.environ.get("INFRASOUND_CMIN", 0.6)
     
     # --- Infrasound defaults ---
-    if not hasattr(config, "duration"):
-        config.duration = os.environ.get("INFRASOUND_DURATION", 90)
     if not hasattr(config, "min_channels"):
         config.min_channels = os.environ.get("INFRASOUND_MIN_CHANNELS", 3)
     if not hasattr(config, "window_length"):

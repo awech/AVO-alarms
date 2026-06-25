@@ -56,7 +56,7 @@ def check_array(candidate_size, best_coeff, best_obj, z, obj):
 
 
 @jit(nopython=True, cache=True)
-def fast_LTS(nits, tau, time_delay_mad, xij_standardized, xij_mad, dimension_number, candidate_size, n_samples, co_array_num, slowness_coeffs, csteps, h, csteps2, random_set, _insertion):
+def fast_LTS(nits, tau, time_delay_mad, xij_standardized, xij_mad, dimension_number, candidate_size, n_samples, co_array_num, slowness_coeffs, csteps, h, csteps2):
     """ Run the FAST_LTS algorithm to determine an initial optimal slowness vector.
     """
     for jj in range(nits):
@@ -1036,7 +1036,7 @@ class LTSEstimator(LsBeam):
             data (DataBin): The DataBin object.
         """
         # Determine the best slowness coefficients from FAST-LTS
-        self.slowness_coeffs = fast_LTS(data.nits, self.tau, self.time_delay_mad, self.xij_standardized, self.xij_mad, self.dimension_number, self.candidate_size, self.n_samples, self.co_array_num, self.slowness_coeffs, self.csteps, self.h, self.csteps2, random_set, check_array) # noqa
+        self.slowness_coeffs = fast_LTS(data.nits, self.tau, self.time_delay_mad, self.xij_standardized, self.xij_mad, self.dimension_number, self.candidate_size, self.n_samples, self.co_array_num, self.slowness_coeffs, self.csteps, self.h, self.csteps2) # noqa
         # Use the best slowness coefficients to determine dropped stations
         # Calculate uncertainties at 90% confidence
         self.lts_vel, self.lts_baz, self.element_weights, self.sigma_tau, self.conf_int_vel, self.conf_int_baz = post_process(self.dimension_number, self.co_array_num, data.alpha, self.h, data.nits, self.tau, self.xij, self.slowness_coeffs, self.lts_vel, self.lts_baz, self.element_weights, self.sigma_tau, self.p, self.conf_int_vel, self.conf_int_baz) # noqa

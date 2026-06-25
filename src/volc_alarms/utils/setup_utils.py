@@ -237,7 +237,6 @@ def load_config(config_name):
             config.duration = os.environ.get("INFRASOUND_DURATION", 90)
             
     if config.alarm_type == "RSAM":
-        config = update_infrasound_config(config)
         if not hasattr(config, "duration") or config.duration is None:
             config.duration = os.environ.get("RSAM_DURATION", 300)
 
@@ -281,7 +280,8 @@ def update_infrasound_config(config):
     VMIN = os.environ.get("INFRASOUND_VMIN", 0.28)
     VMAX = os.environ.get("INFRASOUND_VMAX", 0.45)
     CMIN = os.environ.get("INFRASOUND_CMIN", 0.6)
-    
+    PLOT_DURATION = os.environ.get("INFRASOUND_PLOT_DURATION", 3600)
+
     # --- Infrasound defaults ---
     if not hasattr(config, "min_channels"):
         config.min_channels = os.environ.get("INFRASOUND_MIN_CHANNELS", 3)
@@ -289,8 +289,10 @@ def update_infrasound_config(config):
         config.lts_window_length = os.environ.get("LTS_WINDOW_LENGTH", 30)
     if not hasattr(config, "overlap"):
         config.lts_overlap = os.environ.get("LTS_OVERLAP", 15)
-    if not hasattr(config, "alpha"):
+    if not hasattr(config, "lts_alpha"):
         config.lts_alpha = os.environ.get("LTS_ALPHA", 0.5)
+    if not hasattr(config, "lts_n_samples"):
+        config.lts_n_samples = int(os.environ.get("LTS_N_SAMPLES", 100))
 
     for i, target in enumerate(config.targets):
         if "lat" not in target or "lon" not in target:
@@ -315,6 +317,12 @@ def update_infrasound_config(config):
             config.targets[i].update({"vmax": VMAX})
         if "cmin" not in target:
             config.targets[i].update({"cmin": CMIN})
+        if "plot_duration" not in target:
+            config.targets[i]["plot_duration"] = float(PLOT_DURATION)
+        else:
+            config.targets[i]["plot_duration"] = float(
+                _evaluate_math_expr(target["plot_duration"])
+            )
 
     return config
 

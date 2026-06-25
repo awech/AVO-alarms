@@ -39,7 +39,8 @@ def add_mccm_colorbar(ax1, ax2, fig, sc):
 def make_figure(target, T0, config, mx_pressure, test=False):
 
     start = time.time()
-    t_win = getattr(config, "plot_duration", 3600)
+    t_win = target.get("plot_duration")
+    logger.info(f"Making ({t_win/60:.0f} minutes) figure for target {target['name']}")
     t1 = T0 - t_win
     t2 = T0
 
@@ -82,7 +83,6 @@ def make_figure(target, T0, config, mx_pressure, test=False):
 
     config = detection.get_target_backazimuth(infra, config)
     lts_df, lts_dict = detection.do_LTS(infra, config)
-    logger.info("Done calculating LTS")
 
     ################## Start Figure Making ##################
     #########################################################
@@ -119,7 +119,7 @@ def make_figure(target, T0, config, mx_pressure, test=False):
     )
     ax["infra_trace"].plot(tvec, tr.data, lw=0.2, c="k")
     ax["infra_trace"].set_title(config.alarm_name + " Alarm: " + target["name"] + " detection!", fontsize=8)
-    ax["infra_trace"].set_ylabel("Pressure [Pa]", fontsize=6)
+    ax["infra_trace"].set_ylabel("Pressure\n[Pa]", fontsize=5)
     # Compact y-ticks: few ticks + scientific offset for small/noise values
     ax["infra_trace"].yaxis.set_major_locator(ticker.MaxNLocator(3))
     _pa_fmt = ticker.ScalarFormatter(useMathText=True)
@@ -142,7 +142,7 @@ def make_figure(target, T0, config, mx_pressure, test=False):
     ax["azimuth"].text(lts_df["Time"][1], target["back_azimuth"], target["name"], bbox=box_style, fontsize=6, va='center', style='italic', zorder=10)
     daz_factor = 5
     ax["azimuth"].set_ylim([target["back_azimuth"] - daz_factor*target["az_tolerance"], target["back_azimuth"] + daz_factor*target["az_tolerance"]])
-    ax["azimuth"].set_ylabel("Backazimuth", fontsize=6)
+    ax["azimuth"].set_ylabel("Backazimuth", fontsize=5)
 
     ##### plot infrasound velocity #####
     ax["velocity"].axhspan(
@@ -165,7 +165,7 @@ def make_figure(target, T0, config, mx_pressure, test=False):
         ax["velocity"].set_ylim(1.2, 1.8)  # Typical range for hydroacoustic arrays
     else:
         ax["velocity"].set_ylim(0.15, 0.6)  # Typical range for other arrays
-    ax["velocity"].set_ylabel("Velocity [km/s]", fontsize=6)
+    ax["velocity"].set_ylabel("Velocity\n[km/s]", fontsize=5)
 
     add_mccm_colorbar(ax["azimuth"], ax["velocity"], fig, sc)
 

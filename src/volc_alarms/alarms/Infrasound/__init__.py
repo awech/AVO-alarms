@@ -23,11 +23,11 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
 
     #### download data ####
     st = downloading.download_waveforms(config.nslc, t1-config.taper, t2+config.taper)
-    st = processing.add_metadata(st)
 
 
     #### preprocess data ####
     st = processing.preprocess_stream(st, t1, t2, config)
+    st = processing.add_metadata(st)
     for tr in st:
         tr.remove_sensitivity(tr.inventory)
 
@@ -76,7 +76,6 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
 
     #### invert for velocity and back-azimuth ####
     results_df, lts_dict = detection.do_LTS(st, config)
-    logger.info("Done calculating LTS")
     
     if force_flag:
         config.targets = [config.targets[0]]

@@ -37,7 +37,6 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     t1 = T0 - 1.5 * config.window_length - config.taper
     t2 = T0 + config.taper
     st = downloading.download_waveforms(nslc, t1, t2)
-    st = processing.add_metadata(st)
     
 
     ######## preprocess data ########
@@ -47,7 +46,9 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         state = "WARNING"
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
-    
+    band = processing.add_metadata(band)
+    band_env = processing.add_metadata(band_env)
+    high_env = processing.add_metadata(high_env)
     
     ######### run rsam test #########
     rsam_st = band.select(id=config.rsam_station)

@@ -41,14 +41,15 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
 
     ######## preprocess data ########
     band_env, high_env, band = detection.preprocess(st, config, t1, t2)
+    band = processing.add_metadata(band)
+    band_env = processing.add_metadata(band_env)
+    high_env = processing.add_metadata(high_env)
+
     if detection.qc_checks(band) < config.min_sta:
         state_message = f"{state_message} - Data missing!"
         state = "WARNING"
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
-    band = processing.add_metadata(band)
-    band_env = processing.add_metadata(band_env)
-    high_env = processing.add_metadata(high_env)
     
     ######### run rsam test #########
     rsam_st = band.select(id=config.rsam_station)

@@ -22,7 +22,6 @@ def get_target_backazimuth(st, config):
 
 def do_LTS(st, config, skip_chans=[]):
 
-    logger.info("Performing LTS analysis...")
     overlap_fraction = config.lts_overlap / config.lts_window_length
     ALPHA = config.lts_alpha if len(st) > 3 else 1.0
     if len(st) - len(skip_chans) < 4:
@@ -31,9 +30,12 @@ def do_LTS(st, config, skip_chans=[]):
     skip_inds = [i for i, tr in enumerate(st) if tr.id in skip_chans]
     lat_list = [tr.stats.coordinates.latitude for tr in st]
     lon_list = [tr.stats.coordinates.longitude for tr in st]
+    logger.info(f"N Samples: {config.lts_n_samples}")
+    logger.info("Performing LTS analysis...")
     velocity, azimuth, t, mccm, lts_dict, sigma_tau, Vel_err, Baz_err = ltsva(
-        st.copy(), lat_list, lon_list, config.lts_window_length, overlap_fraction, alpha=ALPHA, remove_elements=skip_inds
+        st.copy(), lat_list, lon_list, config.lts_window_length, overlap_fraction, alpha=ALPHA, n_samples=config.lts_n_samples, remove_elements=skip_inds
     )
+    logger.info("Done calculating LTS")
 
     df = pd.DataFrame({
         "Time": t,

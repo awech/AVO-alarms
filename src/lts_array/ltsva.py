@@ -6,7 +6,7 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 
-def ltsva(st, lat_list, lon_list, window_length, window_overlap, alpha=1.0, plot_array_coordinates=False, remove_elements=None, rij=None):
+def ltsva(st, lat_list, lon_list, window_length, window_overlap, alpha=1.0, n_samples=500, plot_array_coordinates=False, remove_elements=None, rij=None):
     r""" Process infrasound or seismic array data with least trimmed squares (LTS).
 
     Args:
@@ -51,7 +51,7 @@ def ltsva(st, lat_list, lon_list, window_length, window_overlap, alpha=1.0, plot
         ltsva = OLSEstimator(data)
     else:
         # Least Trimmed Squares
-        ltsva = LTSEstimator(data)
+        ltsva = LTSEstimator(data, n_samples=n_samples)
     ltsva.correlate(data)
     ltsva.solve(data)
 

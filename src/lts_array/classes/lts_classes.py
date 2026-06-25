@@ -13,7 +13,7 @@ from numba import jit
 ########################
 
 
-@jit(nopython=True)
+@jit(nopython=True, cache=True)
 def random_set(tot, npar, seed):
     """ Generate a random data subset for LTS. """
     randlist = []
@@ -36,7 +36,7 @@ def random_set(tot, npar, seed):
     return randset, np.int64(seed)
 
 
-@jit(nopython=True)
+@jit(nopython=True, cache=True)
 def check_array(candidate_size, best_coeff, best_obj, z, obj):
     """ Keep best coefficients for final C-step iteration.
     Don't keep duplicates.
@@ -55,7 +55,7 @@ def check_array(candidate_size, best_coeff, best_obj, z, obj):
     return bcoeff, bobj
 
 
-@jit(nopython=True)
+@jit(nopython=True, cache=True)
 def fast_LTS(nits, tau, time_delay_mad, xij_standardized, xij_mad, dimension_number, candidate_size, n_samples, co_array_num, slowness_coeffs, csteps, h, csteps2, random_set, _insertion):
     """ Run the FAST_LTS algorithm to determine an initial optimal slowness vector.
     """
@@ -989,7 +989,7 @@ class LTSEstimator(LsBeam):
     """ Class for least trimmed squares (LTS) beamforming.
     """
 
-    def __init__(self, data):
+    def __init__(self, data, n_samples=500):
         super().__init__(data)
         # Pre-allocate array of slowness coefficients
         self.slowness_coeffs = np.empty((self.dimension_number, data.nits))
@@ -1005,7 +1005,7 @@ class LTSEstimator(LsBeam):
         # Calculate the subset size.
         self.h_calc(data)
         # The number of subsets we will test.
-        self.n_samples = 500
+        self.n_samples = n_samples
         # The number of best subsets to try in the final iteration.
         self.candidate_size = 10
         # The initial number of concentration steps.

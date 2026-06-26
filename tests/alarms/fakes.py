@@ -423,7 +423,6 @@ def install(handle: AlarmDoubles) -> AlarmDoubles:
 
     _cimss_image_double = _make_download_double("get_cimss_image")
     mp.setattr(cimss_detection, "get_cimss_image", _cimss_image_double)
-    mp.setattr(cimss_pkg, "get_cimss_image", _cimss_image_double)
 
     # --- plotting: save_file returns a placeholder path ------------------
     def _save_file(fig, config, test=False, dpi=250):

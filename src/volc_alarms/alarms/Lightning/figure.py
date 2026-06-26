@@ -52,7 +52,8 @@ def plot_fig(df, config, T0, test=False):
                                     xdist=400,
                                     ydist=300,
                                     basemap="land",
-                                    projection="orthographic")
+                                    projection="orthographic",
+                                    water_color="white")
     plotting.add_volcanoes_to_map(ax_inset, inset_extent, config, s1=7, s2=4, linewidths=0.1)
     plotting.add_inset_polygon(ax_inset, extent)
 

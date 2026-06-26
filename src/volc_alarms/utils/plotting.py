@@ -277,7 +277,7 @@ def make_map(
         ax.add_feature(cfeature.STATES, lw=0.5)
 
     elif basemap == "LAND":
-        ax.add_feature(cfeature.LAND, facecolor=land_color)
+        ax.add_feature(cfeature.LAND, facecolor=land_color, edgecolor="black", lw=0.2)
         ax.patch.set_facecolor(water_color)
 
     elif basemap == "HIGHRES":

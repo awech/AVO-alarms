@@ -62,7 +62,8 @@ def plot_fig(alert, config, test=False):
                                     xdist=400,
                                     ydist=300,
                                     basemap="land",
-                                    projection="orthographic")
+                                    projection="orthographic",
+                                    water_color="white")
     plotting.add_inset_polygon(ax_inset, extent)
     fig.subplots_adjust(hspace=0.1)
     jpg_file = plotting.save_file(fig, config, test=test, dpi=500)

@@ -25,6 +25,7 @@
 - [x] implement a 'kill' switch - probably from config file
 - [x] change volcano list file to csv. Possibly need separate AVO xlsx file.
 - [x] implement LTS infrasound detections
+- [ ] rename error/test email function to "Patrick"
 
 ## :test_tube: Tests
 - [x] sort out `test_flag` vs possible `force` flag

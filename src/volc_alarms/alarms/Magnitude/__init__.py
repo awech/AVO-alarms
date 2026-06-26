@@ -77,7 +77,6 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         messaging.send_alert(
             config.alarm_name, subject, message, attachment=attachment, test=test_flag
         )
-        logger.info("Posting to mattermost...")
         messaging.post_mattermost(
             config,
             subject,

@@ -120,7 +120,6 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
             if test_flag:
                 messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
 
-            logger.info("Posting message to Mattermost...")
             messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag, volcano=volcano)
             # swarm_id = f"{volcano}-{T0_str}"
             alarming.record_send(config, T0, volcano, event_id=None, test=test_flag)

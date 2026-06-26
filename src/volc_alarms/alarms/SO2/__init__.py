@@ -100,7 +100,6 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         # )
 
 
-        logger.info("Posting to Mattermost")
         messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
         alarming.record_send(config, T0, volcano=volcano_name, event_id=event_id, test=test_flag)
 

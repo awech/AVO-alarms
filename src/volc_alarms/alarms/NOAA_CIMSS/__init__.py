@@ -97,7 +97,6 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         if force_flag:
             messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
 
-        logger.info("Posting to mattermost...")
         messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
         # send to other mm channels based on alert type and volcano status
         cimss_mm_channels(alert, config, subject, message, filename, test_flag, mm_flag)

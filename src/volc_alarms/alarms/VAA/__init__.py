@@ -87,7 +87,6 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
             logger.info("Sending message...")
             messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
 
-        logger.info("Checking mattermost send...")
         messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
         alarming.record_send(config, T0, volcano=row.v_name, event_id=row.id, test=test_flag)
 

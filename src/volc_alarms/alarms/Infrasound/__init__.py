@@ -1,7 +1,7 @@
 import numpy as np
 from obspy import Stream
 
-from volc_alarms.utils import messaging, processing, downloading
+from volc_alarms.utils import downloading, messaging, processing
 from volc_alarms.utils.alarm_flow import apply_cron_latency_backup, run_send_sequence
 from volc_alarms.utils.setup_utils import get_logger
 
@@ -18,29 +18,24 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     t1 = T0 - config.duration
     t2 = T0
     state_message = f"{T0.strftime('%Y-%m-%d %H:%M')} (UTC) {config.alarm_name}"
+    state = "OK"
 
 
     #### download data ####
-    st = downloading.download_waveforms(list(config.nslc), t1-config.taper, t2+config.taper)
-    st = processing.add_metadata(st)
+    st = downloading.download_waveforms(config.nslc, t1-config.taper, t2+config.taper)
 
 
     #### preprocess data ####
     st = processing.preprocess_stream(st, t1, t2, config)
+    st = processing.add_metadata(st)
     for tr in st:
-        if tr.stats["sampling_rate"] == 100:
-            tr.decimate(2)
-        if tr.stats["sampling_rate"] != 50:
-            tr.resample(50.0)
         tr.remove_sensitivity(tr.inventory)
-    st.trim(t1, t2, pad=True, fill_value=0) # force same trace length after decimation
-
 
     #### check for enough data ####
     for tr in st:
         if np.sum(np.abs(np.abs(tr.data))) == 0:
             st.remove(tr)
-    if len(st) < config.min_chan:
+    if len(st) < config.min_channels:
         state_message = f"{state_message} - Not enough channels!"
         logger.warning(state_message)
         state = "WARNING"
@@ -53,7 +48,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         num_zeros = len(np.where(tr.data == 0)[0])
         if num_zeros / float(tr.stats.npts) > 0.01:
             st.remove(tr)
-    if len(st) < config.min_chan and not force_flag:
+    if len(st) < config.min_channels and not force_flag:
         state_message = f"{state_message} - Gappy data!"
         logger.warning(state_message)
         state = "WARNING"
@@ -67,74 +62,55 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         min_pa = 0
     else:
         min_pa = np.array([v["min_pa"] for v in config.targets]).min()
-    st = Stream([tr for tr in st if np.any(np.abs(tr.data) > min_pa)])
-    if len(st) < config.min_chan and not force_flag:
+
+    st_test = Stream([tr for tr in st if np.any(np.abs(tr.data) > min_pa)])
+    if len(st_test) < config.min_channels and not force_flag:
         state_message = f"{state_message} - not enough channels exceeding amplitude threshold!"
         logger.info(state_message)
         state = "OK"
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
 
-    #### Set up grid ####
+    #### Add volcano backazimuths ####
     config = detection.get_target_backazimuth(st, config)
-    yx, intsd, ints_az = detection.setup_coordinate_system(st)
-    #### Cross correlate ####
-    lags, lags_inds1, lags_inds2 = detection.calc_triggers(st, config, intsd, force=force_flag)
-    cmbm2, cmbm2n, counter, mpk = detection.associator(lags_inds1, lags_inds2, st, config)
 
-    if counter == 0:
-        state_message = f"{state_message} - alarm normal."
-        state = "OK"
-        messaging.icinga(config, state, state_message, send=icinga_flag)
-        return
+    #### invert for velocity and back-azimuth ####
+    results_df, lts_dict = detection.do_LTS(st, config)
+    
+    if force_flag:
+        config.targets = [config.targets[0]]
 
-    #### some event detected...determine velocity and azimuth ####
-    velocity, azimuth, rms = detection.inversion(
-        cmbm2n, cmbm2, intsd, ints_az, lags_inds1, lags_inds2, lags, mpk
-    )
-    d_Azimuth = azimuth - np.array([t["back_azimuth"] for t in config.targets])
-    az_tolerance = np.array([t["az_tolerance"] for t in config.targets])
-    #### check if this is airwave velocity from a target in config file list ####
-    if np.any(np.abs(d_Azimuth) < az_tolerance) or force_flag:
-        v_ind = np.argmin(np.abs(d_Azimuth))
-        mx_pressure = np.max(np.array([np.max(np.abs(tr.data)) for tr in st]))
-        if (
-            config.targets[v_ind]["vmin"] < velocity < config.targets[v_ind]["vmax"]
-            and mx_pressure > config.targets[v_ind]["min_pa"]
-        ) or force_flag:
-            #### DETECTION ####
-            target = config.targets[v_ind]
-            d_Azimuth = d_Azimuth[v_ind]
-
+    for target in config.targets:
+        target_df = detection.filter_lts_results(results_df, target)
+        if len(target_df) == 0 and force_flag:
+            logger.warning(
+                "Force mode: no windows passed target filters; "
+                "using unfiltered LTS results for summary stats."
+            )
+            target_df = results_df
+        if len(target_df) > 0 or force_flag:
             logger.info("Airwave Detection!!!")
-            state_message = f"{state_message} - {target['name']} detection! {mx_pressure:.1f} Pa peak pressure"
+            state_message = f"{state_message} - {target['name']} detection! {target_df['Pressure'].max():.1f} Pa peak pressure"
             state = "CRITICAL"
 
-        else:
-            logger.info("Non-volcano detect!!!")
-            state_message = f"{state_message} - Detection with wrong velocity ({velocity:.1f} km/s) or maximum pressure ({mx_pressure:.1f} Pa)"
-            state = "WARNING"
-    else:
-        #### trigger, but not from volcano ####
-        logger.info("Non-volcano detect!!!")
-        state_message = f"{state_message} - Detection with wrong backazimuth ({azimuth:.0f} from N)"
-        state = "WARNING"
-
-    if state == "CRITICAL":
-        run_send_sequence(
-            config,
-            T0,
-            state,
-            state_message,
-            figure_factory=lambda: make_figure(target, T0, config, mx_pressure, test=test_flag),
-            message_factory=lambda: create_message(t1, t2, st, target, azimuth, d_Azimuth, velocity, mx_pressure),
-            can_send_kwargs={"volcano": target["name"]},
-            record_kwargs={"volcano": target["name"]},
-            mm_flag=mm_flag,
-            icinga_flag=icinga_flag,
-            test_flag=test_flag,
-        )
-        return
+            mx_pressure = np.nanmax(target_df["Pressure"])
+            velocity = np.nanmean(target_df["Velocity"]) / 1000
+            azimuth = np.nanmean(target_df["Azimuth"])
+            d_Azimuth = azimuth - target["back_azimuth"]
+            
+            run_send_sequence(
+                config,
+                T0,
+                state,
+                state_message,
+                figure_factory=lambda: make_figure(target, T0, config, mx_pressure, test=test_flag),
+                message_factory=lambda: create_message(t1, t2, st, target, azimuth, d_Azimuth, velocity, mx_pressure),
+                can_send_kwargs={"volcano": target["name"]},
+                record_kwargs={"volcano": target["name"]},
+                mm_flag=mm_flag,
+                icinga_flag=icinga_flag,
+                test_flag=test_flag,
+            )
 
     # send heartbeat status message to icinga
     messaging.icinga(config, state, state_message, send=icinga_flag)

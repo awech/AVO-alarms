@@ -1,10 +1,14 @@
 import os
 import traceback
 
-from volc_alarms.utils import messaging, processing, alarming
+from volc_alarms.utils import alarming, messaging, processing
 from volc_alarms.utils.setup_utils import get_logger
 
-from .detection import download_pilot_reports, pirep_archive_to_dataframe, check_volcano_mention
+from .detection import (
+    check_volcano_mention,
+    download_pilot_reports,
+    pirep_archive_to_dataframe,
+)
 from .figure import plot_fig
 from .message import create_message
 

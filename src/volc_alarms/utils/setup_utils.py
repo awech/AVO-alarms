@@ -20,7 +20,7 @@ from types import SimpleNamespace
 
 import pandas as pd
 import yaml
-from dotenv import load_dotenv, find_dotenv
+from dotenv import find_dotenv, load_dotenv
 from obspy import UTCDateTime as utc
 
 # Absolute project root, derived from this file's location:
@@ -67,7 +67,7 @@ def load_environment(env_file=None):
     
     # --- File Path defaults (overridden by .env or shell exports) ---
     os.environ.setdefault("DB_FILE", str(TMP_DIR / "alarms_sent.db"))
-    os.environ.setdefault("DISTRIBUTION_FILE", str(_project_root / "config" / "distribution.yml"))
+    os.environ.setdefault("DISTRIBUTION_FILE", str(Path(os.environ["CONFIGS_DIR"]) / "distribution.yml"))
     os.environ.setdefault("PHONEBOOK_FILE", str(_project_root / "config" / "phonebook.yml"))
     os.environ.setdefault("VOLCANO_LIST", str(_project_root / "src" / "volc_alarms" / "data" / "volcano_list.csv"))
     os.environ.setdefault("STATION_XML", str(TMP_DIR / "stations.xml"))
@@ -230,15 +230,21 @@ def load_config(config_name):
             config.taper = 5
         if not hasattr(config, "latency") or config.latency is None:
             config.latency = 10
-        if not hasattr(config, "duration") or config.duration is None:
-            config.duration = 180 if config.alarm_type == "Infrasound" else 300
 
     if config.alarm_type == "Infrasound":
         config = update_infrasound_config(config)
+        if not hasattr(config, "duration") or config.duration is None:
+            config.duration = os.environ.get("INFRASOUND_DURATION", 90)
+            
+    if config.alarm_type == "RSAM":
+        if not hasattr(config, "duration") or config.duration is None:
+            config.duration = os.environ.get("RSAM_DURATION", 300)
 
     if config.alarm_type == "Tremor":
         if not hasattr(config, "grid_file"):
             config.grid_file = TMP_DIR / f"{config.alarm_name.replace(' ', '_')}_grid.npz"
+        if not hasattr(config, "duration") or config.duration is None:
+            config.duration = os.environ.get("TREMOR_DURATION", 300)
 
     return config
 
@@ -249,7 +255,7 @@ def update_infrasound_config(config):
 
     For each entry in ``config.targets`` (the canonical lowercase key), fill
     ``lat``/``lon`` from the Volcano_List row matching the target ``name`` when
-    either is absent, and default ``vmin``/``vmax`` from the
+    either is absent, and default ``vmin``/``vmax``/``cmin`` from the
     ``INFRASOUND_VMIN``/``INFRASOUND_VMAX`` environment variables (0.28/0.45)
     when absent. Pre-existing ``lat``/``lon``/``vmin``/``vmax`` values are
     preserved.
@@ -273,6 +279,20 @@ def update_infrasound_config(config):
     df = load_volcano_list()
     VMIN = os.environ.get("INFRASOUND_VMIN", 0.28)
     VMAX = os.environ.get("INFRASOUND_VMAX", 0.45)
+    CMIN = os.environ.get("INFRASOUND_CMIN", 0.6)
+    PLOT_DURATION = os.environ.get("INFRASOUND_PLOT_DURATION", 3600)
+
+    # --- Infrasound defaults ---
+    if not hasattr(config, "min_channels"):
+        config.min_channels = os.environ.get("INFRASOUND_MIN_CHANNELS", 3)
+    if not hasattr(config, "window_length"):
+        config.lts_window_length = os.environ.get("LTS_WINDOW_LENGTH", 30)
+    if not hasattr(config, "overlap"):
+        config.lts_overlap = os.environ.get("LTS_OVERLAP", 15)
+    if not hasattr(config, "lts_alpha"):
+        config.lts_alpha = os.environ.get("LTS_ALPHA", 0.5)
+    if not hasattr(config, "lts_n_samples"):
+        config.lts_n_samples = int(os.environ.get("LTS_N_SAMPLES", 100))
 
     for i, target in enumerate(config.targets):
         if "lat" not in target or "lon" not in target:
@@ -295,6 +315,14 @@ def update_infrasound_config(config):
             config.targets[i].update({"vmin": VMIN})
         if "vmax" not in target:
             config.targets[i].update({"vmax": VMAX})
+        if "cmin" not in target:
+            config.targets[i].update({"cmin": CMIN})
+        if "plot_duration" not in target:
+            config.targets[i]["plot_duration"] = float(PLOT_DURATION)
+        else:
+            config.targets[i]["plot_duration"] = float(
+                _evaluate_math_expr(target["plot_duration"])
+            )
 
     return config
 

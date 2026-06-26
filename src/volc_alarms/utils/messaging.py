@@ -4,7 +4,6 @@ import re
 import smtplib
 import time
 import warnings
-from pandas import Timestamp
 from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
@@ -14,6 +13,7 @@ from pathlib import Path
 import requests
 import urllib3
 import yaml
+from pandas import Timestamp
 
 from volc_alarms.utils.setup_utils import get_logger
 
@@ -141,8 +141,12 @@ def get_recipients_list(alarm_name, test=False):
 
     alarm_key = alarm_name
     if test:
-        alarm_key = "Error"
-        logger.info("Test mode. Sending message to 'Error' recipients")
+        if "Test" in distribution.keys():
+            alarm_key = "Test"
+            logger.info("Test mode. Sending message to 'Test' recipients")
+        else:
+            alarm_key = "Error"
+            logger.info("Test mode. No 'Test' group found; sending message to 'Error' recipients")
     else:
         if alarm_name not in distribution.keys():
             alarm_key = "All Alarms"

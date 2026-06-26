@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from volc_alarms.utils import downloading, messaging, processing, alarming
+from volc_alarms.utils import alarming, downloading, messaging, processing
 from volc_alarms.utils.alarm_flow import apply_cron_latency_backup, run_send_sequence
 from volc_alarms.utils.setup_utils import get_logger
 
@@ -37,17 +37,19 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     t1 = T0 - 1.5 * config.window_length - config.taper
     t2 = T0 + config.taper
     st = downloading.download_waveforms(nslc, t1, t2)
-    st = processing.add_metadata(st)
     
 
     ######## preprocess data ########
     band_env, high_env, band = detection.preprocess(st, config, t1, t2)
+    band = processing.add_metadata(band)
+    band_env = processing.add_metadata(band_env)
+    high_env = processing.add_metadata(high_env)
+
     if detection.qc_checks(band) < config.min_sta:
         state_message = f"{state_message} - Data missing!"
         state = "WARNING"
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
-    
     
     ######### run rsam test #########
     rsam_st = band.select(id=config.rsam_station)

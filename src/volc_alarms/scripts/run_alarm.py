@@ -10,12 +10,12 @@ from pathlib import Path
 
 from volc_alarms.utils import messaging
 from volc_alarms.utils.setup_utils import (
+    LockFile,
     get_logger,
     load_config,
     load_environment,
     setup_root_logger,
     update_arguments,
-    LockFile,
 )
 
 
@@ -50,6 +50,11 @@ def parse_args():
         "--force", help="Force a trigger in test mode", action="store_true"
     )
     parser.add_argument(
+        "--earthscope",
+        help="Use Earthscope FDSN client instead of Winston for waveform downloads",
+        action="store_true",
+    )
+    parser.add_argument(
         "--mm",
         help="Post to mattermost",
         action=argparse.BooleanOptionalAction,
@@ -75,6 +80,10 @@ def main():
 
     # Load environment: explicit --env-file if given, otherwise search upward.
     load_environment(args.env_file)
+
+    # If --earthscope flag is set, use Earthscope FDSN client for waveform downloads
+    if args.earthscope:
+        os.environ["USE_EARTHSCOPE"] = "1"
     
     # Set up root logger first (before locking, for error messages)
     if os.getenv("FROMCRON") == "yep":

@@ -1,24 +1,24 @@
+import importlib
 import os
 import time
-import importlib
 from pathlib import Path
 
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
-import shapely.geometry as sgeom
+import matplotlib as m
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
+import shapely.geometry as sgeom
 from cartopy.io.img_tiles import GoogleTiles
-from cartopy.mpl.gridliner import LongitudeFormatter, LatitudeFormatter
-import matplotlib as m
+from cartopy.mpl.gridliner import LatitudeFormatter, LongitudeFormatter
+from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.dates import date2num, num2date
 from matplotlib.path import Path as mpath
-from matplotlib.colors import LinearSegmentedColormap
 from obspy import UTCDateTime as utc
+
+from volc_alarms.utils import downloading
 from volc_alarms.utils.setup_utils import get_logger, load_volcano_list
-from volc_alarms.utils import downloading, processing
 
 logger = get_logger(__name__)
 m.use("Agg")
@@ -351,111 +351,6 @@ def add_inset_polygon(ax, extent, fc="none", ec="red", lw=0.35, **kwargs):
         linewidth=lw,
         **kwargs,
     )
-
-
-def get_xticks(st, fmt="15s"):
-    trace_t1 = pd.to_datetime(st[0].stats.starttime.datetime)
-    trace_t2 = pd.to_datetime(st[0].stats.endtime.datetime)
-    tick_df = pd.DataFrame({"datetime": pd.date_range(trace_t1, trace_t2, freq="15s")})
-    x_tick_labels = tick_df["datetime"].dt.ceil(fmt)
-    x_ticks = [(xt - trace_t1).total_seconds() for xt in x_tick_labels]
-    x_tick_labels = [xt.strftime("%H:%M:%S") for xt in x_tick_labels]
-    if x_ticks[-1] > st[0].times()[-1]:
-        x_ticks = x_ticks[:-1]
-        x_tick_labels = x_tick_labels[:-1]
-    return x_ticks, x_tick_labels
-
-
-def get_axes_and_ratios(st):
-    axes_list = np.array([tr.stats.station for tr in st])
-    h_ratios = np.full(axes_list.shape, 1 / len(axes_list))
-    axes_list = np.insert(axes_list, 0, ".")
-    axes_list = np.insert(axes_list, 0, "map")
-    h_ratios = np.insert(h_ratios, 0, 0)
-    h_ratios = np.insert(h_ratios, 0, h_ratios.sum() * 0.5)
-    axes_list = axes_list.reshape(axes_list.shape[0], 1)
-
-    return axes_list, h_ratios
-
-
-def plot_station_traces(ax, st, plot_chans):
-
-    try:
-        client = processing.IRIS_client()
-        client._attach_responses(st)
-        st.remove_response()
-        velocity = True
-    except Exception as e:
-        logger.warning(f"Problem occurred while removing response: {e}")
-        velocity = False
-
-    st.trim(st[0].stats.starttime + 5, st[0].stats.endtime - 5)
-    st.detrend()
-
-    x_ticks, x_tick_labels = get_xticks(st)
-    
-    for i, tr in enumerate(st):
-        sta = tr.stats.station
-        ax[sta].plot(tr.times("relative"), tr.data, lw=0.5, c="0.2")
-        ax[sta].text(
-            0.01,
-            0.7,
-            tr.id,
-            fontsize=6,
-            transform=ax[sta].transAxes,
-            bbox=dict(boxstyle="round", fc="w", ec="w", alpha=0.8, linewidth=0),
-        )
-        trace_t1 = tr.stats.starttime.datetime
-        try:
-            p_time = (plot_chans.iloc[i].P.datetime - trace_t1).total_seconds()
-            ax[sta].axvline(p_time, ymin=0.25, ymax=0.75, color="r", linewidth=1)
-        except Exception as e:
-            logger.warning(f"Problem plotting P phase arrivals for station {sta}")
-            logger.warning(e)
-            pass
-        try:
-            s_time = (plot_chans.iloc[i].S.datetime - trace_t1).total_seconds()
-            ax[sta].axvline(s_time, ymin=0.25, ymax=0.75, color="dodgerblue", linewidth=1)
-        except Exception as e:
-            logger.warning(f"Problem plotting S phase arrivals for station {sta}")
-            logger.warning(e)
-            pass
-        if i == 4:
-            tr.data = tr.data * 1e3
-        if velocity:
-            label_color = "black"
-            fw = "normal"
-            peak_num = np.abs(tr.data).max()
-            if np.log10(peak_num) < -6:
-                tmp_str = f"{peak_num*1e9:.1f}\n$nm/s$"
-            elif np.log10(peak_num) < -3:
-                tmp_str = f"{peak_num*1e6:.1f}\n$\mu$$m/s$"
-            elif np.log10(peak_num) < 0:
-                tmp_str = f"{peak_num*1e3:.2f}\n$mm/s$"
-                label_color = "firebrick"
-                fw = "bold"
-            ax[sta].text(
-                ax[sta].get_xlim()[0] - 1 / 86400,
-                tr.data[0],
-                tmp_str,
-                fontsize=6,
-                horizontalalignment="center",
-                verticalalignment="bottom",
-                rotation_mode="anchor",
-                rotation=90,
-                color=label_color,
-                fontweight=fw,
-            )
-        ax[sta].set_yticks([])
-        ax[sta].set_xticks(x_ticks)
-        ax[sta].set_xticklabels([])
-        ax[sta].grid(axis="x", linewidth=0.2, linestyle="--")
-        ax[sta].tick_params("x", length=0)
-        for spine in ["top", "bottom", "left", "right"]:
-            ax[sta].spines[spine].set_visible(False)
-    ax[sta].set_xticklabels(x_tick_labels, fontsize=6)
-
-    return
 
 
 def default_grid_params(**kwargs):

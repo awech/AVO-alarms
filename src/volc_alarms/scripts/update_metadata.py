@@ -5,10 +5,10 @@ from pathlib import Path
 
 from volc_alarms.utils.downloading import download_station_xml
 from volc_alarms.utils.setup_utils import (
+    LockFile,
     get_logger,
     load_environment,
     setup_root_logger,
-    LockFile,
 )
 
 

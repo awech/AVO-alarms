@@ -22,7 +22,7 @@ socket.setdefaulttimeout(15)
 logger = get_logger(__name__)
 
 
-def IRIS_client():
+def Earthscope_client():
 
     import ssl
     ssl._create_default_https_context = ssl._create_unverified_context
@@ -156,29 +156,27 @@ def _qc_sub_trace(sub_trace):
     return sub_trace
 
 
-def download_waveforms(nslc_list, T1, T2, iris=False):
-    """_summary_
+def download_waveforms(nslc_list, T1, T2):
+    """Download waveform data for a list of NSLC channels.
+
+    Uses the Earthscope FDSN client if the ``USE_EARTHSCOPE`` environment
+    variable is set using the `--earthscope` flag, otherwise connects 
+    to datasource listed in the .env file
 
     Parameters
     ----------
-    nslc_list : _type_
-        _description_
-    T1 : _type_
-        _description_
-    T2 : _type_
-        _description_
+    nslc_list : list of str
+        Station names in N.S.L.C format (e.g. ['AV.PS4A..BHZ']).
+    T1 : obspy.UTCDateTime
+        Start time.
+    T2 : obspy.UTCDateTime
+        End time.
 
     Returns
     -------
-    _type_
-        _description_
+    obspy.Stream
+        Stream of traces, one per requested channel.
     """
-    # nslc_list = list of station names in NSLC format (eg. ['AV.PS4A..BHZ','AV.PVV..BHZ','AV.PS1A..BHZ'])
-    # T1 and T2 are start/end obspy UTCDateTimes
-    # fill_value can be 0 (default), 'latest', or 'interpolate'
-    #
-    # returns stream of traces with gaps accounted for
-    #
     T1_str = T1.strftime("%Y.%m.%d %H:%M:%S")
     T2_str = T2.strftime("%Y.%m.%d %H:%M:%S")
     logger.info(f"{T1_str} - {T2_str}")
@@ -186,8 +184,7 @@ def download_waveforms(nslc_list, T1, T2, iris=False):
 
     st = Stream()
 
-    # TODO set up some default client. Maybe from .env? 
-    if iris:
+    if os.environ.get("USE_EARTHSCOPE"):
         import ssl
         ssl._create_default_https_context = ssl._create_unverified_context
         client = FDSN_Client("earthscope")
@@ -324,7 +321,7 @@ def _collect_station_nslc(configs_dir):
 def download_station_xml():
     """Download and update station metadata XML file from IRIS."""
 
-    client = IRIS_client()
+    client = Earthscope_client()
 
     NSLC = _collect_station_nslc(os.environ["CONFIGS_DIR"])
 

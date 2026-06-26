@@ -11,7 +11,7 @@ nslc:
   - AV.SDPI.06.HDF
 
 # Processing parameters
-duration: 180         # duration value in seconds (3 * 60)
+# duration: 90         # optional duration value in seconds. Default: 90 s
 latency: 10.0         # seconds between timestamps and end of data window
 taper: 5.0            # seconds to taper beginning and end of trace before filtering
 f1: 1.0               # minimum frequency for bandpass filter
@@ -41,7 +41,7 @@ targets:
   - name: Pavlof
     az_tolerance: 8
     min_pa: 2.0
-    seismic_nslc:
+    local_nslc:
       - AV.PV6A..BDF
       - AV.PV6A..SHZ
       - AV.PN7A..BHZ
@@ -50,7 +50,7 @@ targets:
   - name: Veniaminof
     az_tolerance: 6
     min_pa: 0.5
-    seismic_nslc:
+    local_nslc:
       - AV.VNSG..BHZ
       - AV.VNWF..BHZ
       - AV.VNCG..BHZ
@@ -58,7 +58,7 @@ targets:
   - name: Aniakchak
     az_tolerance: 3
     min_pa: 0.3
-    seismic_nslc:
+    local_nslc:
       - AV.ANPK..BHZ
       - AV.ANNW..BHZ
       - AV.BPPC..BHZ
@@ -66,7 +66,7 @@ targets:
   - name: Shishaldin
     az_tolerance: 5
     min_pa: 0.5
-    seismic_nslc:
+    local_nslc:
       - AV.SSBA..BHZ
       - AV.ISNN..BHZ
       - AV.WTUG..BHZ

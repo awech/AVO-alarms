@@ -7,10 +7,10 @@ import pandas as pd
 import yaml
 
 from volc_alarms.utils.setup_utils import (
+    LockFile,
     get_logger,
     load_environment,
     setup_root_logger,
-    LockFile,
 )
 
 

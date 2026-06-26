@@ -13,7 +13,7 @@ from numba import jit
 ########################
 
 
-@jit(nopython=True)
+@jit(nopython=True, cache=True)
 def random_set(tot, npar, seed):
     """ Generate a random data subset for LTS. """
     randlist = []
@@ -36,7 +36,7 @@ def random_set(tot, npar, seed):
     return randset, np.int64(seed)
 
 
-@jit(nopython=True)
+@jit(nopython=True, cache=True)
 def check_array(candidate_size, best_coeff, best_obj, z, obj):
     """ Keep best coefficients for final C-step iteration.
     Don't keep duplicates.
@@ -55,8 +55,8 @@ def check_array(candidate_size, best_coeff, best_obj, z, obj):
     return bcoeff, bobj
 
 
-@jit(nopython=True)
-def fast_LTS(nits, tau, time_delay_mad, xij_standardized, xij_mad, dimension_number, candidate_size, n_samples, co_array_num, slowness_coeffs, csteps, h, csteps2, random_set, _insertion):
+@jit(nopython=True, cache=True)
+def fast_LTS(nits, tau, time_delay_mad, xij_standardized, xij_mad, dimension_number, candidate_size, n_samples, co_array_num, slowness_coeffs, csteps, h, csteps2):
     """ Run the FAST_LTS algorithm to determine an initial optimal slowness vector.
     """
     for jj in range(nits):
@@ -502,11 +502,15 @@ def quarticEqn(a, b, c, d):
     # find R
     R = np.sqrt(a2 / 4 - (1 + 0j) * b + y)  # force complex in sqrt
     foo = 3*a2/4 - R*R - 2*b
-    if R != 0:
-        # R is already complex.
+    # Avoid dividing by zero or non-finite R which can produce warnings
+    # Use a small tolerance when testing R's magnitude.
+    eps = np.finfo(float).eps
+    if np.isfinite(R) and np.abs(R) > eps:
+        # R is sufficiently non-zero/finite; safe to divide
         D = np.sqrt(foo + (a * b - 2 * c - a2 * a / 4) / R)
-        E = np.sqrt(foo - (a * b - 2 * c - a2 * a / 4) / R)  # ...
+        E = np.sqrt(foo - (a * b - 2 * c - a2 * a / 4) / R)
     else:
+        # Fallback: use alternative expression avoiding division by R
         sqrtTerm = 2 * np.sqrt(y * y - (4 + 0j) * d)  # force complex in sqrt
         D = np.sqrt(foo + sqrtTerm)
         E = np.sqrt(foo - sqrtTerm)
@@ -724,8 +728,10 @@ def post_process(dimension_number, co_array_num, alpha, h, nits, tau, xij, coeff
         m_w, _ = np.shape(xij[weights, :])
         with np.errstate(invalid='raise'):
             try:
-                sigma_tau[jj] = np.sqrt(tau[weights, jj, :].T @ residuals / (
-                    m_w - dimension_number))[0]
+                val = np.sqrt(tau[weights, jj, :].T @ residuals / (
+                    m_w - dimension_number))
+                # ensure a Python scalar (avoid 1-element array -> scalar conversion deprecation)
+                sigma_tau[jj] = float(np.asarray(val).item())
             except FloatingPointError:
                 pass
 
@@ -749,6 +755,8 @@ def post_process(dimension_number, co_array_num, alpha, h, nits, tau, xij, coeff
         sig_theta = np.abs(np.diff(
             (np.arctan2(eVec[2:, 1], eVec[2:, 0]) * 180 / np.pi - 360)
             % 360))
+        # diff returns a 1-element array; convert to scalar
+        sig_theta = float(np.asarray(sig_theta).item())
         if sig_theta > 180:
             sig_theta = np.abs(sig_theta - 360)
 
@@ -756,7 +764,8 @@ def post_process(dimension_number, co_array_num, alpha, h, nits, tau, xij, coeff
         # Remove the 1/2's to get full values to express
         # coverage ellipse area.
         conf_int_baz[jj] = 0.5 * sig_theta
-        conf_int_vel[jj] = 0.5 * np.abs(np.diff(1 / eExtrm[:2]))
+        # extract scalar from 1-element diff result
+        conf_int_vel[jj] = float((0.5 * np.abs(np.diff(1 / eExtrm[:2]))).item())
 
         # Cast weights to int for output
         element_weights[:, jj] = weights * 1
@@ -858,7 +867,8 @@ class LsBeam:
             tf_ind = data.intervals[jj] + data.winlensamp
             try:
                 self.t[jj] = data.tvec[t0_ind + int(data.winlensamp/2)]
-            except:
+            except Exception:
+                # fallback to the current maximum t value when indexing fails
                 self.t[jj] = np.nanmax(self.t, axis=0)
 
             # Numba doesn't accept mode='full' in np.correlate currently
@@ -932,8 +942,14 @@ class OLSEstimator(LsBeam):
 
             # Calculate the sigma_tau value (Szuberla et al. 2006).
             residuals = self.tau[:, jj, :] - (self.xij @ z_final)
-            self.sigma_tau[jj] = np.sqrt(self.tau[:, jj, :].T @ residuals / (
-                self.co_array_num - self.dimension_number))[0]
+            numerator = self.tau[:, jj, :].T @ residuals
+            denom = self.co_array_num - self.dimension_number
+            if numerator / denom > 0:
+                val = np.sqrt(numerator / denom)
+            else:
+                val = np.nan
+            # ensure scalar
+            self.sigma_tau[jj] = float(np.asarray(val).item())
 
             # Calculate uncertainties from Szuberla & Olson, 2004
             # Equation 16
@@ -954,6 +970,7 @@ class OLSEstimator(LsBeam):
                 sig_theta = np.abs(np.diff(
                     (np.arctan2(eVec[2:, 1], eVec[2:, 0]) * 180 / np.pi - 360)
                     % 360))
+                sig_theta = float(np.asarray(sig_theta).item())
                 if sig_theta > 180:
                     sig_theta = np.abs(sig_theta - 360)
 
@@ -961,7 +978,7 @@ class OLSEstimator(LsBeam):
                 # Remove the 1/2's to get full values to express
                 # coverage ellipse area.
                 self.conf_int_baz[jj] = 0.5 * sig_theta
-                self.conf_int_vel[jj] = 0.5 * np.abs(np.diff(1 / eExtrm[:2]))
+                self.conf_int_vel[jj] = float((0.5 * np.abs(np.diff(1 / eExtrm[:2]))).item())
 
             except ValueError:
                 self.conf_int_baz[jj] = np.nan
@@ -972,7 +989,7 @@ class LTSEstimator(LsBeam):
     """ Class for least trimmed squares (LTS) beamforming.
     """
 
-    def __init__(self, data):
+    def __init__(self, data, n_samples=500):
         super().__init__(data)
         # Pre-allocate array of slowness coefficients
         self.slowness_coeffs = np.empty((self.dimension_number, data.nits))
@@ -988,7 +1005,7 @@ class LTSEstimator(LsBeam):
         # Calculate the subset size.
         self.h_calc(data)
         # The number of subsets we will test.
-        self.n_samples = 500
+        self.n_samples = n_samples
         # The number of best subsets to try in the final iteration.
         self.candidate_size = 10
         # The initial number of concentration steps.
@@ -1019,7 +1036,7 @@ class LTSEstimator(LsBeam):
             data (DataBin): The DataBin object.
         """
         # Determine the best slowness coefficients from FAST-LTS
-        self.slowness_coeffs = fast_LTS(data.nits, self.tau, self.time_delay_mad, self.xij_standardized, self.xij_mad, self.dimension_number, self.candidate_size, self.n_samples, self.co_array_num, self.slowness_coeffs, self.csteps, self.h, self.csteps2, random_set, check_array) # noqa
+        self.slowness_coeffs = fast_LTS(data.nits, self.tau, self.time_delay_mad, self.xij_standardized, self.xij_mad, self.dimension_number, self.candidate_size, self.n_samples, self.co_array_num, self.slowness_coeffs, self.csteps, self.h, self.csteps2) # noqa
         # Use the best slowness coefficients to determine dropped stations
         # Calculate uncertainties at 90% confidence
         self.lts_vel, self.lts_baz, self.element_weights, self.sigma_tau, self.conf_int_vel, self.conf_int_baz = post_process(self.dimension_number, self.co_array_num, data.alpha, self.h, data.nits, self.tau, self.xij, self.slowness_coeffs, self.lts_vel, self.lts_baz, self.element_weights, self.sigma_tau, self.p, self.conf_int_vel, self.conf_int_baz) # noqa

@@ -5,7 +5,7 @@ import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 
 from volc_alarms.utils import plotting
-from volc_alarms.utils.setup_utils import get_logger, TMP_DIR
+from volc_alarms.utils.setup_utils import TMP_DIR, get_logger
 
 logger = get_logger(__name__)
 

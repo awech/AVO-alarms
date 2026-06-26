@@ -1,10 +1,10 @@
 import os
-import traceback
 import re
+import traceback
 
 from obspy import UTCDateTime
 
-from volc_alarms.utils import messaging, processing, alarming
+from volc_alarms.utils import alarming, messaging, processing
 from volc_alarms.utils.setup_utils import get_logger, load_volcano_list
 
 from .detection import download_SO2, get_so2_images

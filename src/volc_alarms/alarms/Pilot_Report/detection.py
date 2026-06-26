@@ -1,13 +1,13 @@
 import os
 import re
 import zipfile
+from shutil import rmtree
 
 import pandas as pd
 import requests
 import shapefile
-from shutil import rmtree
 
-from volc_alarms.utils.setup_utils import get_logger, load_volcano_list, TMP_DIR
+from volc_alarms.utils.setup_utils import TMP_DIR, get_logger, load_volcano_list
 
 logger = get_logger(__name__)
 

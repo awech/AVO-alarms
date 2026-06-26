@@ -2,8 +2,9 @@ import math
 import os
 import time
 import traceback
+
+from volc_alarms.utils import alarming, messaging
 from volc_alarms.utils.setup_utils import get_logger
-from volc_alarms.utils import messaging, alarming
 
 logger = get_logger(__name__)
 

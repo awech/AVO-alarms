@@ -1,13 +1,13 @@
 import time
 
 import matplotlib.pyplot as plt
-from matplotlib import dates
-from matplotlib import ticker
-from matplotlib.dates import DateFormatter
 import numpy as np
+from matplotlib import dates, ticker
+from matplotlib.dates import DateFormatter
 
 from volc_alarms.utils import downloading, plotting, processing
 from volc_alarms.utils.setup_utils import get_logger
+
 from . import detection
 
 logger = get_logger(__name__)

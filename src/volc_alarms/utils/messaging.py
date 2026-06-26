@@ -4,7 +4,6 @@ import re
 import smtplib
 import time
 import warnings
-from pandas import Timestamp
 from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
@@ -14,6 +13,7 @@ from pathlib import Path
 import requests
 import urllib3
 import yaml
+from pandas import Timestamp
 
 from volc_alarms.utils.setup_utils import get_logger
 

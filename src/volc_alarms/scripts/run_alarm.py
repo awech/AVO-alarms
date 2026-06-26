@@ -10,12 +10,12 @@ from pathlib import Path
 
 from volc_alarms.utils import messaging
 from volc_alarms.utils.setup_utils import (
+    LockFile,
     get_logger,
     load_config,
     load_environment,
     setup_root_logger,
     update_arguments,
-    LockFile,
 )
 
 

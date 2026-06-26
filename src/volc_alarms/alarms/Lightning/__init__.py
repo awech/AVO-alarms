@@ -4,10 +4,10 @@ import warnings
 
 import pandas as pd
 
-from volc_alarms.utils import messaging, processing, alarming
+from volc_alarms.utils import alarming, messaging, processing
 from volc_alarms.utils.setup_utils import get_logger, load_volcano_list
 
-from .detection import download_lightning, inner_outer, get_state_message
+from .detection import download_lightning, get_state_message, inner_outer
 from .figure import plot_fig
 from .message import create_message
 

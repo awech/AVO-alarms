@@ -11,7 +11,7 @@ import urllib3
 from obspy import UTCDateTime as utc
 from obspy.geodetics.base import gps2dist_azimuth
 
-from volc_alarms.utils.setup_utils import get_logger, load_volcano_list, TMP_DIR
+from volc_alarms.utils.setup_utils import TMP_DIR, get_logger, load_volcano_list
 
 urllib3.disable_warnings()
 

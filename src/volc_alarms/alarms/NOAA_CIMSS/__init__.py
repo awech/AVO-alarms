@@ -2,19 +2,18 @@ import os
 import traceback
 import warnings
 
-from volc_alarms.utils import messaging, processing, alarming
+from volc_alarms.utils import alarming, messaging, processing
 from volc_alarms.utils.setup_utils import get_logger, load_volcano_list
 
 from .detection import (
-    download_cimss_vv_api,
-    scrape_cimss_alert,
-    get_cimss_image,
-    format_cimss_dataframe,
     check_ignore_volcano,
+    download_cimss_vv_api,
+    format_cimss_dataframe,
     process_alert_soup,
+    scrape_cimss_alert,
 )
-from .message import create_message, cimss_mm_channels
 from .figure import plot_fig
+from .message import cimss_mm_channels, create_message
 
 logger = get_logger(__name__)
 warnings.filterwarnings("ignore")

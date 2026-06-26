@@ -1,11 +1,11 @@
 import os
 import time
 from pathlib import Path
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urljoin, urlparse
 
 import requests
 
-from volc_alarms.utils.setup_utils import get_logger, TMP_DIR
+from volc_alarms.utils.setup_utils import TMP_DIR, get_logger
 
 logger = get_logger(__name__)
 

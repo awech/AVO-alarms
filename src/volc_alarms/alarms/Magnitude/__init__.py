@@ -1,7 +1,7 @@
 import os
 import warnings
 
-from volc_alarms.utils import messaging, processing, downloading, alarming
+from volc_alarms.utils import alarming, downloading, messaging, processing
 from volc_alarms.utils.setup_utils import get_logger
 
 from .detection import process_event

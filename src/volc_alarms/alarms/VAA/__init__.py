@@ -4,7 +4,7 @@ import traceback
 import pandas as pd
 from obspy import UTCDateTime
 
-from volc_alarms.utils import messaging, processing, alarming
+from volc_alarms.utils import alarming, messaging, processing
 from volc_alarms.utils.setup_utils import get_logger
 
 from .detection import download_mesonet_vaa_list, process_vaa_id

@@ -1,6 +1,6 @@
 import traceback
 
-from volc_alarms.utils import processing, downloading
+from volc_alarms.utils import downloading, processing
 from volc_alarms.utils.setup_utils import get_logger, load_volcano_list
 
 from .figure import plot_event

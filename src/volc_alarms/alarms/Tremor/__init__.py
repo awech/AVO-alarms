@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from volc_alarms.utils import downloading, messaging, processing, alarming
+from volc_alarms.utils import alarming, downloading, messaging, processing
 from volc_alarms.utils.alarm_flow import apply_cron_latency_backup, run_send_sequence
 from volc_alarms.utils.setup_utils import get_logger
 

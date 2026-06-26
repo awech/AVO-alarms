@@ -14,3 +14,16 @@ from volc_alarms.alarms import (
     Tremor,
     VAA,
 )
+
+__all__ = [
+    "Infrasound",
+    "Lightning",
+    "Magnitude",
+    "NOAA_CIMSS",
+    "Pilot_Report",
+    "RSAM",
+    "SO2",
+    "Swarm",
+    "Tremor",
+    "VAA",
+]

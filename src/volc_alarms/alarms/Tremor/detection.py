@@ -4,7 +4,7 @@ from enveloc.core import XCOR
 from obspy import UTCDateTime
 from obspy.signal.filter import envelope
 
-from volc_alarms.utils.setup_utils import get_logger, TMP_DIR
+from volc_alarms.utils.setup_utils import TMP_DIR, get_logger
 
 logger = get_logger(__name__)
 

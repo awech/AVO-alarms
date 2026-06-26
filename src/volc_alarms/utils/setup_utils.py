@@ -20,7 +20,7 @@ from types import SimpleNamespace
 
 import pandas as pd
 import yaml
-from dotenv import load_dotenv, find_dotenv
+from dotenv import find_dotenv, load_dotenv
 from obspy import UTCDateTime as utc
 
 # Absolute project root, derived from this file's location:

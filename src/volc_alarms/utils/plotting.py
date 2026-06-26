@@ -1,24 +1,24 @@
+import importlib
 import os
 import time
-import importlib
 from pathlib import Path
 
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
-import shapely.geometry as sgeom
+import matplotlib as m
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
+import shapely.geometry as sgeom
 from cartopy.io.img_tiles import GoogleTiles
-from cartopy.mpl.gridliner import LongitudeFormatter, LatitudeFormatter
-import matplotlib as m
+from cartopy.mpl.gridliner import LatitudeFormatter, LongitudeFormatter
+from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.dates import date2num, num2date
 from matplotlib.path import Path as mpath
-from matplotlib.colors import LinearSegmentedColormap
 from obspy import UTCDateTime as utc
-from volc_alarms.utils.setup_utils import get_logger, load_volcano_list
+
 from volc_alarms.utils import downloading
+from volc_alarms.utils.setup_utils import get_logger, load_volcano_list
 
 logger = get_logger(__name__)
 m.use("Agg")

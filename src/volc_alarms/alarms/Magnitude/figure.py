@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from volc_alarms.utils import processing, downloading, plotting
+from volc_alarms.utils import downloading, plotting, processing
 from volc_alarms.utils.setup_utils import get_logger
 
 logger = get_logger(__name__)

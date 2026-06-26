@@ -3,14 +3,14 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from obspy import UTCDateTime, read_inventory, Catalog
+from obspy import Catalog, UTCDateTime, read_inventory
 from obspy.clients.fdsn import Client as FDSN_Client
-from obspy.geodetics import gps2dist_azimuth
 from obspy.core.event import Event
+from obspy.geodetics import gps2dist_azimuth
 from pandas.errors import EmptyDataError
 
-from volc_alarms.utils.setup_utils import get_logger, load_volcano_list
 from volc_alarms.utils.downloading import Earthscope_client
+from volc_alarms.utils.setup_utils import get_logger, load_volcano_list
 
 logger = get_logger(__name__)
 

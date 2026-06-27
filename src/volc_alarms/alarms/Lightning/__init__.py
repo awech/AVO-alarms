@@ -1,10 +1,9 @@
-import os
-import traceback
 import warnings
 
 import pandas as pd
 
 from volc_alarms.utils import alarming, messaging, processing
+from volc_alarms.utils.alarm_flow import run_send_sequence
 from volc_alarms.utils.setup_utils import get_logger, load_volcano_list
 
 from .detection import download_lightning, get_state_message, inner_outer
@@ -97,42 +96,21 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
                 state = "CRITICAL"
                 state_message = get_state_message(state, T0_str, v_name, n_ring1, n_ring2, config)
 
-                ### Send Email Notification ####
-                logger.info("Crafting message...")
-                subject, message = create_message(new_v_strokes, v_strokes)
-                try:
-                    filename = plot_fig(v_strokes, config, T0, test=test_flag)
-                except Exception as e:
-                    logger.error("Error generating figure...")
-                    logger.error(e)
-                    logger.error(traceback.format_exc())
-                    filename = None
-
-                try:
-                    logger.info("Sending message to mattermost")
-                    mm_url = messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
-                    message = f"{message}\n\n{mm_url}"
-                except Exception as e:
-                    logger.error("problem posting to mattermost")
-                    logger.error(e)
-                    logger.error(traceback.format_exc())
-
-                messaging.send_alert(
-                    config.alarm_name,
-                    subject,
-                    message,
-                    attachment=filename,
-                    test=test_flag,
-                )
-                alarming.record_send(
+                run_send_sequence(
                     config,
                     T0,
-                    volcano=new_v_strokes.iloc[0].v_name,
-                    event_id=new_v_strokes.id.to_list(),
-                    test=test_flag,
+                    state,
+                    state_message,
+                    figure_factory=lambda: plot_fig(v_strokes, config, T0, test=test_flag),
+                    message_factory=lambda: create_message(new_v_strokes, v_strokes),
+                    can_send_kwargs={"volcano": v_name},
+                    record_kwargs={
+                        "volcano": v_name,
+                        "event_id": new_v_strokes.id.to_list(),
+                    },
+                    mm_flag=mm_flag,
+                    icinga_flag=icinga_flag,
+                    test_flag=test_flag,
                 )
-                # delete the file you just sent
-                if filename:
-                    os.remove(filename)
 
     messaging.icinga(config, state, state_message, send=icinga_flag)

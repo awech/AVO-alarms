@@ -1,7 +1,6 @@
 from obspy import UTCDateTime as utc
 
 from volc_alarms.utils import messaging
-from volc_alarms.utils.messaging import post_mattermost
 from volc_alarms.utils.setup_utils import get_logger
 
 logger = get_logger(__name__)
@@ -45,21 +44,21 @@ def create_message(alert, volcs, output_text):
     return subject, message
 
 
-def cimss_mm_channels(alert, config, subject, message, attachment, test_flag, mm_flag):
-    
-    ##################################################################
-    # Send thermal alerts to their own channel
+def cimss_extra_channels(alert, config):
+    """Return the list of additional Mattermost channel ids for an alert.
+
+    Routing decisions (thermal alerts, elevated-volcano alerts) live here in the
+    alarm; the actual posting is handled by ``post_mattermost(channel_ids=...)``.
+    """
+    channels = []
+
+    # Thermal alerts get their own channel.
     if (alert.alert_type == "hot") and ("THERMAL" in alert.alert_header):
         if alert.v_distance < getattr(config, "thermal_alert_dist", 20):
-            config.mattermost_channel_id = config.thermal_alerts_mm
-            post_mattermost(config, subject, message, attachment=attachment, send=mm_flag, test=test_flag)
-    ##################################################################
+            channels.append(config.thermal_alerts_mm)
 
-    ##################################################################
-    # Send alerts for elevated volcanoes to their own channel
+    # Alerts for elevated volcanoes get their own channel.
     if (alert.v_distance < config.elevated_volcano_dist) and (alert.v_name in config.elevated_volcano_list):
-        config.mattermost_channel_id = config.elevated_volcano_mm
-        post_mattermost(config, subject, message, attachment=attachment, send=mm_flag, test=test_flag)
-    ##################################################################
+        channels.append(config.elevated_volcano_mm)
 
-    return
+    return channels

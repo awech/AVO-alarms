@@ -43,6 +43,8 @@ def run_send_sequence(
     *,
     can_send_kwargs=None,
     record_kwargs=None,
+    mm_kwargs=None,
+    send_email=True,
     mm_flag=True,
     icinga_flag=True,
     test_flag=False,
@@ -54,18 +56,23 @@ def run_send_sequence(
       2. figure creation via figure_factory(), guarded by try/except (Req 8.5)
       3. message creation via message_factory() -> (subject, message)
       4. messaging.post_mattermost, guarded by try/except
-      5. messaging.send_alert
+      5. messaging.send_alert (only when ``send_email`` is True)
       6. alarming.record_send
       7. os.remove(filename) if a file was produced
       8. messaging.icinga heartbeat
 
     Alarm-specific arguments are forwarded through can_send_kwargs and
     record_kwargs (e.g. Infrasound's volcano target name) (Req 8.6).
+    ``mm_kwargs`` forwards extra keyword arguments to ``post_mattermost``
+    (e.g. ``volcano`` for per-volcano channel routing). ``send_email``
+    controls whether the email/SMS alert is sent (some alarms only email
+    on force/urgent/test conditions).
 
     Returns the final state_message (so the caller can use it if needed).
     """
     can_send_kwargs = can_send_kwargs or {}
     record_kwargs = record_kwargs or {}
+    mm_kwargs = mm_kwargs or {}
 
     # 1. rate limit (Req 8.4)
     if not alarming.can_send(config, T0=T0, test=test_flag, **can_send_kwargs):
@@ -89,7 +96,7 @@ def run_send_sequence(
     # 4. mattermost (guarded)
     try:
         mm_url = messaging.post_mattermost(
-            config, subject, message, attachment=filename, send=mm_flag, test=test_flag
+            config, subject, message, attachment=filename, send=mm_flag, test=test_flag, **mm_kwargs
         )
         message = f"{message}\n\n{mm_url}"
     except Exception as e:
@@ -98,9 +105,10 @@ def run_send_sequence(
         logger.error(traceback.format_exc())
 
     # 5. email/sms
-    messaging.send_alert(
-        config.alarm_name, subject, message, attachment=filename, test=test_flag
-    )
+    if send_email:
+        messaging.send_alert(
+            config.alarm_name, subject, message, attachment=filename, test=test_flag
+        )
 
     # 6. record send
     alarming.record_send(config, T0, test=test_flag, **record_kwargs)

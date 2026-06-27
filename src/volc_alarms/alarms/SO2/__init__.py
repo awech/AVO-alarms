@@ -1,10 +1,9 @@
-import os
 import re
-import traceback
 
 from obspy import UTCDateTime
 
 from volc_alarms.utils import alarming, messaging, processing
+from volc_alarms.utils.alarm_flow import run_send_sequence
 from volc_alarms.utils.setup_utils import get_logger, load_volcano_list
 
 from .detection import download_SO2, get_so2_images
@@ -71,44 +70,31 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     if new_alert and volcs.distance.min() < config.max_distance:
 
         logger.info(f"....New detection at {volcano_name}....")
-
-        logger.info("Downloading image")
-        try:
-            get_so2_images(soup, config)
-        except Exception:
-            logger.warning("Problem downloading images.")
-
-        logger.info("Trying to make figure attachment")
-        try:
-            filename = plot_fig(config)
-            logger.info("Figure generated successfully")
-        except Exception:
-            filename = []
-            logger.error("Problem making figure. Continue anyway")
-            b = traceback.format_exc()
-            err_message = "".join(f"{a}\n" for a in b.splitlines())
-            logger.error(err_message)
-            pass
-
-        
-        logger.info("Drafting alert")
-        subject, message = create_message(date, alert_time, table, config, volcs)
-
-        # logger.info("Sending direct alert")
-        # messaging.send_alert(
-        #     config.alarm_name, subject, message, attachment=filename, test=test_flag
-        # )
-
-
-        messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
-        alarming.record_send(config, T0, volcano=volcano_name, event_id=event_id, test=test_flag)
-
-        # delete the file you just sent
-        if filename:
-            os.remove(filename)
-
-        state_message = f"{T0_str} (UTC) SO2 detection!"
         state = "CRITICAL"
+        state_message = f"{T0_str} (UTC) SO2 detection!"
+
+        def _so2_figure():
+            logger.info("Downloading image")
+            try:
+                get_so2_images(soup, config)
+            except Exception:
+                logger.warning("Problem downloading images.")
+            logger.info("Trying to make figure attachment")
+            return plot_fig(config)
+
+        run_send_sequence(
+            config,
+            T0,
+            state,
+            state_message,
+            figure_factory=_so2_figure,
+            message_factory=lambda: create_message(date, alert_time, table, config, volcs),
+            record_kwargs={"volcano": volcano_name, "event_id": event_id},
+            send_email=False,
+            mm_flag=mm_flag,
+            icinga_flag=icinga_flag,
+            test_flag=test_flag,
+        )
     elif volcs.distance.min() < config.max_distance and not new_alert:
         state_message = f"{T0_str} (UTC) Old SO2 detection! [{alert_time}]"
         state = "WARNING"

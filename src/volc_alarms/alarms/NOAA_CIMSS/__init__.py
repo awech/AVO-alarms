@@ -1,8 +1,7 @@
-import os
-import traceback
 import warnings
 
 from volc_alarms.utils import alarming, messaging, processing
+from volc_alarms.utils.alarm_flow import run_send_sequence
 from volc_alarms.utils.setup_utils import get_logger, load_volcano_list
 
 from .detection import (
@@ -13,7 +12,7 @@ from .detection import (
     scrape_cimss_alert,
 )
 from .figure import plot_fig
-from .message import cimss_mm_channels, create_message
+from .message import cimss_extra_channels, create_message
 
 logger = get_logger(__name__)
 warnings.filterwarnings("ignore")
@@ -49,9 +48,6 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         )
         cimss_df = cimss_df[:1]
 
-
-    default_mm_id = config.mattermost_channel_id
-
     logger.info("Looping through alerts...")
     for _, alert in cimss_df.iterrows():
 
@@ -78,43 +74,28 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
             state_message = f"{T0_str} (UTC) NOAA/CIMSS webpage error"
             continue
 
-        try:
-            logger.info("Done. Attempting to generate figure")
-            filename = plot_fig(alert, config, test=test_flag)
-            logger.info("Figure generated successfully")
-        except Exception as e:
-            filename = []
-            logger.error("Problem making figure. Continue anyway")
-            logger.error(e)
-            logger.error(traceback.format_exc())
-            pass
-
         logger.info("Crafting message...")
         volcs = load_volcano_list()
         volcs = processing.volcano_distance(alert.lon_rc, alert.lat_rc, volcs)
         subject, message = create_message(alert, volcs, output_text)
 
-        if force_flag:
-            messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
-
-        messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
-        # send to other mm channels based on alert type and volcano status
-        cimss_mm_channels(alert, config, subject, message, filename, test_flag, mm_flag)
-        # change mm channel id back to default
-        config.mattermost_channel_id = default_mm_id
-        alarming.record_send(
-                config,
-                T0,
-                volcano=alert.v_name,
-                event_id=alert.NOAA_id,
-                test=test_flag,
-            )
-
         state = "CRITICAL"
         state_message = f"{T0_str} (UTC) {subject}"
 
-        if filename:
-            os.remove(filename)
+        run_send_sequence(
+            config,
+            T0,
+            state,
+            state_message,
+            figure_factory=lambda alert=alert: plot_fig(alert, config, test=test_flag),
+            message_factory=lambda subject=subject, message=message: (subject, message),
+            mm_kwargs={"channel_ids": cimss_extra_channels(alert, config)},
+            record_kwargs={"volcano": alert.v_name, "event_id": alert.NOAA_id},
+            send_email=force_flag,
+            mm_flag=mm_flag,
+            icinga_flag=icinga_flag,
+            test_flag=test_flag,
+        )
 
         # if not force_flag:
         #     processing.write_to_csv(cimss_df, config, outfile_columns)

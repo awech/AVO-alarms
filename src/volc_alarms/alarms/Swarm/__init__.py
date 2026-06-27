@@ -1,10 +1,8 @@
-import os
-import traceback
-
 import numpy as np
 import pandas as pd
 
 from volc_alarms.utils import downloading, messaging, processing, alarming
+from volc_alarms.utils.alarm_flow import run_send_sequence
 from volc_alarms.utils.setup_utils import get_logger
 
 from .detection import get_swarms, check_swarm_continue, compare_swarms, build_download_url
@@ -104,28 +102,27 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
             logger.info(subject)
             logger.info(message)
 
-            #### Generate Figure ####
-            try:
+            def _swarm_figure(swarm=swarm, volcano=volcano):
                 filename = make_figure(swarm, T0, config, test=test_flag)
                 swarm_t1 = swarm.time.min().strftime("%Y%m%d_%H%M")
                 swarm_t2 = swarm.time.max().strftime("%Y%m%d_%H%M")
                 new_filename = f"{volcano}_M{swarm_t1}-{swarm_t2}.png"
-                filename = filename.rename(filename.parent / new_filename)
-            except Exception as e:
-                filename = []
-                logger.error("Problem making figure. Continue anyway")
-                logger.warning(e)
-                logger.warning(traceback.format_exc())
+                return filename.rename(filename.parent / new_filename)
 
-            if test_flag:
-                messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
-
-            messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag, volcano=volcano)
-            # swarm_id = f"{volcano}-{T0_str}"
-            alarming.record_send(config, T0, volcano, event_id=None, test=test_flag)
-
-            if filename:
-                os.remove(filename)
+            run_send_sequence(
+                config,
+                T0,
+                state,
+                state_message,
+                figure_factory=_swarm_figure,
+                message_factory=lambda subject=subject, message=message: (subject, message),
+                mm_kwargs={"volcano": volcano},
+                record_kwargs={"volcano": volcano, "event_id": None},
+                send_email=test_flag,
+                mm_flag=mm_flag,
+                icinga_flag=icinga_flag,
+                test_flag=test_flag,
+            )
 
         # Merge swarms into single DataFrame
         merged_swarm = pd.concat(swarms, ignore_index=True).drop_duplicates("event_id")

@@ -27,7 +27,8 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from obspy import Stream, Trace
+from obspy import Stream, Trace, UTCDateTime
+from obspy.core.event import Catalog, Event, Magnitude as EventMagnitude, Origin, ResourceIdentifier
 
 from tests.alarms.snapshot_utils import T0
 
@@ -227,6 +228,48 @@ def magnitude_representative(doubles, load_config):
     Magnitude.run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True)
 
 
+def magnitude_critical(doubles, load_config):
+    """Crafted event near Pavlof -> CRITICAL detection + send sequence."""
+    _clean_test_db()
+    config = load_config("Magnitude")
+    from volc_alarms import Magnitude
+
+    # Hypocenter CSV (download_hypocenters_csv return): one event at Pavlof.
+    doubles.hypocenter_csv = pd.DataFrame(
+        {
+            "time": ["2024-12-31 23:55:00"],
+            "latitude": [55.4173],
+            "longitude": [-161.8937],
+            "depth": [5.0],
+            "mag": [3.2],
+            "event_id": ["ak0258testevt"],
+        }
+    )
+
+    # Hypocenter XML (download_hypocenter_xml return): a minimal Catalog.
+    origin = Origin(
+        latitude=55.4173,
+        longitude=-161.8937,
+        depth=5000.0,
+        time=UTCDateTime("2024-12-31T23:55:00"),
+        evaluation_mode="manual",
+    )
+    mag = EventMagnitude(mag=3.2)
+    event = Event(
+        resource_id=ResourceIdentifier(id="smi:local/event/ak0258testevt"),
+        origins=[origin],
+        magnitudes=[mag],
+    )
+    event.preferred_origin_id = origin.resource_id
+    event.preferred_magnitude_id = mag.resource_id
+    doubles.hypocenter_xml = Catalog(events=[event])
+
+    # Avoid matplotlib by replacing the figure builder used in process_event.
+    doubles.patch_figure_builder(Magnitude.detection, "plot_event")
+
+    Magnitude.run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
 # ---------------------------------------------------------------------------
 # Swarm
 # ---------------------------------------------------------------------------
@@ -255,5 +298,6 @@ SCENARIOS = {
     "SO2_representative": so2_representative,
     "VAA_representative": vaa_representative,
     "Magnitude_representative": magnitude_representative,
+    "Magnitude_critical": magnitude_critical,
     "Swarm_representative": swarm_representative,
 }

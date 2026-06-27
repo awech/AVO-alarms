@@ -1,0 +1,46 @@
+{
+  "call_order": [
+    "download_hypocenters_csv",
+    "download_hypocenter_xml",
+    "plot_event",
+    "can_send",
+    "post_mattermost",
+    "record_send",
+    "icinga",
+    "icinga"
+  ],
+  "detection_state": "CRITICAL",
+  "icinga": [
+    {
+      "send": true,
+      "state": "CRITICAL",
+      "state_message": "2024-12-31 23:55:00 (UTC) M3.2 earthquake at Pavlof"
+    },
+    {
+      "send": true,
+      "state": "CRITICAL",
+      "state_message": "2024-12-31 23:55:00 (UTC) M3.2 earthquake at Pavlof"
+    }
+  ],
+  "os_remove": [],
+  "post_mattermost": [
+    {
+      "body": "2024-12-31 23:55:00 UTC\n2024-12-31 23:55:00 UTC\n\n**Magnitude:** 3.2\n**Latitude:** 55.417\n**Longitude:** -161.894\n**Depth:** 5.0 km\n**Event ID:** eventak0258testevt\n**Nearest volcanoes:** Pavlof (0 km), Pavlof Sister (5 km), Emmons Lake Volcanic Center (14 km)\n\n***--- REVIEWED Location ---***",
+      "channel_ids": null,
+      "send": true,
+      "subject": "M3.2 earthquake at Pavlof",
+      "test": false,
+      "volcano": "Pavlof"
+    }
+  ],
+  "record_send": [
+    {
+      "alarm_id": "Earthquake Magnitude",
+      "event_id": "ak0258testevt",
+      "process_time": "2025-01-01T00:00:00",
+      "test": false,
+      "volcano": "Pavlof"
+    }
+  ],
+  "send_alert": []
+}

@@ -66,8 +66,6 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
             test_flag=test_flag,
         )
 
-    # if not force_flag:
-    #     processing.write_to_csv(pirep_df, config, outfile_columns)
     messaging.icinga(config, state, state_message, send=icinga_flag)
 
     return

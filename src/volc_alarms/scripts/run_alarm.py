@@ -8,6 +8,8 @@ from importlib import import_module
 from importlib.resources import files
 from pathlib import Path
 
+from obspy import UTCDateTime as utc
+
 from volc_alarms.utils import messaging
 from volc_alarms.utils.setup_utils import (
     LockFile,
@@ -15,7 +17,6 @@ from volc_alarms.utils.setup_utils import (
     load_config,
     load_environment,
     setup_root_logger,
-    update_arguments,
 )
 
 
@@ -56,19 +57,30 @@ def parse_args():
     )
     parser.add_argument(
         "--mm",
-        help="Post to mattermost",
-        action=argparse.BooleanOptionalAction,
-        default=None,
+        help="Post to mattermost (off unless this flag is passed)",
+        action="store_true",
     )
     parser.add_argument(
         "--icinga",
-        help="Send heartbeat to icinga",
-        action=argparse.BooleanOptionalAction,
-        default=None,
+        help="Send heartbeat to icinga (off unless this flag is passed)",
+        action="store_true",
     )
 
     return parser.parse_args()
 
+
+def update_arguments(args):
+
+    if args.force:
+        args.test = True
+
+    if args.time is None:
+        T0 = utc.utcnow()  # no time given, use current timestamp
+        args.time = utc(T0.strftime("%Y-%m-%d %H:%M"))  # round down to the nearest minute
+    else:
+        args.time = utc(args.time)
+
+    return args
 
 
 def main():

@@ -21,7 +21,6 @@ from types import SimpleNamespace
 import pandas as pd
 import yaml
 from dotenv import find_dotenv, load_dotenv
-from obspy import UTCDateTime as utc
 
 # Absolute project root, derived from this file's location:
 # src/volc_alarms/utils/setup_utils.py → 3 parents up = project root
@@ -399,29 +398,6 @@ def load_volcano_list(volcano_file=None):
         df = df.rename(columns=rename_dict)
     
     return df
-
-
-def update_arguments(args):
-
-    if args.force:
-        args.test = True
-    if args.test and args.mm is None:
-        args.mm = False
-    if args.test and args.icinga is None:
-        args.icinga = False
-
-    if args.mm is None:
-        args.mm = True
-    if args.icinga is None:
-        args.icinga = True
-
-    if args.time is None:
-        T0 = utc.utcnow()  # no time given, use current timestamp
-        args.time = utc(T0.strftime("%Y-%m-%d %H:%M"))  # round down to the nearest minute
-    else:
-        args.time = utc(args.time)
-
-    return args
 
 
 def setup_root_logger(

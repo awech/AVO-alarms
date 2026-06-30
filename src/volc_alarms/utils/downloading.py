@@ -40,41 +40,6 @@ def Earthscope_client():
     return client
 
 
-def download_hypocenters(URL):
-    """_summary_
-
-    Returns
-    -------
-    _type_
-        _description_
-    """
-
-    urllib3.disable_warnings()
-
-    attempt = 1
-    while attempt <= 3:
-        try:
-            res = requests.get(URL, verify=False, timeout=10)
-            body = res.content
-            break
-        except Exception as e:
-            logger.warning(f"Attempt {attempt} failed: {e}")
-            time.sleep(2)
-            attempt += 1
-            body = None
-
-    if not body:
-        return None
-
-    try:
-        CAT = Unpickler().loads(body)
-    except Exception:
-        CAT = Catalog()
-        logger.warning("No events!")
-
-    return CAT
-
-
 def download_hypocenters_csv(URL):
     attempt = 1
     success = False

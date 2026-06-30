@@ -323,7 +323,7 @@ def upload_mm_attachments(mm, channel_id, attachment):
     return file_ids
 
 
-def post_mattermost(config, subject, body, attachment=None, send=False, test=False, volcano=None):
+def post_mattermost(config, subject, body, attachment=None, send=False, test=False, volcano=None, channel_ids=None):
     """Post alarm message to Mattermost channel with optional attachments.
 
     Parameters
@@ -340,6 +340,12 @@ def post_mattermost(config, subject, body, attachment=None, send=False, test=Fal
         Whether to actually post to Mattermost, by default False
     test : bool, optional
         If True, posts to test channel and prefixes subject with "TEST:", by default False
+    volcano : str, optional
+        If provided and present in ``config.mm_response_channels``, also posts to
+        that volcano's response channel, by default None
+    channel_ids : list, optional
+        Additional Mattermost channel ids to post the same message to (e.g. for
+        thermal or elevated-volcano routing). Skipped in test mode. By default None.
 
     Returns
     -------
@@ -381,6 +387,14 @@ def post_mattermost(config, subject, body, attachment=None, send=False, test=Fal
 
     url = f"mattermost://{os.environ['MATTERMOST_POST_URL']}/{post['id']}"
 
+    # Two complementary ways to fan out to additional channels (not duplicates):
+    #   - ``volcano``: declarative, config-driven routing. Any alarm passing a
+    #     volcano name gets per-volcano response channels for free via
+    #     ``config.mm_response_channels`` (enabled by YAML alone, no code).
+    #   - ``channel_ids``: imperative routing for cases the config map can't
+    #     express, where the caller computes the channel list (e.g. NOAA_CIMSS
+    #     thermal/elevated alerts keyed on alert attributes + thresholds).
+    # Both are skipped in test mode and may be used together in one call.
     if not test and volcano is not None:
         if volcano in getattr(config, "mm_response_channels", "empty"):
             logger.info(f"Posting to {volcano} Mattermost response channel")
@@ -392,7 +406,20 @@ def post_mattermost(config, subject, body, attachment=None, send=False, test=Fal
                 "file_ids": volcano_file_ids,
             }
             post = mm.posts.create_post(options=message_details)
-    
+
+    # Post the same message to any additional routing channels (skip in test).
+    if not test and channel_ids:
+        for extra_id in channel_ids:
+            logger.info(f"Posting to additional Mattermost channel {extra_id}")
+            extra_file_ids = upload_mm_attachments(mm, extra_id, attachment)
+            mm.posts.create_post(
+                options={
+                    "channel_id": extra_id,
+                    "message": message,
+                    "file_ids": extra_file_ids,
+                }
+            )
+
     return url
 
 

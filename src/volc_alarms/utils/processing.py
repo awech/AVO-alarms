@@ -7,49 +7,11 @@ from obspy import Catalog, UTCDateTime, read_inventory
 from obspy.clients.fdsn import Client as FDSN_Client
 from obspy.core.event import Event
 from obspy.geodetics import gps2dist_azimuth
-from pandas.errors import EmptyDataError
 
 from volc_alarms.utils.downloading import Earthscope_client
 from volc_alarms.utils.setup_utils import get_logger, load_volcano_list
 
 logger = get_logger(__name__)
-
-
-def compare_to_old_events(df, event_file, default_cols, unique_id_col="id"):
-
-    if not event_file.exists():
-        logger.warning(f"No event file found at {event_file}. Creating new file.")
-        blank_df = pd.DataFrame(columns=default_cols)
-        blank_df.to_csv(event_file, index=False)
-        logger.warning(f"Created {event_file.absolute()} with headers: {default_cols}")
-
-    try:
-        old_events_df = pd.read_csv(event_file)
-    except EmptyDataError:
-        logger.warning(f"Empty file found at {event_file}. Assigning headers with default columns.")
-        old_events_df = pd.DataFrame(columns=default_cols)
-
-    new_events_df = df[~df[unique_id_col].isin(old_events_df[unique_id_col])]
-
-    if len(new_events_df) > 0:
-        logger.info(f"New events since last check:\n{new_events_df}")
-    else:
-        logger.info("No new events since last check.")
-
-    logger.info(f"{len(old_events_df)} old and {len(new_events_df)} new events")
-
-    return new_events_df, df
-
-
-def write_to_csv(df, config, columns):
-
-    logger.info(f"Writing {len(df)} events to {config.outfile}")
-    if len(df) == 0:
-        df = pd.DataFrame(columns=columns)
-        
-    df.to_csv(config.outfile, columns=columns, index=False, date_format='%Y-%m-%d %H:%M:%S.%f')
-
-    return
 
 
 def find_nearest_volcano(df, lon_col="longitude", lat_col="latitude", volc_df=None):
@@ -97,60 +59,6 @@ def volcano_distance(lon0, lat0, volcs):
     volcs = volcs.sort_values("distance")
 
     return volcs
-
-
-def catalog_to_dataframe(CAT, VOLCS):
-
-    LATS = []
-    LONS = []
-    DEPS = []
-    MAGS = []
-    TIME = []
-    ID = []
-    RMS = []
-    AZ_GAP = []
-    V_DIST = []
-
-    for eq in CAT:
-        LATS.append(eq.preferred_origin().latitude)
-        LONS.append(eq.preferred_origin().longitude)
-        DEPS.append(eq.preferred_origin().depth / 1000)
-        TIME.append(eq.preferred_origin().time.datetime)
-        try:
-            RMS.append(eq.preferred_origin().quality.standard_error)
-        except Exception:
-            RMS.append(1e2)
-        try:
-            AZ_GAP.append(eq.preferred_origin().quality.azimuthal_gap)
-        except Exception:
-            AZ_GAP.append(360)
-        if eq.preferred_magnitude():
-            MAGS.append(eq.preferred_magnitude().mag)
-        else:
-            MAGS.append(np.nan)
-        evid = eq.resource_id.id
-        ID.append(evid)
-
-        volcs = volcano_distance(
-            eq.preferred_origin().longitude, eq.preferred_origin().latitude, VOLCS
-        )
-        volcs = volcs.sort_values("distance")
-        V_DIST.append(volcs.iloc[0].distance)
-
-    cat_df = pd.DataFrame(
-        {
-            "Time": TIME,
-            "Latitude": LATS,
-            "Longitude": LONS,
-            "Depth": DEPS,
-            "Magnitude": MAGS,
-            "ID": ID,
-            "V_DIST": V_DIST,
-        }
-    )
-    cat_df["Time"] = pd.to_datetime(cat_df["Time"])
-
-    return cat_df
 
 
 def addPhaseHint(cat):
@@ -309,30 +217,6 @@ def Dr_to_RSAM(config, DR, volcano_name, base=25):
         logger.info(f"{nslc}: {lvl:g}")
 
     return
-
-
-def check_inventory(tr, inv):
-    """
-    Check if a trace exists in the inventory.
-
-    Args:
-        tr (Trace): ObsPy Trace object.
-        inv (Inventory): ObsPy Inventory object.
-
-    Returns:
-        bool: True if the trace exists in the inventory, False otherwise.
-    """
-    
-    inv_test = inv.select(
-        network=tr.stats.network,
-        station=tr.stats.station,
-        location=tr.stats.location,
-        channel=tr.stats.channel,
-        starttime=tr.stats.starttime,
-        endtime=tr.stats.starttime,
-    )
-    value = True if len(inv_test) > 0 else False
-    return value
 
 
 def add_metadata(st):

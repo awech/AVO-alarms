@@ -71,7 +71,8 @@ def make_figure(swarm, T0, config, test=False):
                                     xdist=400,
                                     ydist=300,
                                     basemap="land",
-                                    projection="orthographic")
+                                    projection="orthographic",
+                                    water_color="white")
     plotting.add_inset_polygon(ax_inset, extent)
 
 

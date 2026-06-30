@@ -96,6 +96,7 @@ def snapshot(recorder: CallRecorder, db: FakeAlarmDB, placeholder: Path) -> dict
             "send": c.kwargs.get("send"),
             "test": c.kwargs.get("test"),
             "volcano": c.kwargs.get("volcano"),
+            "channel_ids": c.kwargs.get("channel_ids"),
         }
         for c in recorder.of("post_mattermost")
     ]

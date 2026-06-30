@@ -285,11 +285,11 @@ def install(handle: AlarmDoubles) -> AlarmDoubles:
     mp = handle.monkeypatch
 
     # --- messaging (record only, no I/O) ------------------------------
-    def _post_mattermost(config, subject, body, attachment=None, send=False, test=False, volcano=None):
+    def _post_mattermost(config, subject, body, attachment=None, send=False, test=False, volcano=None, channel_ids=None):
         rec.record(
             "post_mattermost",
             (config, subject, body),
-            {"attachment": attachment, "send": send, "test": test, "volcano": volcano},
+            {"attachment": attachment, "send": send, "test": test, "volcano": volcano, "channel_ids": channel_ids},
         )
         return handle.mm_url
 

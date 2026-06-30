@@ -1,7 +1,5 @@
-import os
-import traceback
-
 from volc_alarms.utils import alarming, messaging, processing
+from volc_alarms.utils.alarm_flow import run_send_sequence
 from volc_alarms.utils.setup_utils import get_logger
 
 from .detection import (
@@ -45,48 +43,29 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
 
         if alarming.already_processed(config, row.PROD_ID, test=test_flag):
             logger.info("PIREPS found have already been processed")
-            state == "OK"
+            state = "OK"
             state_message = f"{T0_str} (UTC) No new pilot reports"
             continue
 
-        state = "WARNING"
-        try:
-            filename = plot_fig(row, config, test=test_flag)
-        except Exception as e:
-            logger.error('Error generating figure...')
-            logger.error(e)
-            logger.error(traceback.format_exc())
-            filename = []
-
-        ### Craft message text ####
+        is_critical = row.URGENT == "T" or force_flag
+        state = "CRITICAL" if is_critical else "WARNING"
         subject, message = create_message(row, config)
         state_message = message
 
-        try:
-            mm_url = messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
-            message = f"{message}\n\n{mm_url}"
-        except Exception as e:
-            logger.error("Problem posting to mattermost")
-            logger.error(e)
-
-        ### Send message to duty person ###
-        if row.URGENT == "T" or force_flag:
-            state = "CRITICAL"
-            messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
-
-        alarming.record_send(
+        run_send_sequence(
             config,
             T0,
-            volcano=row.v_name,
-            event_id=row.PROD_ID,
-            test=test_flag,
+            state,
+            state_message,
+            figure_factory=lambda row=row: plot_fig(row, config, test=test_flag),
+            message_factory=lambda subject=subject, message=message: (subject, message),
+            record_kwargs={"volcano": row.v_name, "event_id": row.PROD_ID},
+            send_email=is_critical,
+            mm_flag=mm_flag,
+            icinga_flag=icinga_flag,
+            test_flag=test_flag,
         )
-        # delete the file you just sent
-        if filename:
-            os.remove(filename)
 
-    # if not force_flag:
-    #     processing.write_to_csv(pirep_df, config, outfile_columns)
     messaging.icinga(config, state, state_message, send=icinga_flag)
 
     return

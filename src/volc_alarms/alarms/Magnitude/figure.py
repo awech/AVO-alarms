@@ -178,6 +178,7 @@ def plot_event(eq, volcs, config, n_stations=8, test=False):
         ydist=getattr(config, "inset_map_distance", 150),
         basemap="land",
         projection="orthographic",
+        water_color="white"
     )
 
     plotting.add_inset_polygon(ax_inset, extent)

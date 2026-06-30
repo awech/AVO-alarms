@@ -2,6 +2,7 @@ import os
 import warnings
 
 from volc_alarms.utils import alarming, downloading, messaging, processing
+from volc_alarms.utils.alarm_flow import run_send_sequence
 from volc_alarms.utils.setup_utils import get_logger
 
 from .detection import process_event
@@ -73,36 +74,24 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         evt_url = f"{os.getenv('FDSN_URL')}eventid={row.event_id}"
         subject, message, attachment, eq, volcs = process_event(evt_url, config, test=test_flag)
 
-        logger.info("Sending message...")
-        messaging.send_alert(
-            config.alarm_name, subject, message, attachment=attachment, test=test_flag
-        )
-        logger.info("Posting to mattermost...")
-        messaging.post_mattermost(
-            config,
-            subject,
-            message,
-            attachment=attachment,
-            send=mm_flag,
-            test=test_flag,
-            volcano=row.v_name,
-        )
-        alarming.record_send(
-                config,
-                T0,
-                volcano=row.v_name,
-                event_id=row.event_id,
-                test=test_flag,
-            )
-
-        # delete the file you just sent
-        if attachment:
-            os.remove(attachment)
-
         state = "CRITICAL"
         eq_str = eq.preferred_origin().time.strftime("%Y-%m-%d %H:%M:%S")
         state_message = f"{eq_str} (UTC) {subject}"
 
-    # if not force_flag:
-    #     processing.write_to_csv(catalog_df, config, outfile_columns)
+        run_send_sequence(
+            config,
+            T0,
+            state,
+            state_message,
+            figure_factory=lambda attachment=attachment: attachment,
+            message_factory=lambda subject=subject, message=message: (subject, message),
+            mm_kwargs={"volcano": row.v_name},
+            record_kwargs={"volcano": row.v_name, "event_id": row.event_id},
+            send_email=test_flag,
+            mm_flag=mm_flag,
+            icinga_flag=icinga_flag,
+            test_flag=test_flag,
+        )
+
+    # send heartbeat status message to icinga
     messaging.icinga(config, state, state_message, send=icinga_flag)

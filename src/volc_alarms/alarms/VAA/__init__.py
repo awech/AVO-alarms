@@ -1,10 +1,8 @@
-import os
-import traceback
-
 import pandas as pd
 from obspy import UTCDateTime
 
 from volc_alarms.utils import alarming, messaging, processing
+from volc_alarms.utils.alarm_flow import run_send_sequence
 from volc_alarms.utils.setup_utils import get_logger
 
 from .detection import download_mesonet_vaa_list, process_vaa_id
@@ -71,31 +69,20 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
             continue
 
         logger.info("New VAA detected")
-
-        try:
-            filename = make_map(row, config, test=test_flag)
-        except Exception as e:
-            ## TODO filename still hase "SIGMET" in it
-            filename = []
-            logger.error("Problem making figure. Continue anyway")
-            logger.error(e)
-            logger.error(traceback.format_exc())
-            
         subject, message = create_message(row)
-
-        if force_flag:
-            logger.info("Sending message...")
-            messaging.send_alert(config.alarm_name, subject, message, attachment=filename, test=test_flag)
-
-        logger.info("Checking mattermost send...")
-        messaging.post_mattermost(config, subject, message, attachment=filename, send=mm_flag, test=test_flag)
-        alarming.record_send(config, T0, volcano=row.v_name, event_id=row.id, test=test_flag)
-
-        # delete the file you just sent
-        if filename:
-            os.remove(filename)
-
         state = "CRITICAL"
         state_message = f"{T0.strftime('%Y-%m-%d %H:%M')} (UTC) New {subject}"
-        
-        messaging.icinga(config, state, state_message, send=icinga_flag)
+
+        run_send_sequence(
+            config,
+            T0,
+            state,
+            state_message,
+            figure_factory=lambda row=row: make_map(row, config, test=test_flag),
+            message_factory=lambda subject=subject, message=message: (subject, message),
+            record_kwargs={"volcano": row.v_name, "event_id": row.id},
+            send_email=force_flag,
+            mm_flag=mm_flag,
+            icinga_flag=icinga_flag,
+            test_flag=test_flag,
+        )

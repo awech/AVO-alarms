@@ -54,6 +54,7 @@ def plot_fig(pirep_row, config, test=False):
         ydist=600,
         basemap="land",
         projection="orthographic",
+        water_color="white",
     )
 
     plotting.add_inset_polygon(ax_inset, extent)

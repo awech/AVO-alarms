@@ -292,6 +292,8 @@ def update_infrasound_config(config):
         config.lts_alpha = os.environ.get("LTS_ALPHA", 0.5)
     if not hasattr(config, "lts_n_samples"):
         config.lts_n_samples = int(os.environ.get("LTS_N_SAMPLES", 100))
+    if not hasattr(config, "max_gap_fraction"):
+        config.max_gap_fraction = os.environ.get("MAX_GAP_FRACTION", 0.5)
 
     for i, target in enumerate(config.targets):
         if "lat" not in target or "lon" not in target:

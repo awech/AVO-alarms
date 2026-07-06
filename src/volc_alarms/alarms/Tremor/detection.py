@@ -151,12 +151,12 @@ def make_env(st, config, t1, t2):
 
 def create_icinga_test(CAT, T0, duration, rsam, config):
 
-    duration_text = f"Seismicity detected in {round(duration, 1):g} of past {round(config.duration / 60, 1):g} minutes."
+    duration_text = f"Seismicity detected in {round(duration, 1):g} of past {config.lookback_window:g} minutes."
     if duration > 0:
         last = UTCDateTime(pd.Timestamp(CAT.time.values[-1]).to_pydatetime()) + config.window_length
         recency_text = f"Most recent: {round((T0 - last) / 60, 1) + 0.0:g} minutes ago."
     else:
-        duration_text = f"No seismicity detected in the past {round(config.duration/60, 1):g} minutes."
+        duration_text = f"No seismicity detected in the past {config.lookback_window:g} minutes."
         recency_text = ""
     station = config.rsam_station.split('.')[1]
     recency_text = (

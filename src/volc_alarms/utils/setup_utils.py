@@ -242,8 +242,10 @@ def load_config(config_name):
     if config.alarm_type == "Tremor":
         if not hasattr(config, "grid_file"):
             config.grid_file = TMP_DIR / f"{config.alarm_name.replace(' ', '_')}_grid.npz"
-        if not hasattr(config, "duration") or config.duration is None:
-            config.duration = os.environ.get("TREMOR_DURATION", 300)
+        if not hasattr(config, "lookback_window") or config.lookback_window is None:
+            config.lookback_window = int(os.environ.get("TREMOR_LOOKBACK_WINDOW", 60))
+        if not hasattr(config, "window_length") or config.window_length is None:
+            config.window_length = os.environ.get("TREMOR_WINDOW_LENGTH", 300)
 
     return config
 

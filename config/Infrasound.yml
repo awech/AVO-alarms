@@ -2,6 +2,20 @@ alarm_type: Infrasound        # designates which alarm module will be imported a
 alarm_name: SDPI Infrasound   # alarm name sent to icinga and in message alerts
 
 # Infrasound channels list
+# Can be a simple list (metadata looked up from STATION_XML):
+#   nslc:
+#     - AV.SDPI.01.HDF
+# Or a dict with manual per-channel metadata (no STATION_XML needed):
+#   nslc:
+#     AV.SDPI.01.HDF:
+#       lat: 55.3456
+#       lon: -161.8901
+#       gain: 1.234e6
+#     AV.SDPI.02.HDF
+#       lat: ...
+#       lon: ...
+#       gain: ...
+
 nslc:
   - AV.SDPI.01.HDF
   - AV.SDPI.02.HDF
@@ -11,11 +25,11 @@ nslc:
   - AV.SDPI.06.HDF
 
 # Processing parameters
-# duration: 90         # optional duration value in seconds. Default: 90 s
-latency: 10.0         # seconds between timestamps and end of data window
-taper: 5.0            # seconds to taper beginning and end of trace before filtering
 f1: 1.0               # minimum frequency for bandpass filter
 f2: 10.0              # maximum frequency for bandpass filter
+# duration: 90         # Optional. Total window duration. Default: 90 s
+# taper: 5.0           # Optional. Pre-filter taper. Default 5 s
+# latency: 10.0        # Optional. Delay when run from cron for data latency. Default 10 s
 
 # Detection parameters
 min_cc: 0.6           # min normalized correlation coefficient to accept
@@ -31,6 +45,7 @@ max_alerts: 3          # max alerts within that window
 #   name, az_tolerance (degrees), min_pa (Pascals)
 # Optional:
 #   lat, lon, vmin (default 0.28 km/s), vmax (default 0.45 km/s)
+#   back_azimuth: if known, manual target backazimuth can be given instead of lat/lon
 #   local_nslc: is a list of local (to the target) seismic/infrasound channels 
 #               to be plotted as spectrograms with array detection
 #   plot_duration: duration in seconds for array processing & local_nslc spectrogram plot

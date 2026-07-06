@@ -22,7 +22,8 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
 
 
     #### download data ####
-    st = downloading.download_waveforms(config.nslc, t1-config.taper, t2+config.taper)
+    nslc_list = list(config.nslc)  # works for both list and dict (manual metadata in .yml file)
+    st = downloading.download_waveforms(nslc_list, t1-config.taper, t2+config.taper)
 
 
     #### preprocess data ####
@@ -39,8 +40,16 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     
     # Add coordinates/inventory metadata, then remove gain
     st = Stream([tr for tr in st if tr.id not in skip_chans])
-    st = processing.add_metadata(st)
-    st = processing.remove_gain(st)
+    if isinstance(config.nslc, dict):
+        # Manual metadata from config: attach coordinates and divide by gain
+        for tr in st:
+            params = config.nslc[tr.id]
+            tr.stats.coordinates = {"latitude": params["lat"], "longitude": params["lon"], "elevation": 0.0}
+            tr.data = tr.data / params["gain"]
+    else:
+        # Lookup from station XML
+        st = processing.add_metadata(st)
+        st = processing.remove_gain(st)
 
 
     #### check amplitude threshold ####

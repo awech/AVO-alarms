@@ -12,6 +12,8 @@ import yaml
 from obspy import Catalog, Stream, Trace, UTCDateTime
 from obspy.clients.earthworm import Client as EW_Client
 from obspy.clients.fdsn import Client as FDSN_Client
+from obspy.clients.fdsn.header import FDSNNoDataException
+from obspy.core.inventory.inventory import Inventory
 from obspy.io.quakeml.core import Unpickler
 
 from volc_alarms.utils.setup_utils import get_logger
@@ -291,27 +293,22 @@ def download_station_xml():
     NSLC = _collect_station_nslc(os.environ["CONFIGS_DIR"])
 
     logger.info("______ Begin Updating Metadata ______")
+    inventory = Inventory()
     for nslc in NSLC:
         logger.info(nslc)
         net, sta, loc, chan = nslc.split(".")
-        if "inventory" not in locals():
-            inventory = client.get_stations(
-                network=net,
-                station=sta,
-                channel=chan,
-                location=loc,
-                level="response",
-                starttime=UTCDateTime.utcnow(),
+        try:
+            inv = client.get_stations(
+                network=net, station=sta, channel=chan, location=loc,
+                level="response", starttime=UTCDateTime.utcnow(),
             )
-        else:
-            inventory += client.get_stations(
-                network=net,
-                station=sta,
-                channel=chan,
-                location=loc,
+        except FDSNNoDataException:
+            logger.warning(f"{nslc}: no current epoch found. Fetching all epochs.")
+            inv = client.get_stations(
+                network=net, station=sta, channel=chan, location=loc,
                 level="response",
-                starttime=UTCDateTime.utcnow(),
             )
+        inventory += inv
         time.sleep(0.25)
 
     out_file = Path(os.environ["STATION_XML"])

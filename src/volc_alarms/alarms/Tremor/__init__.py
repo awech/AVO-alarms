@@ -52,18 +52,24 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         return
     
     ######### run rsam test #########
-    rsam_st = band.select(id=config.rsam_station)
-    if rsam_st:
-        rsam = np.sqrt(np.mean(np.square(rsam_st[0].data)))
-        rsam_test = rsam
+    if hasattr(config, "rsam_station") and hasattr(config, "rsam_threshold"):
+        rsam_st = band.select(id=config.rsam_station)
+        if rsam_st:
+            rsam = np.sqrt(np.mean(np.square(rsam_st[0].data)))
+            rsam_test = rsam
+        else:
+            rsam = 0
+            rsam_test = config.rsam_threshold + 1  # test sta missing, ensure alarm can still fire
+            subject = f"{config.alarm_name} error"
+            msg = (
+                f"RSAM test station: {config.rsam_station} is missing. Consider replacing"
+            )
+            messaging.send_alert("Error", subject, msg)  # warn of missing station
     else:
+        # No RSAM gate configured — always pass
         rsam = 0
-        rsam_test = config.rsam_threshold + 1  # test sta missing, ensure alarm can still fire
-        subject = f"{config.alarm_name} error"
-        msg = (
-            f"RSAM test station: {config.rsam_station} is missing. Consider replacing"
-        )
-        messaging.send_alert("Error", subject, msg)  # warn of missing station
+        rsam_test = np.inf
+        config.rsam_threshold = 0
     #################################
 
     ######### get locations #########
@@ -81,7 +87,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     new_tremor_df = pd.DataFrame(locs_dict)
     new_tremor_df["volcano"] = config.volcano
     tremor_df = pd.concat([tremor_df, new_tremor_df]).drop_duplicates("time")
-    T1 = pd.to_datetime((T0 - config.duration).datetime)
+    T1 = pd.to_datetime(T0.datetime) - pd.to_timedelta(config.lookback_window, "min")
     T2 = pd.to_datetime(T0.datetime)
     tremor_df = tremor_df.drop_duplicates(subset="time")
     tremor_df = tremor_df[tremor_df["time"] >= T1]
@@ -129,7 +135,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
                 state,
                 state_message,
                 figure_factory=lambda: figure.make_figure(nslc, T0, config, test=test_flag),
-                message_factory=lambda: message.create_message(T0 - config.duration, T0, config.alarm_name, duration_text),
+                message_factory=lambda: message.create_message(T0 - config.lookback_window * 60, T0, config.alarm_name, duration_text),
                 record_kwargs={"volcano": config.volcano},
                 can_send_kwargs={},
                 mm_flag=mm_flag,

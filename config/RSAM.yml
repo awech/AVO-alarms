@@ -12,26 +12,29 @@ rsam_stations:
   - nslc: AV.CESW..BHZ
     value: 900
 
-# Infrasound channels (for plotting only)
-infrasound:
-  - AV.CERB..BDF
-  - AV.CESW..BDF
-
 # Arrestor station
 arrestor:
   nslc: AV.AMKA..BHZ
   value: 350
 
 # Processing parameters
-duration: 300          # duration value in seconds (5 * 60)
-latency: 10            # seconds between timestamps and end of data window
-min_sta: 3             # minimum number of stations for detection
-taper_val: 5           # seconds to taper beginning and end of trace before filtering
 f1: 1.0                # minimum frequency for bandpass filter
 f2: 5.0                # maximum frequency for bandpass filter
+min_sta: 3             # minimum number of stations for detection
+# duration: 300        # Optional. Total window duration. Default: 300 s
+# taper: 5             # Optional. Pre-filter taper. Default: 5 s
+# latency: 10          # Optional. Delay when run from cron for data latency. Default: 10 s
 
 # Alerting parameters
 alert_memory: 3600     # lookback window (seconds)
 max_alerts: 3          # max alerts within that window
 
+# Plotting parameters
+# plot_duration: 3600  # Optional. Window length for spectrogram plot. Default 3600 s
+infrasound:            # Optional. List of infrasound channels to plot
+  - AV.CERB..BDF
+  - AV.CESW..BDF
+
+# Optinal volcano name used for calculating reduced displacement
+# Name and lat/lon must be in target list file set as environment variable
 volcano_name: Semisopochnoi

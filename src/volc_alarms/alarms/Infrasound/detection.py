@@ -10,6 +10,40 @@ from volc_alarms.utils.setup_utils import get_logger
 logger = get_logger(__name__)
 
 
+def QC_data(st, config):
+
+    #### Check for enough data ####
+    check_st = st.copy()
+    skip_chans = []
+    good_data = True
+    for tr in check_st:
+        if np.sum(np.abs(tr.data)) == 0: # pragma: no cover
+            # Check for blank traces
+            skip_chans.append(tr.id)
+            check_st.remove(tr)
+    if len(check_st) < config.min_chan: # pragma: no cover
+        logger.warning("Too many blank traces. Skipping.")
+        good_data = False
+        return good_data, skip_chans
+    ########################
+
+    #### Check for gappy data ####
+    for tr in check_st:
+        gap_fraction = np.count_nonzero(tr.data == 0) / tr.stats.npts
+        if gap_fraction > config.max_gap_fraction: # pragma: no cover
+            # Gap exceeds tolerance. Flag channel for exclusion.
+            logger.warning(
+                f"{tr.id}: {gap_fraction:.1%} gap exceeds MAX_GAP_FRACTION ({config.max_gap_fraction:.1%}). Skipping channel."
+            )
+            skip_chans.append(tr.id)
+            check_st.remove(tr)
+    if len(check_st) < config.min_chan: # pragma: no cover
+        logger.warning("Too gappy. Skipping.")
+        good_data = False
+
+    return good_data, skip_chans
+
+
 def get_target_backazimuth(st, config):
     lon0 = np.mean([tr.stats.coordinates.longitude for tr in st])
     lat0 = np.mean([tr.stats.coordinates.latitude for tr in st])

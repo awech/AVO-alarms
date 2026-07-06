@@ -22,46 +22,41 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
 
 
     #### download data ####
-    st = downloading.download_waveforms(config.nslc, t1-config.taper, t2+config.taper)
+    nslc_list = list(config.nslc)  # works for both list and dict (manual metadata in .yml file)
+    st = downloading.download_waveforms(nslc_list, t1-config.taper, t2+config.taper)
 
 
     #### preprocess data ####
     st = processing.preprocess_stream(st, t1, t2, config)
-    st = processing.add_metadata(st)
-    for tr in st:
-        tr.remove_sensitivity(tr.inventory)
-
-    #### check for enough data ####
-    for tr in st:
-        if np.sum(np.abs(np.abs(tr.data))) == 0:
-            st.remove(tr)
-    if len(st) < config.min_channels:
+    
+    # Check data quality
+    good_data, skip_chans = detection.QC_data(st, config)
+    if not good_data:
         state_message = f"{state_message} - Not enough channels!"
         logger.warning(state_message)
         state = "WARNING"
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return
-
-
-    #### check for gappy data ####
-    for tr in st:
-        num_zeros = len(np.where(tr.data == 0)[0])
-        if num_zeros / float(tr.stats.npts) > 0.01:
-            st.remove(tr)
-    if len(st) < config.min_channels and not force_flag:
-        state_message = f"{state_message} - Gappy data!"
-        logger.warning(state_message)
-        state = "WARNING"
-        messaging.icinga(config, state, state_message, send=icinga_flag)
-        return
+    
+    # Add coordinates/inventory metadata, then remove gain
+    st = Stream([tr for tr in st if tr.id not in skip_chans])
+    if isinstance(config.nslc, dict):
+        # Manual metadata from config: attach coordinates and divide by gain
+        for tr in st:
+            params = config.nslc[tr.id]
+            tr.stats.coordinates = {"latitude": params["lat"], "longitude": params["lon"], "elevation": 0.0}
+            tr.data = tr.data / params["gain"]
+    else:
+        # Lookup from station XML
+        st = processing.add_metadata(st)
+        st = processing.remove_gain(st)
 
 
     #### check amplitude threshold ####
+    min_pa = np.array([v["min_pa"] for v in config.targets]).min()
     if force_flag:
         logger.warning("Running in force trigger mode")
         min_pa = 0
-    else:
-        min_pa = np.array([v["min_pa"] for v in config.targets]).min()
 
     st_test = Stream([tr for tr in st if np.any(np.abs(tr.data) > min_pa)])
     if len(st_test) < config.min_channels and not force_flag:

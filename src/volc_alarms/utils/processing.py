@@ -241,7 +241,6 @@ def add_metadata(st):
     for tr in st:
         logger.info(f"Getting metadata for {tr.id}")
 
-        # if check_inventory(tr, inventory):
         inv = inventory.select(
             network=tr.stats.network,
             station=tr.stats.station,
@@ -251,7 +250,7 @@ def add_metadata(st):
             endtime=tr.stats.endtime,
         )
         tr.stats.coordinates = inv.get_coordinates(tr.id, tr.stats.starttime)
-        tr.inventory = inv
+        tr.stats.inventory = inv
 
     return st
 
@@ -261,5 +260,40 @@ def preprocess_stream(st, t1, t2, config):
     st.taper(max_percentage=None, max_length=config.taper)
     st.filter("bandpass", freqmin=config.f1, freqmax=config.f2, corners=2, zerophase=True)
     st.merge(fill_value=0)
+    
+    gaps = st.get_gaps()
+    if gaps:
+        logger.warning(f"Gappy data: {len(gaps)} gap(s)/overlap(s)")
+        for net, sta, loc, chan, t_last, t_next, delta, samples in gaps:
+            logger.warning(
+                f"{net}.{sta}.{loc}.{chan}: {t_last} -> {t_next} "
+                f"(delta={delta:.3f}s, samples={samples})"
+            )
+        logger.warning("Attempting to merge (fill_value=0)")
+        st.merge(fill_value=0)
+    
     st.trim(t1, t2, pad=True, fill_value=0)
+    return st
+
+
+def remove_gain(st):
+    """
+    Remove instrument gain/sensitivity from traces in a stream.
+
+    Note: inventory is stashed on ``tr.stats.inventory`` (not a bare
+    ``tr.inventory`` attribute) since ``Trace.stats`` is deep-copied by
+    ``Stream.merge()`` and ``Trace.copy()``, while arbitrary attributes
+    set directly on a ``Trace`` object are not preserved by either.
+
+    Args:
+        st (Stream): ObsPy Stream object.
+
+    Returns:
+        Stream: Stream with gain removed.
+    """
+    for tr in st:
+        if "inventory" in tr.stats and tr.stats.inventory is not None:
+            tr.remove_sensitivity(tr.stats.inventory)
+        else: # pragma: no cover
+            logger.warning(f"{tr.id}: no inventory attached. Skipping gain removal.")
     return st

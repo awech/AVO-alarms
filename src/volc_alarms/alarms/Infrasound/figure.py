@@ -63,8 +63,6 @@ def make_figure(target, T0, config, mx_pressure, test=False):
     infra_nslc = config.nslc
     logger.info("Grabbing infrasound array data...")
     infra = downloading.download_waveforms(infra_nslc, t1 - config.taper, t2 + config.taper)
-    infra = processing.add_metadata(infra)
-
     logger.info(f"{time.time() - start:.2f} seconds to grab figure data.")
 
     #### preprocess local seismic data ####
@@ -78,9 +76,10 @@ def make_figure(target, T0, config, mx_pressure, test=False):
 
     #### preprocess infrasound data ####
     infra = processing.preprocess_stream(infra, t1, t2, config)
-    for tr in infra:
-        tr.remove_sensitivity(tr.inventory)
+    infra = processing.add_metadata(infra)
+    infra = processing.remove_gain(infra)
 
+    #### run LTS ####
     config = detection.get_target_backazimuth(infra, config)
     lts_df, lts_dict = detection.do_LTS(infra, config)
 

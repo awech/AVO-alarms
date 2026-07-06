@@ -242,8 +242,10 @@ def load_config(config_name):
     if config.alarm_type == "Tremor":
         if not hasattr(config, "grid_file"):
             config.grid_file = TMP_DIR / f"{config.alarm_name.replace(' ', '_')}_grid.npz"
-        if not hasattr(config, "duration") or config.duration is None:
-            config.duration = os.environ.get("TREMOR_DURATION", 300)
+        if not hasattr(config, "lookback_window") or config.lookback_window is None:
+            config.lookback_window = int(os.environ.get("TREMOR_LOOKBACK_WINDOW", 60))
+        if not hasattr(config, "window_length") or config.window_length is None:
+            config.window_length = os.environ.get("TREMOR_WINDOW_LENGTH", 300)
 
     return config
 
@@ -292,6 +294,8 @@ def update_infrasound_config(config):
         config.lts_alpha = os.environ.get("LTS_ALPHA", 0.5)
     if not hasattr(config, "lts_n_samples"):
         config.lts_n_samples = int(os.environ.get("LTS_N_SAMPLES", 100))
+    if not hasattr(config, "max_gap_fraction"):
+        config.max_gap_fraction = os.environ.get("MAX_GAP_FRACTION", 0.5)
 
     for i, target in enumerate(config.targets):
         if "lat" not in target or "lon" not in target:

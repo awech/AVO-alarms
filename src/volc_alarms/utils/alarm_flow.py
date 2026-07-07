@@ -2,9 +2,10 @@ import math
 import os
 import time
 import traceback
+from zoneinfo import ZoneInfo
 
 from volc_alarms.utils import alarming, messaging
-from volc_alarms.utils.setup_utils import get_logger
+from volc_alarms.utils.setup_utils import get_logger, _detect_system_tz
 
 logger = get_logger(__name__)
 
@@ -51,7 +52,6 @@ def run_send_sequence(
 ):
     """Single shared implementation of the CRITICAL Send_Sequence (Req 8).
 
-    Performs, in order (Req 8.3):
       1. alarming.can_send rate-limit check
       2. figure creation via figure_factory(), guarded by try/except (Req 8.5)
       3. message creation via message_factory() -> (subject, message)
@@ -74,14 +74,22 @@ def run_send_sequence(
     record_kwargs = record_kwargs or {}
     mm_kwargs = mm_kwargs or {}
 
-    # 1. rate limit (Req 8.4)
+    # 1. Check rate limit
     if not alarming.can_send(config, T0=T0, test=test_flag, **can_send_kwargs):
-        logger.warning(f"Rate limit: skipping alarm {config.alarm_name}")
+        logger.warning(
+            f"Rate limit: skipping alarm {config.alarm_name} "
+            f"({config.max_alerts} alerts already sent within the last "
+            f"{config.alert_memory} s)"
+        )
+        resumes_at = alarming.next_send_after(config, T0=T0, test=test_flag, **can_send_kwargs)
+        if resumes_at:
+            resumes_str = resumes_at.strftime("%H:%M UTC")
+            logger.warning(f"Next alert allowed after {resumes_str}.")
         state_message = f"{state_message} (alarm skipped due to rate limit)"
         messaging.icinga(config, state, state_message, send=icinga_flag)
         return state_message
 
-    # 2. figure (Req 8.5)
+    # 2. Make figure
     try:
         filename = figure_factory()
     except Exception as e:
@@ -90,10 +98,26 @@ def run_send_sequence(
         logger.error(traceback.format_exc())
         filename = None
 
-    # 3. message
+    # 3. Create message
     subject, message = message_factory()
 
-    # 4. mattermost (guarded)
+    # 3b. Annotate if this is the last alert before rate-limit suppression
+    resumes_at = alarming.next_send_after(config, T0=T0, test=test_flag, **can_send_kwargs)
+    if resumes_at:
+        resumes_str = resumes_at.strftime("%H:%M UTC")
+        local_tz = ZoneInfo(os.environ.get("TIMEZONE", _detect_system_tz()))
+        resumes_local = resumes_at.astimezone(local_tz)
+        resumes_local_str = resumes_local.strftime("%H:%M %Z")
+        logger.info(
+            f"Last alert for {config.alarm_name} before rate limit. "
+            f"Next alert allowed after {resumes_str}."
+        )
+        message += (
+            f"\n\n⚠️ Alert limit reached. No further alerts until after "
+            f"{resumes_str} / {resumes_local_str}."
+        )
+
+    # 4. Post to mattermost (guarded)
     try:
         mm_url = messaging.post_mattermost(
             config, subject, message, attachment=filename, send=mm_flag, test=test_flag, **mm_kwargs
@@ -104,19 +128,19 @@ def run_send_sequence(
         logger.error(e)
         logger.error(traceback.format_exc())
 
-    # 5. email/sms
+    # 5. Send email/sms if appropriate
     if send_email:
         messaging.send_alert(
             config.alarm_name, subject, message, attachment=filename, test=test_flag
         )
 
-    # 6. record send
+    # 6. Record alert send
     alarming.record_send(config, T0, test=test_flag, **record_kwargs)
 
-    # 7. cleanup
+    # 7. Cleanup
     if filename:
         os.remove(filename)
 
-    # 8. icinga heartbeat
+    # 8. Send icinga heartbeat
     messaging.icinga(config, state, state_message, send=icinga_flag)
     return state_message

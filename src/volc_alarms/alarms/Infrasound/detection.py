@@ -64,8 +64,7 @@ def do_LTS(st, config, skip_chans=[]):
     skip_inds = [i for i, tr in enumerate(st) if tr.id in skip_chans]
     lat_list = [tr.stats.coordinates.latitude for tr in st]
     lon_list = [tr.stats.coordinates.longitude for tr in st]
-    logger.info(f"N Samples: {config.lts_n_samples}")
-    logger.info("Performing LTS analysis...")
+    logger.info(f"Performing LTS analysis with N={config.lts_n_samples} samples...")
     velocity, azimuth, t, mccm, lts_dict, sigma_tau, Vel_err, Baz_err = ltsva(
         st.copy(), lat_list, lon_list, config.lts_window_length, overlap_fraction, alpha=ALPHA, n_samples=config.lts_n_samples, remove_elements=skip_inds
     )

@@ -187,11 +187,15 @@ def make_figure(target, T0, config, mx_pressure, test=False):
     if has_local:
         all_ax_keys += [nslc for nslc in local_nslc]
 
+    # Determine tick format and count based on window duration
+    tick_fmt = plotting.set_time_ticks(ax[all_ax_keys[0]], xlim_left, xlim_right, t_win)
+
     # Apply shared locator/formatter and xlim to every subplot
+    tick_locations = ax[all_ax_keys[0]].get_xticks()
     for key in all_ax_keys:
         ax[key].set_xlim(xlim_left, xlim_right)
-        ax[key].xaxis.set_major_locator(dates.AutoDateLocator(minticks=5, maxticks=8))
-        ax[key].xaxis.set_major_formatter(DateFormatter("%H:%M"))
+        ax[key].xaxis.set_major_locator(ticker.FixedLocator(tick_locations))
+        ax[key].xaxis.set_major_formatter(DateFormatter(tick_fmt))
         ax[key].tick_params("x", labelbottom=False, length=2)
 
     # The mplstyle enables ytick.right; disable it on the non-spectrogram

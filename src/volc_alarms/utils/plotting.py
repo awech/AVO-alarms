@@ -629,6 +629,42 @@ def plot_spectrogram(ax, tr, colormap=default_colormap()):
     ax.tick_params("y", labelsize=4)
 
 
+def set_time_ticks(ax, xlim_left, xlim_right, duration):
+    """Compute evenly-spaced tick locations and format for a time axis.
+
+    Works for both datenum-based axes (Infrasound figure) and
+    seconds-based axes (spectrogram figures).
+
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+        The axis to configure.
+    xlim_left : float
+        Left x-limit value (datenum or 0 for relative axes).
+    xlim_right : float
+        Right x-limit value (datenum or duration in seconds for relative axes).
+    duration : float
+        Window duration in seconds.
+
+    Returns
+    -------
+    str
+        The tick format string used (e.g. "%H:%M" or "%H:%M:%S").
+    """
+    tick_fmt = "%H:%M"
+    if duration in [1800, 3600, 5400, 7200]:
+        n_ticks = 7
+    elif duration in np.arange(300, 3600, 300):
+        n_ticks = 6
+    else:
+        n_ticks = 6
+        tick_fmt = "%H:%M:%S"
+
+    tick_locations = np.linspace(xlim_left, xlim_right, n_ticks)
+    ax.set_xticks(tick_locations)
+    return tick_fmt
+
+
 def format_spec_xaxis(ax, tr, st, i, config, duration=None):
 
     if duration is None:
@@ -639,16 +675,8 @@ def format_spec_xaxis(ax, tr, st, i, config, duration=None):
     if i < len(st) - 1:
         ax.set_xticks([])
     else:
-        tick_fmt = "%H:%M"
-        if duration in [1800, 3600, 5400, 7200]:
-            n_ticks = 7
-        elif duration in np.arange(300, 3600, 300):
-            n_ticks = 6
-        else:
-            n_ticks = 6
-            tick_fmt = "%H:%M:%S"
-        d_sec = np.linspace(0, duration, n_ticks)
-        ax.set_xticks(d_sec)
+        tick_fmt = set_time_ticks(ax, 0, duration, duration)
+        d_sec = ax.get_xticks()
         T = [tr.stats.starttime + dt for dt in d_sec]
         ax.set_xticklabels([t.strftime(tick_fmt) for t in T])
         ax.tick_params("x", labelsize=5)

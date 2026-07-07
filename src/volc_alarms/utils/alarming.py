@@ -207,6 +207,42 @@ def can_send(config, volcano="*", T0=None, test=False):
         conn.close()
 
 
+def next_send_after(config, volcano="*", T0=None, test=False):
+    """Return the earliest UTC datetime at which a new alert will be allowed again,
+    or None if rate-limiting is not configured or not yet saturated after this send."""
+    has_memory = hasattr(config, "alert_memory") and config.alert_memory is not None
+    has_max = hasattr(config, "max_alerts") and config.max_alerts is not None
+    if not (has_memory and has_max):
+        return None
+
+    now = T0.datetime if T0 else now_utc()
+    cutoff_iso = iso_utc(now - timedelta(seconds=config.alert_memory))
+    now_iso = iso_utc(now)
+
+    table_name = resolve_table_name(test)
+    base_sql = f"""
+                SELECT process_time FROM {table_name}
+                WHERE alarm_id = '{config.alarm_name}'
+                AND process_time >= '{cutoff_iso}'
+                AND process_time <= '{now_iso}'
+                """
+    if volcano != "*":
+        base_sql += f" AND volcano = '{volcano}'"
+    base_sql += " ORDER BY process_time ASC"
+
+    conn = get_conn(test=test)
+    try:
+        rows = conn.execute(base_sql).fetchall()
+        # After the current send, count will be len(rows) + 1.
+        # Suppression kicks in when count >= max_alerts.
+        if len(rows) + 1 >= config.max_alerts:
+            oldest = datetime.fromisoformat(rows[0][0].replace("Z", "+00:00"))
+            return oldest + timedelta(seconds=config.alert_memory)
+        return None
+    finally:
+        conn.close()
+
+
 def check_new_event_ids(event_ids, test=False, table=None):
     """
     Return True if ANY of the provided event_ids are NOT already present in the DB.

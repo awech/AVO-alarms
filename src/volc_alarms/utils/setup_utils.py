@@ -17,7 +17,6 @@ import sys
 import time
 from pathlib import Path
 from types import SimpleNamespace
-from zoneinfo import ZoneInfo
 
 import pandas as pd
 import yaml

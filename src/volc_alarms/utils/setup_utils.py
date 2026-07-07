@@ -17,6 +17,7 @@ import sys
 import time
 from pathlib import Path
 from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import yaml
@@ -81,9 +82,37 @@ def load_environment(env_file=None):
     os.environ.setdefault("SACS_URL", SACS_URL)
 
     # --- Non-path defaults ---
-    os.environ.setdefault("TIMEZONE", "US/Alaska")
+    os.environ.setdefault("TIMEZONE", _detect_system_tz())
     os.environ.setdefault("LOG_HOUR_INTERVAL", "12")
     os.environ.setdefault("LOG_DAYS_KEEP", "7")
+
+
+def _detect_system_tz():
+    """Detect the system IANA timezone name from OS config, falling back to UTC.
+
+    Checks:
+      1. /etc/timezone (Debian/Ubuntu)
+      2. /etc/localtime symlink into a zoneinfo directory (RHEL/macOS)
+      3. Falls back to "UTC"
+
+    Returns
+    -------
+    str
+        IANA timezone name.
+    """
+    _etc_tz = Path("/etc/timezone")
+    if _etc_tz.is_file():
+        name = _etc_tz.read_text().strip()
+        if name:
+            return name
+
+    _etc_localtime = Path("/etc/localtime")
+    if _etc_localtime.is_symlink():
+        _link = str(_etc_localtime.resolve())
+        if "zoneinfo/" in _link:
+            return _link.split("zoneinfo/", 1)[1]
+
+    return "UTC"
 
 
 class StderrToLogger(io.TextIOBase):

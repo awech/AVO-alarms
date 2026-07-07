@@ -17,7 +17,6 @@ import sys
 import time
 from pathlib import Path
 from types import SimpleNamespace
-from zoneinfo import ZoneInfo
 
 import pandas as pd
 import yaml
@@ -91,9 +90,9 @@ def _detect_system_tz():
     """Detect the system IANA timezone name from OS config, falling back to UTC.
 
     Checks:
-      1. /etc/timezone (Debian/Ubuntu)
-      2. /etc/localtime symlink into a zoneinfo directory (RHEL/macOS)
-      3. Falls back to "UTC"
+        1. /etc/timezone (Debian/Ubuntu)
+        2. /etc/localtime symlink into a zoneinfo directory (RHEL/macOS)
+        3. Falls back to "UTC"
 
     Returns
     -------

@@ -8,9 +8,9 @@ When FROMCRON environment variable is set, logs are written to rotating
 files (4-hour intervals, 2-week retention). Otherwise, logs go to console.
 """
 
+import glob
 import io
 import logging
-import logging.handlers
 import os
 import re
 import sys
@@ -455,7 +455,7 @@ def setup_root_logger(
     from_cron = os.environ.get("FROMCRON", "").lower() == "yep"
 
     if from_cron:
-        # Setup file handler with timed rotation
+        # Setup file handler
         if log_dir is None:
             log_dir = os.environ.get("LOGS_DIR")
             if not log_dir:
@@ -470,35 +470,21 @@ def setup_root_logger(
         Path(log_dir).mkdir(parents=True, exist_ok=True)
 
         # Generate filename with current time rounded to nearest interval
-        log_hour_interval = int(os.environ["LOG_HOUR_INTERVAL"])
-        log_days_keep = int(os.environ["LOG_DAYS_KEEP"])
+        log_hour_interval = int(os.environ.get("LOG_HOUR_INTERVAL", 12))
         current_time = time.localtime()
         hour = current_time.tm_hour
         rounded_hour = (hour // log_hour_interval) * log_hour_interval
         current_time_str = f"{time.strftime('%Y%m%d', current_time)}-{rounded_hour:02d}"
         log_file = os.path.join(log_dir, f"{config_name}-{current_time_str}.log")
 
-        # TimedRotatingFileHandler
-        rotations_per_day = 24 // log_hour_interval
-        backup_count = log_days_keep * rotations_per_day
-        handler = logging.handlers.TimedRotatingFileHandler(
-            filename=log_file,
-            when="H",
-            interval=log_hour_interval,
-            backupCount=backup_count,
-            encoding="utf-8",
-        )
+        # Clean up old log files beyond retention period
+        log_days_keep = int(os.environ.get("LOG_DAYS_KEEP", 7))
+        cutoff = time.time() - (log_days_keep * 86400)
+        for old_log in glob.glob(os.path.join(log_dir, f"{config_name}-*.log")):
+            if os.path.getmtime(old_log) < cutoff:
+                os.remove(old_log)
 
-        # Custom namer: when file rotates, rename with timestamp rounded to interval
-        def namer(default_name):
-            rotation_time = time.localtime()
-            rotation_hour = rotation_time.tm_hour
-            rounded_hr = (rotation_hour // log_hour_interval) * log_hour_interval
-            rotation_time_str = f"{time.strftime('%Y%m%d', rotation_time)}-{rounded_hr:02d}"
-            return os.path.join(log_dir, f"{config_name}-{rotation_time_str}.log")
-
-        handler.namer = namer
-
+        handler = logging.FileHandler(log_file, encoding="utf-8")
         handler.setFormatter(formatter)
         root_logger.addHandler(handler)
     else:

@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-from enveloc.core import XCOR
 from obspy import UTCDateTime
 from obspy.signal.filter import envelope
 
@@ -46,6 +45,7 @@ def test_traveltime(st, config, grid):
 
 
 def run_enveloc(st, band_env, high_env, config):
+    from enveloc.core import XCOR
 
     grid = build_grid(config)
     grid_file = TMP_DIR / config.grid_file

@@ -51,14 +51,13 @@ def load_environment(env_file=None):
             raise FileNotFoundError(f"Environment file not found: {env_path}")
         load_dotenv(env_path, override=True)
     else:
-        load_dotenv(find_dotenv())
+        load_dotenv(find_dotenv(usecwd=True), override=True)
 
     # Project root derived from package location (stable regardless of cwd):
     # src/volc_alarms/utils/setup_utils.py → 3 parents up = project root
     _project_root = PROJECT_ROOT
 
     # --- Directory Path defaults (overridden by .env or shell exports) ---
-    os.environ.setdefault("HOME_DIR", str(_project_root))
     os.environ.setdefault("CONFIGS_DIR", str(_project_root / "config"))
     os.environ.setdefault("LOGS_DIR", str(_project_root / "logs"))
     os.environ.setdefault("LOCK_DIR", str(_project_root / "locks"))
@@ -71,6 +70,11 @@ def load_environment(env_file=None):
     os.environ.setdefault("VOLCANO_LIST", str(_project_root / "src" / "volc_alarms" / "data" / "volcano_list.csv"))
     os.environ.setdefault("STATION_XML", str(TMP_DIR / "stations.xml"))
     os.environ.setdefault("WWW_FILE", str(TMP_DIR / "index.html"))
+
+    # --- Waveserver defaults (overridden by .env or shell exports) ---
+    os.environ.setdefault("WINSTON_HOST", "127.0.0.1")
+    os.environ.setdefault("WINSTON_PORT", "16022")
+    os.environ.setdefault("TIMEOUT", "20")
 
     # --- URL defaults (overridden by .env or shell exports) ---
     PIREP_URL = "https://mesonet.agron.iastate.edu/cgi-bin/request/gis/pireps.py"

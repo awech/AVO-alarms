@@ -489,10 +489,10 @@ def save_file(fig, config, test=False, dpi=250):
     _type_
         _description_
     """
-    home_dir = Path(os.environ["TMP_FIGURE_DIR"])
+    tmp_fig_dir = Path(os.environ["TMP_FIGURE_DIR"])
 
     jpg_file = (
-        home_dir
+        tmp_fig_dir
         / f"{config.alarm_name.replace(' ','_')}_{utc.utcnow().strftime('%Y%m%d_%H%M%S')}.jpg"
     )
 

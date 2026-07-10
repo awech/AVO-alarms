@@ -425,16 +425,25 @@ def post_mattermost(config, subject, body, attachment=None, send=False, test=Fal
 
 def format_timestring(t1, t2=None):
 
-    t1_str = t1.strftime("%Y-%m-%d %H:%M")
+    if t2 is not None and (t2 - t1) % 60 != 0:
+        str_fmt = "%Y-%m-%d %H:%M:%S"
+    elif (t2 is not None) and (t1.second !=0 or t2.second !=0):
+        str_fmt = "%Y-%m-%d %H:%M:%S"
+    elif t1.second !=0:
+        str_fmt = "%Y-%m-%d %H:%M:%S"
+    else:
+        str_fmt = "%Y-%m-%d %H:%M"
+
+    t1_str = t1.strftime(str_fmt)
     t1_local = Timestamp(t1.datetime, tz="UTC")
     t1_local = t1_local.tz_convert(os.environ["TIMEZONE"])
-    t1_local_str = t1_local.strftime("%Y-%m-%d %H:%M")
+    t1_local_str = t1_local.strftime(str_fmt)
 
     if t2 is not None:    
-        t2_str = t2.strftime("%Y-%m-%d %H:%M")
+        t2_str = t2.strftime(str_fmt)
         t2_local = Timestamp(t2.datetime, tz="UTC")
         t2_local = t2_local.tz_convert(os.environ["TIMEZONE"])
-        t2_local_str = t2_local.strftime("%Y-%m-%d %H:%M")
+        t2_local_str = t2_local.strftime(str_fmt)
 
         time_str = f"Start: {t1_str} (UTC)\nEnd: {t2_str} (UTC)\n\n"
         time_str = f"{time_str}Start: {t1_local_str} ({t1_local.tzname()})"

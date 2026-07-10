@@ -127,6 +127,15 @@ def make_figure(target, T0, config, mx_pressure, test=False):
     ax["infra_trace"].yaxis.get_offset_text().set_fontsize(5)
 
     ##### plot infrasound backazimuth #####
+    ax["azimuth"].errorbar(
+        lts_df["Time"],
+        lts_df["Azimuth"],
+        yerr=lts_df["Baz_err"],
+        fmt="none",
+        ecolor="gray",
+        elinewidth=0.2,
+        zorder=-1,
+    )
     sc = ax["azimuth"].scatter(
         lts_df["Time"],
         lts_df["Azimuth"],
@@ -151,15 +160,26 @@ def make_figure(target, T0, config, mx_pressure, test=False):
         alpha=0.25,
         edgecolor=None,
         )
-    ax["velocity"].scatter(
+    ax["velocity"].errorbar(
         lts_df["Time"],
-        lts_df["Velocity"]/1000,
+        lts_df["Velocity"] / 1000,
+        yerr=lts_df["Vel_err"] / 1000,
+        fmt="none",
+        ecolor="gray",
+        elinewidth=0.2,
+        zorder=-1,
+    )
+    sc2 = ax["velocity"].scatter(
+        lts_df["Time"],
+        lts_df["Velocity"] / 1000,
         c=lts_df["MCCM"],
         s=scatter_size,
         edgecolors="k",
         lw=scatter_lw,
         cmap=mycolormap,
     )
+    sc2.set_clim([0.2, 1.0])
+
     if hasattr(target, "array_label") and target["array_label"] == "Hydroacoustic":
         ax["velocity"].set_ylim(1.2, 1.8)  # Typical range for hydroacoustic arrays
     else:
@@ -214,8 +234,12 @@ def make_figure(target, T0, config, mx_pressure, test=False):
         # dashed horizontal line across most of the divider axis
         ax["divider"].axhline(0.5, xmin=0.0, xmax=1.0, color="gray", ls="--", lw=0.75)
         # labels above and below the line
+        if hasattr(target, "array_label"):
+            divider_text = f"{target["array_label"]} Array Results"
+        else:
+            divider_text = "Infrasound Array Results"
         ax["divider"].text(
-            0.5, 0.7, "\u2191   Infrasound Array Results   \u2191",
+            0.5, 0.7, f"\u2191   {divider_text}   \u2191",
             transform=ax["divider"].transAxes,
             ha="center", va="bottom", fontsize=6,
         )

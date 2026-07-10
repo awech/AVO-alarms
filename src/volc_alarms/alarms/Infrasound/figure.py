@@ -235,7 +235,7 @@ def make_figure(target, T0, config, mx_pressure, test=False):
         ax["divider"].axhline(0.5, xmin=0.0, xmax=1.0, color="gray", ls="--", lw=0.75)
         # labels above and below the line
         if hasattr(target, "array_label"):
-            divider_text = f"{target["array_label"]} Array Results"
+            divider_text = f"{target['array_label']} Array Results"
         else:
             divider_text = "Infrasound Array Results"
         ax["divider"].text(

@@ -26,13 +26,10 @@ logger = get_logger(__name__)
 
 def Earthscope_client():
 
-    import ssl
-    ssl._create_default_https_context = ssl._create_unverified_context
-    
     attempt = 1
     while attempt <= 3:
         try:
-            client = FDSN_Client("EARTHSCOPE")
+            client = FDSN_Client("earthscope")
             break
         except Exception as e:
             logger.warning(f"Earthscope client connection attempt {attempt} failed: {e}")
@@ -152,8 +149,6 @@ def download_waveforms(nslc_list, T1, T2):
     st = Stream()
 
     if os.environ.get("USE_EARTHSCOPE"):
-        import ssl
-        ssl._create_default_https_context = ssl._create_unverified_context
         client = FDSN_Client("earthscope")
     else:
         client = EW_Client(

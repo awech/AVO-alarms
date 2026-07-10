@@ -671,7 +671,7 @@ def format_spec_xaxis(ax, tr, st, i, config, duration=None):
         duration = config.plot_duration if hasattr(config, "plot_duration") else 3600
 
     if i == 0:
-        ax.set_title(config.alarm_name + " Alarm")
+        ax.set_title(config.alarm_name + " Alarm", fontsize=8)
     if i < len(st) - 1:
         ax.set_xticks([])
     else:
@@ -680,7 +680,7 @@ def format_spec_xaxis(ax, tr, st, i, config, duration=None):
         T = [tr.stats.starttime + dt for dt in d_sec]
         ax.set_xticklabels([t.strftime(tick_fmt) for t in T])
         ax.tick_params("x", labelsize=5)
-        ax.set_xlabel(tr.stats.starttime.strftime("%Y-%b-%d"))
+        ax.set_xlabel(tr.stats.starttime.strftime("%Y-%b-%d"), fontsize=8)
 
 
 def plot_spectrogram_figure(nslc, T0, config, test=False):

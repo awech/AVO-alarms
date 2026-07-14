@@ -91,6 +91,14 @@ def pirep_archive_to_dataframe(T0, config, archive):
     pirep_df = pirep_df.loc[A.index]
     pirep_df.reset_index(drop=True, inplace=True)
 
+    # Create a unique event_id per PIREP (PROD_ID alone is per-bulletin, not per-report)
+    pirep_df["event_id"] = (
+        pirep_df["PROD_ID"] + "_"
+        + pirep_df["VALID"].dt.strftime("%Y%m%d%H%M%S") + "_"
+        + pirep_df["LAT"].astype(str) + "_"
+        + pirep_df["LON"].astype(str)
+    )
+
     rmtree(tmp_zipped_dir)
 
     return pirep_df

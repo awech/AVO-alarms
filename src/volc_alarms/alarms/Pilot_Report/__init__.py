@@ -29,8 +29,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     pirep_df = processing.find_nearest_volcano(pirep_df, lon_col="lon", lat_col="lat")
     pirep_df = pirep_df[pirep_df["v_distance"] < config.max_distance]
 
-    ## BUG 'PROD_ID' is not entirely unique. See events at 2026-05-21 17:08 and 17:09
-    N_new, N_old = alarming.check_new_event_ids(pirep_df["PROD_ID"], test=test_flag)
+    N_new, N_old = alarming.check_new_event_ids(pirep_df["event_id"], test=test_flag)
     logger.info(f"Found {N_new} new and {N_old} old PIREPS")
 
     if force_flag:
@@ -41,7 +40,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
 
     for i, row in pirep_df.iterrows():
 
-        if alarming.already_processed(config, row.PROD_ID, test=test_flag):
+        if alarming.already_processed(config, row.event_id, test=test_flag):
             logger.info("PIREPS found have already been processed")
             state = "OK"
             state_message = f"{T0_str} (UTC) No new pilot reports"
@@ -59,7 +58,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
             state_message,
             figure_factory=lambda row=row: plot_fig(row, config, test=test_flag),
             message_factory=lambda subject=subject, message=message: (subject, message),
-            record_kwargs={"volcano": row.v_name, "event_id": row.PROD_ID},
+            record_kwargs={"volcano": row.v_name, "event_id": row.event_id},
             send_email=is_critical,
             mm_flag=mm_flag,
             icinga_flag=icinga_flag,

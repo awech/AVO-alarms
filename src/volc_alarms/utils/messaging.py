@@ -270,9 +270,9 @@ def format_mm_message(subject, body, config):
     str
         Formatted message with Mattermost markdown syntax
     """
-    p = re.compile(r"\\n(.*)\*(:.*)", re.MULTILINE)
-    body = p.sub(r"\n- [x] __***\1\2***__", body)
-    p = re.compile("\\n([A-Z,1-9]{3,4}:.*/.*)", re.MULTILINE)
+    p = re.compile(r"\n(.*)\*(:.*)", re.MULTILINE)
+    body = p.sub(r"\n- [x] **\1**\2", body)
+    p = re.compile(r"\n([A-Z,1-9]{3,4}:.*/.*)", re.MULTILINE)
     body = p.sub(r"\n- [ ] \1", body)
 
     body = body.replace("Start: ", "Start:  ")

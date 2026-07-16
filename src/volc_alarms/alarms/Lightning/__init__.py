@@ -4,7 +4,7 @@ import pandas as pd
 
 from volc_alarms.utils import alarming, messaging, processing
 from volc_alarms.utils.alarm_flow import run_send_sequence
-from volc_alarms.utils.setup_utils import get_logger, load_volcano_list
+from volc_alarms.utils.setup_utils import get_logger
 
 from .detection import download_lightning, get_state_message, inner_outer
 from .figure import plot_fig
@@ -41,12 +41,9 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         strokes_df["v_distance"] = strokes_df["api_vdist"]
         strokes_df["v_name"] = strokes_df["api_vname"]
     else:
-        volcs = load_volcano_list()
-        if "Lightning" in volcs.columns:
-            volcs = volcs[volcs["Lightning"] == "Y"]
         strokes_df = processing.find_nearest_volcano(
             strokes_df,
-            volc_df=volcs,
+            filter_col="Lightning",
         )
 
     strokes_df = strokes_df[strokes_df["v_distance"] < config.dist2]

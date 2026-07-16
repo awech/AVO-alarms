@@ -45,7 +45,7 @@ def download_hypocenters_csv(URL):
     max_attempts = 3
     while attempt <= max_attempts:
         try:
-            body = requests.get(URL, verify=False).content
+            body = requests.get(URL, verify=True, timeout=10).content
             catalog_df = pd.read_csv(io.StringIO(body.decode('utf-8')), parse_dates=["time"])
             # catalog_df["id"] = catalog_df.apply(lambda x: x.net.lower() + str(x.id), axis=1)
             if len(catalog_df) > 0:
@@ -79,7 +79,7 @@ def download_hypocenter_xml(URL):
     attempt = 1
     while attempt <= 3:
         try:
-            res = requests.get(URL, verify=False, timeout=10)
+            res = requests.get(URL, verify=True, timeout=10)
             body = res.content
             break
         except Exception as e:
@@ -194,9 +194,14 @@ def download_vaa_from_nws_api():
     attempt = 1
     max_tries = 3
     vaa_id_list = None
+    # api.weather.gov rejects requests without a User-Agent (returns 403). NWS
+    # asks that it identify the application, ideally with a contact address.
+    headers = {"User-Agent": os.environ.get("NWS_API_USER_AGENT", "avo-alarms (volcano monitoring)")}
     while attempt <= max_tries:
         try:
-            response = requests.get(os.environ["VAA_URL"], timeout=10, verify=False)
+            response = requests.get(
+                os.environ["VAA_URL"], timeout=10, verify=True, headers=headers
+            )
             data = response.json()
 
             vaa_id_list = data["@graph"]

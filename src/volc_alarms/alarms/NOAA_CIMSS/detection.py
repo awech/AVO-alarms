@@ -82,7 +82,7 @@ def scrape_cimss_alert(alert):
     while attempt <= max_tries:
         try:
             soup = BeautifulSoup(
-                requests.get(alert.alert_url, verify=False, timeout=10).content
+                requests.get(alert.alert_url, verify=True, timeout=10).content
             )
             redir = soup.select_one("#loginform-custom")["action"]
 
@@ -94,8 +94,8 @@ def scrape_cimss_alert(alert):
             payload = {"log": os.environ["CIMSS_USERNAME"], "pwd": os.environ["CIMSS_PASSWORD"]}
 
             with requests.Session() as session:
-                session.post(POST_LOGIN_URL, data=payload, verify=False, timeout=10)
-                r = session.get(REQUEST_URL, verify=False, timeout=10)
+                session.post(POST_LOGIN_URL, data=payload, verify=True, timeout=10)
+                r = session.get(REQUEST_URL, verify=True, timeout=10)
                 soup = BeautifulSoup(r.content)
             session.close()
             break
@@ -116,7 +116,7 @@ def get_cimss_image(soup, alert, config):
     for i, img in enumerate(image_files):
         img.get("src")
         im_url = urljoin(base_url, img.get("src"))
-        r = requests.get(im_url, verify=False, timeout=10)
+        r = requests.get(im_url, verify=True, timeout=10)
 
         if r.status_code == 200:
             new_file = Path(str(img_file).replace(".png", f"{i+1:g}.png"))

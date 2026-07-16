@@ -23,7 +23,7 @@ def download_mesonet_vaa_list(T0):
     vaa_id_list = None
     while attempt <= max_tries:
         try:
-            response = requests.get(vaa_url, timeout=10, verify=False)
+            response = requests.get(vaa_url, timeout=10, verify=True)
             data = response.json()
             vaa_id_list = pd.DataFrame(data["data"])
             if not vaa_id_list.empty:

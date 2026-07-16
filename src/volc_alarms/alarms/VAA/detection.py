@@ -12,33 +12,43 @@ from volc_alarms.utils.setup_utils import get_logger
 logger = get_logger(__name__)
 
 
-def download_mesonet_vaa_list(T0):
+def download_mesonet_vaa_list(T0, max_tries=3, timeout=10, backoff=2):
+    """Download the mesonet VAA advisory list for a given date.
+
+    Returns a single-column ``text_link`` DataFrame on success (which may be
+    empty if there are no advisories for that date), or ``None`` if the API
+    could not be reached / parsed after ``max_tries`` attempts.
+    """
     logger.info(
         f"Reading in alerts from mesonet api .json file for {T0.strftime('%Y-%m-%d')}"
     )
 
-    vaa_url = os.getenv("VAA_URL") + f"&date={T0.strftime('%Y-%m-%d')}"
+    base_url = os.getenv("VAA_URL")
+    if not base_url:
+        logger.error("VAA_URL is not set; cannot download VAA list")
+        return None
+    vaa_url = base_url + f"&date={T0.strftime('%Y-%m-%d')}"
 
-    attempt = 1
-    max_tries = 3
-    vaa_id_list = None
-    while attempt <= max_tries:
+    for attempt in range(1, max_tries + 1):
         try:
-            response = requests.get(vaa_url, timeout=10, verify=True)
+            response = requests.get(vaa_url, timeout=timeout, verify=True)
+            response.raise_for_status()
             data = response.json()
+
             vaa_id_list = pd.DataFrame(data["data"])
-            if not vaa_id_list.empty:
-                vaa_id_list = vaa_id_list["text_link"].to_frame()
-            else:
-                vaa_id_list["text_link"] = ""
-            break
-        except Exception:
-            logger.warning(f"Page error on attempt number {attempt:g}")
-            attempt += 1	
-            if attempt == max_tries:
-                logger.error(f'Problem connecting to VAA API after {max_tries} attempts')
-                
-    return vaa_id_list
+            if vaa_id_list.empty or "text_link" not in vaa_id_list.columns:
+                return pd.DataFrame({"text_link": []})
+            return vaa_id_list["text_link"].to_frame()
+        except (requests.exceptions.RequestException, ValueError, KeyError) as e:
+            logger.warning(
+                f"VAA list request failed on attempt {attempt}/{max_tries}: "
+                f"{type(e).__name__}: {e}"
+            )
+            if attempt < max_tries:
+                time.sleep(backoff)
+
+    logger.error(f"Problem connecting to VAA API after {max_tries} attempts")
+    return None
 
 
 def fetch_vaa_page(url, max_tries=3, timeout=10, backoff=2):

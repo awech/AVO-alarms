@@ -452,3 +452,27 @@ def format_timestring(t1, t2=None):
         time_str = f"{t1_str} UTC\n{t1_local_str} {t1_local.tzname()}"
 
     return time_str
+
+
+def format_nearest_volcanoes(volcs, n=3):
+    """Format the ``n`` nearest volcanoes as a human-readable string.
+
+    Parameters
+    ----------
+    volcs : pandas.DataFrame
+        Volcano table with ``Name`` and ``distance`` columns, as produced by
+        :func:`processing.volcano_distance`. Rows are sorted by ascending
+        distance before selection.
+    n : int, optional
+        Number of nearest volcanoes to include (default 3).
+
+    Returns
+    -------
+    str
+        Comma-separated ``"Name (dist km)"`` entries, e.g.
+        ``"Spurr (12 km), Redoubt (48 km)"``. Underscores in names are
+        replaced with spaces. Returns an empty string if ``volcs`` is empty.
+    """
+    nearest = volcs.sort_values("distance").head(n)
+    parts = [f"{row.Name} ({row.distance:.0f} km)" for _, row in nearest.iterrows()]
+    return ", ".join(parts).replace("_", " ")

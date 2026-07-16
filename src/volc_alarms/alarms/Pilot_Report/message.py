@@ -15,19 +15,16 @@ def create_message(pirep_row, config):
     message += f"\nLatitude: {pirep_row.lat:.3f}\nLongitude: {pirep_row.lon:.3f}\n"
 
     volcs = load_volcano_list()
-    volcs = processing.volcano_distance(pirep_row.lon, pirep_row.lat, volcs)
+    volcs = processing.volcano_distance(pirep_row.lon, pirep_row.lat, volcs, filter_col="PIREP")
 
-    v_text = ""
-    for j, row in volcs[:3].iterrows():
-        v_text = f"{v_text}{row.Name} ({row.distance:.0f} km), "
-    v_text = v_text.replace("_", " ")
-    message = f"{message}Nearest volcanoes: {v_text[:-2]}\n"
+    v_text = messaging.format_nearest_volcanoes(volcs)
+    message = f"{message}Nearest volcanoes: {v_text}\n"
     message = f"{message}\n--Original Report--\n{pirep_row.REPORT}"
     logger.info(message)
 
     if pirep_row.URGENT == "T":
-        subject = f"URGENT! Activity possible at: {v_text[:-2]}"
+        subject = f"URGENT! Activity possible at: {v_text}"
     else:
-        subject = f"Activity possible at: {v_text[:-2]}"
+        subject = f"Activity possible at: {v_text}"
 
     return subject, message

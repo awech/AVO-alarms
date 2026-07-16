@@ -3,6 +3,7 @@ import traceback
 
 import pandas as pd
 
+from volc_alarms.utils import messaging
 from volc_alarms.utils.setup_utils import get_logger
 
 logger = get_logger(__name__)
@@ -20,12 +21,8 @@ def create_message(eq, volcs):
     message = f"{message}\n**Depth:** {origin.depth / 1000:.1f} km"
     message = f"{message}\n**Event ID:** {''.join(eq.resource_id.id.split('/')[-2:]).lower()}"
 
-    volcs = volcs.sort_values("distance")
-    v_text = ""
-    for _, row in volcs[:3].iterrows():
-        v_text = f"{v_text}{row.Name} ({row.distance:.0f} km), "
-    v_text = v_text.replace("_", " ")
-    message = f"{message}\n**Nearest volcanoes:** {v_text[:-2]}"
+    v_text = messaging.format_nearest_volcanoes(volcs)
+    message = f"{message}\n**Nearest volcanoes:** {v_text}"
 
     try:
         message = f"{message}\n\n***--- {origin.evaluation_mode.replace('manual', 'reviewed').upper()} Location ---***"
@@ -39,6 +36,7 @@ def create_message(eq, volcs):
         logger.warning(traceback.format_exc())
         pass
 
-    subject = f"M{eq.preferred_magnitude().mag:.1f} earthquake at {volcs.iloc[0].Name}"
+    nearest_volcano = volcs.loc[volcs["distance"].idxmin()].Name
+    subject = f"M{eq.preferred_magnitude().mag:.1f} earthquake at {nearest_volcano}"
 
     return subject, message

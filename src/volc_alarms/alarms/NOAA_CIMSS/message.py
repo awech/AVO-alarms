@@ -28,18 +28,16 @@ def create_message(alert, volcs, output_text):
         message += f"\n{type_txt}"
     message += f"\n**Latitude:** {alert.lat_rc:.3f}\n**Longitude:** {alert.lon_rc:.3f}\n"
 
-    v_text = ""
-    for i, row in volcs[:3].iterrows():
-        v_text = f"{v_text}{row.Name} ({row.distance:.0f} km), "
-    v_text = v_text.replace("_", " ")
+    v_text = messaging.format_nearest_volcanoes(volcs)
 
     message += f"**Method:** {alert.method}\n"
-    message += f"**Nearest volcanoes:** {v_text[:-2]}\n\n"
+    message += f"**Nearest volcanoes:** {v_text}\n\n"
     message += f"**More info:** {alert.alert_url.replace('report/' + str(alert.NOAA_id), 'individual/' + str(alert.aid))}\n"
 
     subject_text = alert.alert_header.title().replace(" Found", "")
     subject_text = subject_text.replace(" Detected", "")
-    subject = f"{volcs.iloc[0].Name}: {subject_text}"
+    nearest_volcano = volcs.loc[volcs["distance"].idxmin()].Name
+    subject = f"{nearest_volcano}: {subject_text}"
 
     return subject, message
 

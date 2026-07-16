@@ -17,6 +17,37 @@ urllib3.disable_warnings()
 
 logger = get_logger(__name__)
 
+# Maps an alert's ``alert_type`` to the volcano-list column that governs whether
+# that alert type should be suppressed for a given volcano.
+ALERT_TYPE_COLUMNS = {"ash": "NOAA Ash", "hot": "NOAA Thermal", "ice": "NOAA Ice"}
+
+
+def resolve_ignore_column(alert_type, volcs_columns):
+    """Return the volcano-list column that governs this alert type.
+
+    Prefers the granular per-type column (e.g. ``"NOAA Ash"``) when present,
+    otherwise falls back to the generic ``"NOAA"`` column. Returns ``None`` when
+    no relevant column exists, meaning no volcanoes should be filtered.
+
+    Parameters
+    ----------
+    alert_type : str
+        The alert's ``alert_type`` (e.g. ``"ash"``, ``"hot"``, ``"ice"``).
+    volcs_columns : Iterable[str]
+        Columns available in the volcano list.
+
+    Returns
+    -------
+    str or None
+        The column name to filter on, or ``None`` if none applies.
+    """
+    specific_col = ALERT_TYPE_COLUMNS.get(alert_type)
+    if specific_col and specific_col in volcs_columns:
+        return specific_col
+    if "NOAA" in volcs_columns:
+        return "NOAA"
+    return None
+
 
 def download_cimss_vv_api():
 
@@ -118,7 +149,6 @@ def format_cimss_dataframe(cimss_df, config, T0):
 def check_ignore_volcano(cimss_df):
 
     volcs = load_volcano_list().set_index("Name")
-    alert_dict = {"ash": "NOAA Ash", "hot": "NOAA Thermal", "ice": "NOAA Ice"}
 
     cimss_df["keep"] = True
 
@@ -126,13 +156,8 @@ def check_ignore_volcano(cimss_df):
         if row.v_name not in volcs.index:
             continue
 
-        # Use granular column if available, otherwise fall back to "NOAA"
-        specific_col = alert_dict.get(row.alert_type)
-        if specific_col and specific_col in volcs.columns:
-            col = specific_col
-        elif "NOAA" in volcs.columns:
-            col = "NOAA"
-        else:
+        col = resolve_ignore_column(row.alert_type, volcs.columns)
+        if col is None:
             break  # no relevant column exists, keep all
 
         if volcs.loc[row.v_name, col] == "N":

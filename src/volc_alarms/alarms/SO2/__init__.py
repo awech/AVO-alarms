@@ -44,9 +44,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
             lon = -lon
 
         volcs = load_volcano_list()
-        volcs = volcs[volcs["SO2"] == "Y"]
-        volcs = processing.volcano_distance(lon, lat, volcs)
-        volcs = volcs.sort_values("distance")
+        volcs = processing.volcano_distance(lon, lat, volcs, filter_col="SO2")
 
 
         # lon    = float(table[3].split(':')[-1].split('deg')[0].replace(' ',''))
@@ -62,7 +60,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         return	
 
 
-    volcano_name = volcs.iloc[0].Name
+    volcano_name = volcs.loc[volcs["distance"].idxmin()].Name
     alert_time = UTCDateTime(date + time).strftime("%Y-%m-%d %H:%M:%S")
     event_id = f"{volcano_name} - {alert_time}"
     new_alert = alarming.already_processed(config, event_id, test=test_flag)

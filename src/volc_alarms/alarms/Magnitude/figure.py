@@ -159,8 +159,9 @@ def plot_event(eq, volcs, config, n_stations=8, test=False):
 
     eq_t = origin.time.strftime("%Y-%m-%d %H:%M:%S")
     eq_mag = eq.preferred_magnitude().mag
-    eq_dist = volcs.iloc[0].distance
-    volc = volcs.iloc[0].Name
+    nearest = volcs.loc[volcs["distance"].idxmin()]
+    eq_dist = nearest.distance
+    volc = nearest.Name
     eq_depth = origin.depth / 1000
     title_str = (
         f"{eq_t}\n"

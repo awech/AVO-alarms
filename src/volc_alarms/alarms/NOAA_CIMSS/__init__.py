@@ -9,6 +9,7 @@ from .detection import (
     download_cimss_vv_api,
     format_cimss_dataframe,
     process_alert_soup,
+    resolve_ignore_column,
     scrape_cimss_alert,
 )
 from .figure import plot_fig
@@ -76,7 +77,10 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
 
         logger.info("Crafting message...")
         volcs = load_volcano_list()
-        volcs = processing.volcano_distance(alert.lon_rc, alert.lat_rc, volcs)
+        filter_col = resolve_ignore_column(alert.alert_type, volcs.columns)
+        volcs = processing.volcano_distance(
+            alert.lon_rc, alert.lat_rc, volcs, filter_col=filter_col
+        )
         subject, message = create_message(alert, volcs, output_text)
 
         state = "CRITICAL"

@@ -14,17 +14,21 @@ from volc_alarms.utils.setup_utils import get_logger, load_volcano_list
 logger = get_logger(__name__)
 
 
-def find_nearest_volcano(df, lon_col="longitude", lat_col="latitude", volc_df=None):
+def find_nearest_volcano(df, lon_col="longitude", lat_col="latitude", filter_col=None, volc_df=None):
 
     if volc_df is None:
         volc_df = load_volcano_list()
     V_DIST = []
     V_NAME = []
+    
+    if filter_col is not None and filter_col in volc_df.columns:
+        volc_df = volc_df[volc_df[filter_col] != "N"]
 
     for _, row in df.iterrows():
         volc_df = volcano_distance(row[lon_col], row[lat_col], volc_df)
-        V_DIST.append(volc_df.iloc[0].distance)
-        V_NAME.append(volc_df.iloc[0].Name)
+        nearest = volc_df.loc[volc_df["distance"].idxmin()]
+        V_DIST.append(nearest.distance)
+        V_NAME.append(nearest.Name)
 
     df["v_distance"] = V_DIST
     df["v_name"] = V_NAME
@@ -32,23 +36,32 @@ def find_nearest_volcano(df, lon_col="longitude", lat_col="latitude", volc_df=No
     return df
 
 
-def volcano_distance(lon0, lat0, volcs):
-    """_summary_
+def volcano_distance(lon0, lat0, volcs, filter_col=None):
+    """Compute distance from a point to each volcano and sort by distance.
 
     Parameters
     ----------
-    lon0 : _type_
-        _description_
-    lat0 : _type_
-        _description_
-    volcs : _type_
-        _description_
+    lon0 : float
+        Longitude of the reference point (degrees).
+    lat0 : float
+        Latitude of the reference point (degrees).
+    volcs : pandas.DataFrame
+        Volcano table with ``Latitude`` and ``Longitude`` columns.
+    filter_col : str, optional
+        Name of a per-alarm opt-in column (e.g. ``"PIREP"``, ``"SO2"``). When
+        provided and present in ``volcs``, rows whose value in that column is
+        ``"N"`` are dropped before distances are computed. Ignored if the
+        column is absent.
 
     Returns
     -------
-    _type_
-        _description_
+    pandas.DataFrame
+        Copy of ``volcs`` with an added ``distance`` column (km), sorted by
+        ascending distance.
     """
+
+    if filter_col is not None and filter_col in volcs.columns:
+        volcs = volcs[volcs[filter_col] != "N"]
 
     DIST = np.array([])
     for lat, lon in zip(volcs.Latitude.values, volcs.Longitude.values):

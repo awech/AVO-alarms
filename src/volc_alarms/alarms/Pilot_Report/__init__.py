@@ -26,7 +26,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
         return
 
     pirep_df = pirep_archive_to_dataframe(T0, config, archive)
-    pirep_df = processing.find_nearest_volcano(pirep_df, lon_col="lon", lat_col="lat")
+    pirep_df = processing.find_nearest_volcano(pirep_df, lon_col="lon", lat_col="lat", filter_col="PIREP")
     pirep_df = pirep_df[pirep_df["v_distance"] < config.max_distance]
 
     N_new, N_old = alarming.check_new_event_ids(pirep_df["event_id"], test=test_flag)

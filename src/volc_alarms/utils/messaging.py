@@ -76,6 +76,10 @@ def icinga(config, state, state_message, send=True):
             headers=headers,
             auth=(os.environ["ICINGA_USERNAME"], os.environ["ICINGA_PASSWORD"]),
             data=json.dumps(data),
+            # verify=False is intentional: the internal icinga host uses a
+            # self-signed "Icinga CA" cert that is not in any available CA
+            # bundle (and its CN does not match the connect hostname). All other
+            # outbound requests in this package verify certificates.
             verify=False,
             timeout=10,
         )
@@ -229,7 +233,10 @@ def connect_mattermost():
     - MATTERMOST_SERVER_URL
     - MATTERMOST_USER_ID
     - MATTERMOST_USER_PASS
-    - SSL_CA
+    - REQUESTS_CA_BUNDLE (optional): path to a CA bundle for TLS verification.
+      Falls back to the default trust store (certifi) if unset. This is the
+      standard variable honored by the ``requests`` library that
+      ``mattermostdriver`` uses internally.
 
     Returns
     -------
@@ -245,7 +252,7 @@ def connect_mattermost():
             "password": os.environ["MATTERMOST_USER_PASS"],
             "scheme": "https",
             "port": 443,
-            "verify": os.environ["SSL_CA"],
+            "verify": os.environ.get("REQUESTS_CA_BUNDLE", True),
         }
     )
     mm.login();  # noqa: E703

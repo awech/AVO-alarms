@@ -42,7 +42,7 @@ def download_pilot_reports(T0, config):
     tmp_zipfile = TMP_DIR / "pireps.zip"
     try:
         with open(tmp_zipfile, "wb") as f:
-            resp = requests.get(pirep_url, verify=False, timeout=10)
+            resp = requests.get(pirep_url, verify=True, timeout=10)
             f.write(resp.content)
     except Exception:
         logger.error("Request error from PIREP API")

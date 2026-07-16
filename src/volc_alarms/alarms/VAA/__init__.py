@@ -38,6 +38,9 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     vaas_found = []
     for i, vaa_id in vaa_id_list.iterrows():
         vaa = process_vaa_id(vaa_id)
+        if vaa is None:
+            logger.warning("Skipping VAA that could not be downloaded")
+            continue
         vaas_found.append(vaa)
     vaas_df = pd.DataFrame(vaas_found)
 

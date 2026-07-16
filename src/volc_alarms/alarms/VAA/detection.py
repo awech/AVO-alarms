@@ -1,5 +1,6 @@
 import os
 import re
+import time
 
 import numpy as np
 import pandas as pd
@@ -40,9 +41,30 @@ def download_mesonet_vaa_list(T0):
     return vaa_id_list
 
 
+def fetch_vaa_page(url, max_tries=3, timeout=10, backoff=2):
+    """Fetch a VAA text page, retrying on transient network errors.
+
+    Returns the ``requests.Response`` on success, or ``None`` if every attempt
+    failed (e.g. repeated read timeouts from the upstream server).
+    """
+    for attempt in range(1, max_tries + 1):
+        try:
+            return requests.get(url, timeout=timeout, verify=True)
+        except requests.exceptions.RequestException as e:
+            logger.warning(
+                f"VAA page request failed on attempt {attempt}/{max_tries}: {e}"
+            )
+            if attempt < max_tries:
+                time.sleep(backoff)
+    logger.error(f"Giving up on VAA page after {max_tries} attempts: {url}")
+    return None
+
+
 def process_vaa_id(vaa_id):
 
-    page = requests.get(vaa_id["text_link"], timeout=10, verify=False)
+    page = fetch_vaa_page(vaa_id["text_link"])
+    if page is None:
+        return None
     vaa_info = page.text.split("\n\n")
 
     vaa = dict()

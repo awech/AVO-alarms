@@ -203,9 +203,13 @@ def make_figure(target, T0, config, mx_pressure, test=False):
     sc2.set_clim([0.2, 1.0])
 
     if hasattr(target, "array_label") and target["array_label"] == "Hydroacoustic":
-        ax["velocity"].set_ylim(1.2, 1.8)  # Typical range for hydroacoustic arrays
+        vmin_plot = target["vmin"] - 0.1 if target["vmin"] <= 1.2 else 1.2
+        vax_plot = target["vmax"] + 1.8 if target["vmax"] >= 1.8 else 1.8
     else:
-        ax["velocity"].set_ylim(0.15, 0.6)  # Typical range for other arrays
+        vmin_plot = target["vmin"] - 0.1 if target["vmin"] <= 0.15 else 0.15
+        vax_plot = target["vmax"] + 0.1 if target["vmax"] >= 0.6 else 0.6
+
+    ax["velocity"].set_ylim(vmin_plot, vax_plot)  # Typical range for other arrays
     ax["velocity"].set_ylabel("Velocity\n[km/s]", fontsize=5)
 
     add_mccm_colorbar(ax["azimuth"], ax["velocity"], fig, sc)

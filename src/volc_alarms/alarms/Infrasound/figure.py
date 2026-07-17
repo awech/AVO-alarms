@@ -137,6 +137,16 @@ def make_figure(target, T0, config, mx_pressure, test=False):
     _pa_fmt.set_powerlimits((-1, 2))
     ax["infra_trace"].yaxis.set_major_formatter(_pa_fmt)
     ax["infra_trace"].yaxis.get_offset_text().set_fontsize(5)
+    # Note the channel and frequency on the right side
+    ax2 = ax["infra_trace"].twinx()
+    ax2.set_yticks([])
+    ax2.set_ylabel(
+        f"{tr.id}\n"
+        "--------------------\n"
+        f"{config.f1:.1f} - {config.f2:.1f} Hz",
+        labelpad=4,
+        fontsize=5,
+    )
 
     ##### plot infrasound backazimuth #####
     ax["azimuth"].errorbar(

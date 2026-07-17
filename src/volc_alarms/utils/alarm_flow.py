@@ -113,7 +113,8 @@ def run_send_sequence(
             f"Next alert allowed after {resumes_str}."
         )
         message += (
-            f"\n\n⚠️ Alert limit reached. No further alerts until after "
+            f"\n\n⚠️ Alert limit reached ({config.max_alerts} alerts in "
+            f"{config.alert_memory:g} seconds). No further alerts until after "
             f"{resumes_str} / {resumes_local_str}."
         )
 

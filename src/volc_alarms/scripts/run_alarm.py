@@ -30,7 +30,7 @@ def parse_args():
 
     parser = argparse.ArgumentParser(
         prog="run-alarm",
-        epilog="e.g.: `run-alarm avlof_RSAM` or `run-alarm --test -t 201701020205 -c Pavlof_RSAM`",
+        epilog="e.g.: `run-alarm avlof_RSAM` or `run-alarm --test -t 201701020205 Pavlof_RSAM`",
     )
     parser.add_argument("config", type=str, help="Name of the config file")
     parser.add_argument(

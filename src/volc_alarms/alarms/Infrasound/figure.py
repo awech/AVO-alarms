@@ -129,6 +129,8 @@ def make_figure(target, T0, config, mx_pressure, test=False):
         len(tr.data),
     )
     ax["infra_trace"].plot(tvec, tr.data, lw=0.2, c="k")
+    bound = np.max(np.abs(ax["infra_trace"].get_ylim()))
+    ax["infra_trace"].set_ylim(-bound, bound)
     ax["infra_trace"].set_title(config.alarm_name + " Alarm: " + target["name"] + " detection!", fontsize=8)
     ax["infra_trace"].set_ylabel("Pressure\n[Pa]", fontsize=5)
     # Compact y-ticks: few ticks + scientific offset for small/noise values

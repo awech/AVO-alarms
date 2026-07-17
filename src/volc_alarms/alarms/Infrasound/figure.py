@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import dates, ticker
 from matplotlib.dates import DateFormatter
+from obspy import Stream
 
 from volc_alarms.utils import downloading, plotting, processing
 from volc_alarms.utils.setup_utils import get_logger
@@ -76,8 +77,19 @@ def make_figure(target, T0, config, mx_pressure, test=False):
 
     #### preprocess infrasound data ####
     infra = processing.preprocess_stream(infra, t1, t2, config)
-    infra = processing.add_metadata(infra)
-    infra = processing.remove_gain(infra)
+    good_data, skip_chans = detection.QC_data(infra, config)
+    # Add coordinates/inventory metadata, then remove gain
+    infra = Stream([tr for tr in infra if tr.id not in skip_chans])
+    if isinstance(config.nslc, dict):
+        # Manual metadata from config: attach coordinates and divide by gain
+        for tr in infra:
+            params = config.nslc[tr.id]
+            tr.stats.coordinates = {"latitude": params["lat"], "longitude": params["lon"], "elevation": 0.0}
+            tr.data = tr.data / params["gain"]
+    else:
+        # Lookup from station XML
+        infra = processing.add_metadata(infra)
+        infra = processing.remove_gain(infra)
 
     #### run LTS ####
     config = detection.get_target_backazimuth(infra, config)

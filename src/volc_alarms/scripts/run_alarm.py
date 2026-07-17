@@ -125,7 +125,7 @@ def main():
     config = load_config(args.config)
     if getattr(config, "kill", False):
         logger.warning(f"Kill switch active for {args.config} — skipping alarm")
-        messaging.icinga(config, "WARNING", f"{args.config} alarm has been killed")
+        messaging.icinga(config, "WARNING", f"{args.config} alarm has been killed", send=args.icinga)
         lock.release()
         return
 

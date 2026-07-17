@@ -84,6 +84,11 @@ def load_environment(env_file=None):
     os.environ.setdefault("VAA_URL", VAA_URL)
     os.environ.setdefault("SACS_URL", SACS_URL)
 
+    # --- SMTP defaults (overridden by .env or shell exports) ---
+    # 'ssl' -> implicit TLS (smtplib.SMTP_SSL, typically port 465)
+    # 'starttls' -> connect in the clear then upgrade (typically port 587)
+    os.environ.setdefault("SMTP_SECURITY", "ssl")
+
     # --- Non-path defaults ---
     os.environ.setdefault("TIMEZONE", _detect_system_tz())
     os.environ.setdefault("LOG_HOUR_INTERVAL", "12")

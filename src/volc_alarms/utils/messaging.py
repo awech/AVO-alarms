@@ -2,6 +2,7 @@ import json
 import os
 import re
 import smtplib
+import ssl
 import time
 import warnings
 from email import encoders
@@ -216,9 +217,16 @@ def send_alert(alarm_name, subject, body, attachment=None, test=False):
             part.add_header("Content-Disposition", f"attachment; filename={file.name}")
             msg.attach(part)
 
-    server = smtplib.SMTP_SSL(
-        host=os.environ["SMTP_IP"], port=os.environ["SMTP_PORT"]
-    )
+    host = os.environ["SMTP_IP"]
+    port = int(os.environ["SMTP_PORT"])
+    security = os.environ.get("SMTP_SECURITY", "ssl").strip().lower()
+
+    if security == "starttls":
+        server = smtplib.SMTP(host=host, port=port)
+        server.starttls(context=ssl.create_default_context())
+    else:
+        server = smtplib.SMTP_SSL(host=host, port=port)
+
     text = msg.as_string()
     server.sendmail(fromaddr, recipients, text)
     server.quit()

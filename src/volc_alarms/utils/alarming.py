@@ -143,7 +143,7 @@ def get_conn(test=False, table=None):
 
 def record_send(config, T0, volcano=None, event_id=None, test=False):
 
-    process_time = iso_utc(T0.datetime)
+    process_time = iso_utc(T0.datetime.replace(tzinfo=timezone.utc))
     send_time = iso_utc(now_utc())
 
     if hasattr(config, "volcano_name"):
@@ -175,10 +175,7 @@ def can_send(config, volcano="*", T0=None, test=False):
     if not (has_memory and has_max):
         return True
 
-    if not T0:
-        now = now_utc()
-    else:
-        now = T0.datetime
+    now = T0.datetime.replace(tzinfo=timezone.utc) if T0 else now_utc()
 
     cutoff_iso = iso_utc(now - timedelta(seconds=config.alert_memory))
     now_iso = iso_utc(now)
@@ -215,7 +212,7 @@ def next_send_after(config, volcano="*", T0=None, test=False):
     if not (has_memory and has_max):
         return None
 
-    now = T0.datetime if T0 else now_utc()
+    now = T0.datetime.replace(tzinfo=timezone.utc) if T0 else now_utc()
     cutoff_iso = iso_utc(now - timedelta(seconds=config.alert_memory))
     now_iso = iso_utc(now)
 

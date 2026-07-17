@@ -12,11 +12,10 @@ figure.titlesize: 24
 savefig.bbox: tight
 
 # AXIS LEVEL
-axes.linewidth: 0.75
+axes.linewidth: 0.65
 axes.facecolor: white
-axes.labelsize: 12
-# axes.prop_cycle: cycler(marker = ['o','s','^','D'], linestyle = ['-','--',':','-.']) * cycler(color = ["#009ADE","#FF1F5B","#00CD6C","#AF58BA","#FFC61E","#089099","#F28522","#A0B1BA","#045275",], markeredgecolor = ["#009ADE","#FF1F5B","#00CD6C","#AF58BA","#FFC61E","#089099","#F28522","#A0B1BA","#045275",])
-axes.titlesize: 14
+axes.labelsize: 8
+axes.titlesize: 8
 axes.titlelocation: center
 errorbar.capsize: 0
 
@@ -32,23 +31,23 @@ mathtext.fontset: stixsans
 xtick.bottom: True
 xtick.top: False
 xtick.direction: out
-xtick.major.size: 5
-xtick.major.width: 1
-xtick.minor.size: 3
-xtick.minor.width: 0.5
+xtick.major.size: 3
+xtick.major.width: 0.65
+xtick.minor.size: 1.5
+xtick.minor.width: 0.3
 xtick.minor.visible: False
-xtick.labelsize: 6
+xtick.labelsize: 5
 
 # Y-TICK
 ytick.left: True
 ytick.right: True
 ytick.direction: out
-ytick.major.size: 5
-ytick.major.width: 1
-ytick.minor.size: 3
-ytick.minor.width: 0.5
+ytick.major.size: 3
+ytick.major.width: 0.65
+ytick.minor.size: 1.5
+ytick.minor.width: 0.3
 ytick.minor.visible: False
-ytick.labelsize: 6
+ytick.labelsize: 5
 
 # MARKER
 lines.linewidth: 1.5

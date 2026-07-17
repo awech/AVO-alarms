@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import dates, ticker
 from matplotlib.dates import DateFormatter
+from obspy import Stream
 
 from volc_alarms.utils import downloading, plotting, processing
 from volc_alarms.utils.setup_utils import get_logger
@@ -76,8 +77,19 @@ def make_figure(target, T0, config, mx_pressure, test=False):
 
     #### preprocess infrasound data ####
     infra = processing.preprocess_stream(infra, t1, t2, config)
-    infra = processing.add_metadata(infra)
-    infra = processing.remove_gain(infra)
+    good_data, skip_chans = detection.QC_data(infra, config)
+    # Add coordinates/inventory metadata, then remove gain
+    infra = Stream([tr for tr in infra if tr.id not in skip_chans])
+    if isinstance(config.nslc, dict):
+        # Manual metadata from config: attach coordinates and divide by gain
+        for tr in infra:
+            params = config.nslc[tr.id]
+            tr.stats.coordinates = {"latitude": params["lat"], "longitude": params["lon"], "elevation": 0.0}
+            tr.data = tr.data / params["gain"]
+    else:
+        # Lookup from station XML
+        infra = processing.add_metadata(infra)
+        infra = processing.remove_gain(infra)
 
     #### run LTS ####
     config = detection.get_target_backazimuth(infra, config)
@@ -117,6 +129,8 @@ def make_figure(target, T0, config, mx_pressure, test=False):
         len(tr.data),
     )
     ax["infra_trace"].plot(tvec, tr.data, lw=0.2, c="k")
+    bound = np.max(np.abs(ax["infra_trace"].get_ylim()))
+    ax["infra_trace"].set_ylim(-bound, bound)
     ax["infra_trace"].set_title(config.alarm_name + " Alarm: " + target["name"] + " detection!", fontsize=8)
     ax["infra_trace"].set_ylabel("Pressure\n[Pa]", fontsize=5)
     # Compact y-ticks: few ticks + scientific offset for small/noise values
@@ -125,6 +139,16 @@ def make_figure(target, T0, config, mx_pressure, test=False):
     _pa_fmt.set_powerlimits((-1, 2))
     ax["infra_trace"].yaxis.set_major_formatter(_pa_fmt)
     ax["infra_trace"].yaxis.get_offset_text().set_fontsize(5)
+    # Note the channel and frequency on the right side
+    ax2 = ax["infra_trace"].twinx()
+    ax2.set_yticks([])
+    ax2.set_ylabel(
+        f"{tr.id}\n"
+        "--------------------\n"
+        f"{config.f1:.1f} - {config.f2:.1f} Hz",
+        labelpad=4,
+        fontsize=5,
+    )
 
     ##### plot infrasound backazimuth #####
     ax["azimuth"].errorbar(
@@ -181,9 +205,13 @@ def make_figure(target, T0, config, mx_pressure, test=False):
     sc2.set_clim([0.2, 1.0])
 
     if hasattr(target, "array_label") and target["array_label"] == "Hydroacoustic":
-        ax["velocity"].set_ylim(1.2, 1.8)  # Typical range for hydroacoustic arrays
+        vmin_plot = target["vmin"] - 0.1 if target["vmin"] <= 1.2 else 1.2
+        vmax_plot = target["vmax"] + 1.8 if target["vmax"] >= 1.8 else 1.8
     else:
-        ax["velocity"].set_ylim(0.15, 0.6)  # Typical range for other arrays
+        vmin_plot = target["vmin"] - 0.1 if target["vmin"] <= 0.15 else 0.15
+        vmax_plot = target["vmax"] + 0.1 if target["vmax"] >= 0.6 else 0.6
+
+    ax["velocity"].set_ylim(vmin_plot, vmax_plot)  # Typical range for other arrays
     ax["velocity"].set_ylabel("Velocity\n[km/s]", fontsize=5)
 
     add_mccm_colorbar(ax["azimuth"], ax["velocity"], fig, sc)

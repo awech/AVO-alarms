@@ -123,7 +123,7 @@ def make_map(
     basemap="hillshade",
     projection="mercator",
     land_color="#CBCBCBFF",
-    water_color="#B8F1FF",
+    water_color="#A8C1D9",
     extent=None
 ):
     """

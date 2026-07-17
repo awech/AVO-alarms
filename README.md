@@ -28,8 +28,8 @@ Optional (AVO-specific, install with `pip install .[avo]`):
 
 ## Install
 ```bash
-pip install .            # core dependencies
-pip install .[avo]       # include AVO-specific extras (mattermost, enveloc, etc.)
+pip install -e .            # core dependencies
+pip install -e .[avo]       # include AVO-specific extras (mattermost, enveloc, etc.)
 ```
 
 ## Running it
@@ -37,7 +37,7 @@ Copy `.env_example` to `.env` and fill in the relevant system parameters.
 
 Usage:
 ```
-run-alarm <config_name> [-t DATETIME] [--test] [--force] [--mm/--no-mm] [--icinga/--no-icinga]
+run-alarm <config_name> [-t/--time DATETIME] [--test] [--force] [--earthscope] [--mm] [--icinga] [--env-file]
 ```
 
 Examples:

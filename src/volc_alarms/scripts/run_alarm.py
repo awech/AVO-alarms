@@ -30,15 +30,9 @@ def parse_args():
 
     parser = argparse.ArgumentParser(
         prog="run-alarm",
-        epilog="e.g.: `run-alarm avlof_RSAM` or `run-alarm --test -t 201701020205 -c Pavlof_RSAM`",
+        epilog="e.g.: `run-alarm avlof_RSAM` or `run-alarm --test -t 201701020205 Pavlof_RSAM`",
     )
     parser.add_argument("config", type=str, help="Name of the config file")
-    parser.add_argument(
-        "--env-file",
-        type=str,
-        help="Path to a .env file (optional, otherwise searches up the directory tree)",
-        required=False,
-    )
     parser.add_argument(
         "-t",
         "--time",
@@ -64,6 +58,12 @@ def parse_args():
         "--icinga",
         help="Send heartbeat to icinga (off unless this flag is passed)",
         action="store_true",
+    )
+    parser.add_argument(
+        "--env-file",
+        type=str,
+        help="Path to a .env file (optional, otherwise searches up the directory tree)",
+        required=False,
     )
 
     return parser.parse_args()
@@ -125,7 +125,7 @@ def main():
     config = load_config(args.config)
     if getattr(config, "kill", False):
         logger.warning(f"Kill switch active for {args.config} — skipping alarm")
-        messaging.icinga(config, "WARNING", f"{args.config} alarm has been killed")
+        messaging.icinga(config, "WARNING", f"{args.config} alarm has been killed", send=args.icinga)
         lock.release()
         return
 

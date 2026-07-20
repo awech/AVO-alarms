@@ -75,6 +75,7 @@ def load_environment(env_file=None):
     os.environ.setdefault("WINSTON_HOST", "127.0.0.1")
     os.environ.setdefault("WINSTON_PORT", "16022")
     os.environ.setdefault("TIMEOUT", "20")
+    os.environ.setdefault("FDSN_TIMEOUT", "60")
 
     # --- URL defaults (overridden by .env or shell exports) ---
     PIREP_URL = "https://mesonet.agron.iastate.edu/cgi-bin/request/gis/pireps.py"

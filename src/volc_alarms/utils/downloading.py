@@ -19,7 +19,12 @@ from obspy.io.quakeml.core import Unpickler
 from volc_alarms.utils.setup_utils import get_logger
 
 urllib3.disable_warnings()
+
+# Default socket timeout for legacy clients (earthworm, etc.)
 socket.setdefaulttimeout(15)
+
+# Timeout (in seconds) for obspy FDSN client HTTP operations.
+FDSN_TIMEOUT = int(os.environ.get("FDSN_TIMEOUT", 60))
 
 logger = get_logger(__name__)
 
@@ -29,7 +34,7 @@ def Earthscope_client():
     attempt = 1
     while attempt <= 3:
         try:
-            client = FDSN_Client("earthscope")
+            client = FDSN_Client("earthscope", timeout=FDSN_TIMEOUT)
             break
         except Exception as e:
             logger.warning(f"Earthscope client connection attempt {attempt} failed: {e}")
@@ -149,7 +154,7 @@ def download_waveforms(nslc_list, T1, T2):
     st = Stream()
 
     if os.environ.get("USE_EARTHSCOPE"):
-        client = FDSN_Client("earthscope")
+        client = FDSN_Client("earthscope", timeout=FDSN_TIMEOUT)
     else:
         client = EW_Client(
             os.environ["WINSTON_HOST"],

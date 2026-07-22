@@ -440,6 +440,42 @@ def remove_alarm_ids(alarm_id, t_start, t_end, test=False):
     return
 
 
+def remove_catalog_entries(t_start, t_end, table, test=False):
+    """Remove entries from the tremor or swarm catalog within a time range.
+
+    Parameters
+    ----------
+    t_start : str or datetime
+        Start of time range to delete.
+    t_end : str or datetime
+        End of time range to delete.
+    table : str
+        Which catalog table to target: 'tremor' or 'swarm'.
+    test : bool
+        Use test tables if True.
+    """
+    if table not in ("tremor", "swarm"):
+        raise ValueError(f"table must be 'tremor' or 'swarm', got '{table}'")
+
+    if isinstance(t_start, str):
+        t_start = iso_utc(pd.to_datetime(t_start).to_pydatetime())
+    if isinstance(t_end, str):
+        t_end = iso_utc(pd.to_datetime(t_end).to_pydatetime())
+
+    table_name = resolve_table_name(test, table=table)
+    conn = get_conn(test=test, table=table)
+    try:
+        conn.execute(
+            f"""
+            DELETE FROM {table_name}
+            WHERE time >= '{t_start}'
+            AND time <= '{t_end}';
+            """
+        )
+    finally:
+        conn.close()
+
+
 def filter_dataframe(df, id_column="id", test=False, table=None):
 
     if id_column not in df.columns:

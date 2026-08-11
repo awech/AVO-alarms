@@ -98,7 +98,11 @@ def run_alarm(config,T0):
         if np.any(np.abs(d_Azimuth) < az_tolerance):
             # v_ind=np.argmax(np.abs(d_Azimuth) < az_tolerance)
             v_ind=np.argmin(np.abs(d_Azimuth))
-            mx_pressure=np.max(np.array([np.max(np.abs(tr.data)) for tr in st]))*config.digouti
+            if "DLL" in config.alarm_name:
+                print("Getting DLL max pressure")
+                mx_pressure = np.max(np.abs(st[0].data))*config.digouti
+            else:
+                mx_pressure=np.max(np.array([np.max(np.abs(tr.data)) for tr in st]))*config.digouti
             if config.VOLCANO[v_ind]['vmin'] < velocity < config.VOLCANO[v_ind]['vmax'] and mx_pressure > config.VOLCANO[v_ind]['min_pa']:
                 #### DETECTION ####
                 volcano=config.VOLCANO[v_ind]

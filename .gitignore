@@ -11,3 +11,4 @@ logs/*.log
 distribution.xlsx
 .env
 
+.vscode/*

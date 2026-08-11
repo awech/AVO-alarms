@@ -9,9 +9,13 @@ import os
 import sys
 import traceback
 import warnings
+from importlib import import_module
+from dotenv import load_dotenv
 
 import time
 start=time.time()
+load_dotenv()
+sys.path.append(os.environ.get("CONFIGS_DIR"))
 
 # don't write .pyc files (probably slightly faster without this, but more cluttered)
 sys.dont_write_bytecode = True
@@ -61,12 +65,11 @@ else:
 		sys.exit()
 try:
 	# import the config file for the alarm you're running
-	exec('import alarm_configs.{} as config'.format(sys.argv[1]))
+	config = import_module(sys.argv[1])
 	# import alarm module specified in config file
-	ALARM=__import__('alarm_codes.'+config.alarm_type)
-
+	ALARM = import_module(f"alarm_codes.{config.alarm_type}")
 	# run the alarm
-	eval('ALARM.{}.run_alarm(config,T0)'.format(config.alarm_type))
+	ALARM.run_alarm(config, T0)
 
 # if error, send message to designated recipients
 except:

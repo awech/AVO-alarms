@@ -27,6 +27,7 @@ while attempt <= 3:
 		client = Client('IRIS')
 		break
 	except:
+		print("Cannot connect to IRIS")
 		time.sleep(2)
 		attempt+=1
 		client = None

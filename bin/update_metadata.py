@@ -3,7 +3,7 @@
 
 import os
 import sys
-sys.path.append('/alarms')
+sys.path.append('/alarms-old')
 from obspy import UTCDateTime
 from alarm_codes import utils
 

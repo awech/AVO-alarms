@@ -7,7 +7,7 @@ from glob import glob
 import numpy as np
 
 import sys
-sys.path.append('/alarms')
+sys.path.append('/alarms-old')
 from alarm_codes import utils
 
 A=pd.read_excel(os.environ['HOME_DIR']+'/distribution.xlsx')

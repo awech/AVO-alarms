@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import sys
-sys.path.append('/alarms')
+sys.path.append('/alarms-old')
 from alarm_codes import utils
 
 def config():

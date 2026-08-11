@@ -49,9 +49,13 @@ def grab_data(scnl,T1,T2,fill_value=0):
 			tr=client.get_waveforms(sta.split('.')[2], sta.split('.')[0],sta.split('.')[3],sta.split('.')[1], T1, T2, cleanup=True)
 			if len(tr)>1:
 				print('{:.0f} traces for {}'.format(len(tr),sta))
-				if fill_value==0 or fill_value==None:
-					tr.detrend('demean')
-					tr.taper(max_percentage=0.01)
+				if "DLL" not in tr[0].id:
+					print("Not DLL. Using old fill.")
+					if fill_value==0 or fill_value==None:
+						tr.detrend('demean')
+						tr.taper(max_percentage=0.01)
+				else:
+					print("DLL. Not using old fill.")
 				for sub_trace in tr:
 					# deal with error when sub-traces have different dtypes
 					if sub_trace.data.dtype.name != 'int32':
@@ -62,7 +66,11 @@ def grab_data(scnl,T1,T2,fill_value=0):
 					if sub_trace.stats.sampling_rate!=round(sub_trace.stats.sampling_rate):
 						sub_trace.stats.sampling_rate=round(sub_trace.stats.sampling_rate)
 				print('Merging gappy data...')
-				tr.merge(fill_value=fill_value)
+				if "DLL" not in tr[0].id:
+					tr.merge(fill_value=fill_value)
+				else:
+					print("Gappy DLL data. Interpolating")
+					tr.merge(fill_value="interpolate")
 		except:
 			tr=Stream()
 		# if no data, create a blank trace for that channel

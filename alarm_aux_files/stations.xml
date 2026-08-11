@@ -4,7 +4,7 @@
   <Sender>IRIS-DMC</Sender>
   <Module>ObsPy 1.4.0</Module>
   <ModuleURI>https://www.obspy.org</ModuleURI>
-  <Created>2026-02-19T19:58:23.837908Z</Created>
+  <Created>2026-06-29T15:58:59.970966Z</Created>
   <Network code="AV" startDate="1988-01-01T00:00:00.000000Z" restrictedStatus="open">
     <Description>Alaska Volcano Observatory (AVO)</Description>
     <Identifier type="DOI">10.7914/SN/AV

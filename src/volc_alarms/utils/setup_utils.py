@@ -166,6 +166,13 @@ def looks_like_path(value):
     if value.startswith(('.', '~', '$')):
         return True
 
+    # Reject NSLC channel names (e.g. "AV.DLL.01.BDF")
+    # These always have exactly 3 dots: net.sta.loc.chan
+    if value.count('.') == 3:
+        parts = value.split('.')
+        if all(re.fullmatch(r'[a-zA-Z0-9_-]*', p) for p in parts):
+            return False
+
     # Check for filename with extension pattern
     # Matches patterns like "file.txt", "config.yml", etc.
     if re.search(r'[a-zA-Z0-9_-]+\.[a-zA-Z0-9]{2,}$', value):

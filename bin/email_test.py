@@ -5,7 +5,7 @@ from obspy import UTCDateTime
 
 import sys
 
-sys.path.append("/alarms")
+sys.path.append("/alarms-old")
 from alarm_codes import utils
 
 if os.getenv("FROMCRON") == "yep":

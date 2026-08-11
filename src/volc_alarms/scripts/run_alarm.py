@@ -8,17 +8,6 @@ from importlib import import_module
 from importlib.resources import files
 from pathlib import Path
 
-from obspy import UTCDateTime as utc
-
-from volc_alarms.utils import messaging
-from volc_alarms.utils.setup_utils import (
-    LockFile,
-    get_logger,
-    load_config,
-    load_environment,
-    setup_root_logger,
-)
-
 
 def parse_args():
     """
@@ -71,6 +60,8 @@ def parse_args():
 
 def update_arguments(args):
 
+    from obspy import UTCDateTime as utc
+
     if args.force:
         args.test = True
 
@@ -85,7 +76,18 @@ def update_arguments(args):
 
 def main():
     """Main entry point for the alarm runner."""
-    
+
+    from obspy import UTCDateTime as utc
+
+    from volc_alarms.utils import messaging
+    from volc_alarms.utils.setup_utils import (
+        LockFile,
+        get_logger,
+        load_config,
+        load_environment,
+        setup_root_logger,
+    )
+
     start = time.time()
 
     args = parse_args()

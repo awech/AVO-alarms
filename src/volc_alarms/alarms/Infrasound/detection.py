@@ -96,14 +96,13 @@ def get_pressures(st, t, config):
         np.ndarray: Array of pressure values.
     """
 
-    if hasattr(config, "plotchan") and config.plotchan is not None:
-        st = st.select(id=config.plotchan)
     pressure = []
     for ti in t:
         t1 = utc(dates.num2date(ti)) - config.lts_window_length / 2
         t2 = t1 + config.lts_window_length
-        tr_win = st[0].slice(t1, t2)
-        pressure.append(np.max(np.abs(tr_win.data)))
+        st_win = st.slice(t1, t2)
+        mx_pressures = np.array([np.max(np.abs(tr_win.data)) for tr_win in st_win])
+        pressure.append(np.median(mx_pressures))
     pressure = np.array(pressure)
     return pressure
 

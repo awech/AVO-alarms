@@ -80,9 +80,9 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     ##### merge new event with old events #####
     locs_dict = {
         "time": [pd.to_datetime(location.starttime.datetime) for location in loc.events],
-        "latitude": loc.get_lats(),
-        "longitude": loc.get_lons(),
-        "depth": loc.get_depths(),
+        "latitude": np.round(loc.get_lats(), 5),
+        "longitude": np.round(loc.get_lons(), 5),
+        "depth": np.round(loc.get_depths(), 2),
     }
     new_tremor_df = pd.DataFrame(locs_dict)
     new_tremor_df["volcano"] = config.volcano

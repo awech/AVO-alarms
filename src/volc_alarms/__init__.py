@@ -1,19 +1,11 @@
 """Volcano monitoring alarm system."""
 
-__version__ = "0.1.0"
+from importlib.metadata import version, PackageNotFoundError
 
-from volc_alarms.alarms import (
-    Infrasound,
-    Lightning,
-    Magnitude,
-    NOAA_CIMSS,
-    Pilot_Report,
-    RSAM,
-    SO2,
-    Swarm,
-    Tremor,
-    VAA,
-)
+try:
+    __version__ = version("volc-alarms")
+except PackageNotFoundError:
+    __version__ = "0.0.0"
 
 __all__ = [
     "Infrasound",
@@ -27,3 +19,14 @@ __all__ = [
     "Tremor",
     "VAA",
 ]
+
+
+def __getattr__(name):
+    """Lazy-load alarm submodules on first access."""
+    if name in __all__:
+        from importlib import import_module
+
+        module = import_module(f"volc_alarms.alarms.{name}")
+        globals()[name] = module
+        return module
+    raise AttributeError(f"module 'volc_alarms' has no attribute {name!r}")

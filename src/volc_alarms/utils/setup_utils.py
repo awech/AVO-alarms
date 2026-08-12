@@ -208,6 +208,40 @@ def _evaluate_math_expr(value):
     return result
 
 
+def _apply_math_expressions(config):
+    """Evaluate arithmetic expressions in math-eligible config keys.
+
+    Processes both top-level attributes and nested structures (lists of dicts,
+    plain dicts) so that expressions like ``"350/100"`` or ``"3600 * 24"`` in
+    keys named ``value`` or ``duration`` are resolved to numeric results.
+
+    Parameters
+    ----------
+    config : types.SimpleNamespace
+        The parsed config object (modified in place).
+    """
+    math_eligible_keys = {"value", "duration"}
+
+    # Top-level attributes
+    for key in math_eligible_keys:
+        if hasattr(config, key):
+            setattr(config, key, _evaluate_math_expr(getattr(config, key)))
+
+    # Nested lists of dicts (e.g. rsam_stations) and plain dicts (e.g. arrestor)
+    for key in vars(config):
+        attr = getattr(config, key)
+        if isinstance(attr, list):
+            for item in attr:
+                if isinstance(item, dict):
+                    for subkey in math_eligible_keys:
+                        if subkey in item:
+                            item[subkey] = _evaluate_math_expr(item[subkey])
+        elif isinstance(attr, dict):
+            for subkey in math_eligible_keys:
+                if subkey in attr:
+                    attr[subkey] = _evaluate_math_expr(attr[subkey])
+
+
 def load_config(config_name):
     """
     Load configuration from a YAML file in CONFIGS_DIR.
@@ -262,11 +296,8 @@ def load_config(config_name):
         if isinstance(value, str) and looks_like_path(value):
             setattr(config, key, Path(value))
 
-    # Evaluate simple arithmetic expressions (e.g. "280*2.5") for eligible keys
-    math_eligible_keys = {"value", "duration"}
-    for key in math_eligible_keys:
-        if hasattr(config, key):
-            setattr(config, key, _evaluate_math_expr(getattr(config, key)))
+    # Evaluate simple arithmetic expressions (e.g. "280*2.5", "350/100")
+    _apply_math_expressions(config)
 
     # Apply waveform defaults for seismo-acoustic alarm types
     if config.alarm_type in ("RSAM", "Infrasound", "Tremor"):

@@ -1,0 +1,65 @@
+{
+  "call_order": [
+    "download_lightning",
+    "filter_dataframe",
+    "filter_dataframe",
+    "can_send",
+    "plot_fig",
+    "post_mattermost",
+    "send_alert",
+    "record_send",
+    "os.remove",
+    "icinga",
+    "icinga"
+  ],
+  "detection_state": "CRITICAL",
+  "icinga": [
+    {
+      "send": true,
+      "state": "CRITICAL",
+      "state_message": "2025-01-01 00:00 (UTC) Pavlof Lightning Detection! 2 new strokes! 2 strokes < 20 km (20 km < 0 < 100 km) in past 60 minutes."
+    },
+    {
+      "send": true,
+      "state": "CRITICAL",
+      "state_message": "2025-01-01 00:00 (UTC) Pavlof Lightning Detection! 2 new strokes! 2 strokes < 20 km (20 km < 0 < 100 km) in past 60 minutes."
+    }
+  ],
+  "os_remove": [
+    "<FIGURE>"
+  ],
+  "post_mattermost": [
+    {
+      "body": "\n2 new strokes! (2 total)\n\n-- Most recent --\n2024-12-31 23:30 UTC\n2024-12-31 23:30 UTC\n2 km ESE of Pavlof,\n\nData source: Earth Networks",
+      "channel_ids": null,
+      "send": true,
+      "subject": "--- Pavlof Lightning ---",
+      "test": true,
+      "volcano": null
+    }
+  ],
+  "record_send": [
+    {
+      "alarm_id": "Lightning",
+      "event_id": "L1",
+      "process_time": "2025-01-01T00:00:00",
+      "test": true,
+      "volcano": "Pavlof"
+    },
+    {
+      "alarm_id": "Lightning",
+      "event_id": "L2",
+      "process_time": "2025-01-01T00:00:00",
+      "test": true,
+      "volcano": "Pavlof"
+    }
+  ],
+  "send_alert": [
+    {
+      "alarm_name": "Lightning",
+      "body": "\n2 new strokes! (2 total)\n\n-- Most recent --\n2024-12-31 23:30 UTC\n2024-12-31 23:30 UTC\n2 km ESE of Pavlof,\n\nData source: Earth Networks\n\nmattermost://test-server/post-id",
+      "subject": "--- Pavlof Lightning ---",
+      "test": true
+    }
+  ]
+}

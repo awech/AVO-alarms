@@ -1,0 +1,51 @@
+{
+  "call_order": [
+    "download_waveforms",
+    "download_waveforms",
+    "can_send",
+    "make_figure",
+    "post_mattermost",
+    "send_alert",
+    "record_send",
+    "os.remove",
+    "icinga"
+  ],
+  "detection_state": "CRITICAL",
+  "icinga": [
+    {
+      "send": true,
+      "state": "CRITICAL",
+      "state_message": "2025-01-01 00:00 (UTC) RSAM detection! CEAP: 2121/650 (RD = 16.5), CERA: 2121/750 (RD = 14.0), CETU: 2121/650 (RD = 16.6), CESW: 0/900 (RD = 0.0), Arrestor (AMKA): 4/350[3 station minimum,1 -- 5 Hz]"
+    }
+  ],
+  "os_remove": [
+    "<FIGURE>"
+  ],
+  "post_mattermost": [
+    {
+      "body": "Start: 2024-12-31 23:55 (UTC)\nEnd: 2025-01-01 00:00 (UTC)\n\nStart: 2024-12-31 23:55 (UTC)\nEnd: 2025-01-01 00:00 (UTC)\n\nCEAP*: 2121/650 (RD = 16.5)\nCERA*: 2121/750 (RD = 14.0)\nCETU*: 2121/650 (RD = 16.6)\nCESW: 0/900 (RD = 0.0)\n\nArrestor: AMKA 4/350",
+      "channel_ids": null,
+      "send": true,
+      "subject": "--- Semisopochnoi RSAM ---",
+      "test": false,
+      "volcano": null
+    }
+  ],
+  "record_send": [
+    {
+      "alarm_id": "Semisopochnoi RSAM",
+      "event_id": null,
+      "process_time": "2025-01-01T00:00:00",
+      "test": false,
+      "volcano": "Semisopochnoi"
+    }
+  ],
+  "send_alert": [
+    {
+      "alarm_name": "Semisopochnoi RSAM",
+      "body": "Start: 2024-12-31 23:55 (UTC)\nEnd: 2025-01-01 00:00 (UTC)\n\nStart: 2024-12-31 23:55 (UTC)\nEnd: 2025-01-01 00:00 (UTC)\n\nCEAP*: 2121/650 (RD = 16.5)\nCERA*: 2121/750 (RD = 14.0)\nCETU*: 2121/650 (RD = 16.6)\nCESW: 0/900 (RD = 0.0)\n\nArrestor: AMKA 4/350\n\nmattermost://test-server/post-id",
+      "subject": "--- Semisopochnoi RSAM ---",
+      "test": false
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+alarm_type: RSAM                  # designates which alarm module will be imported and executed
+alarm_name: Semisopochnoi RSAM    # alarm name sent to icinga and in message alerts
+
+# Stations list
+rsam_stations:
+  - nslc: AV.CEAP..BHZ
+    value: 650
+  - nslc: AV.CERA..BHZ
+    value: 750
+  - nslc: AV.CETU..BHZ
+    value: 650
+  - nslc: AV.CESW..BHZ
+    value: 900
+
+# Arrestor station
+arrestor:
+  nslc: AV.AMKA..BHZ
+  value: 350
+
+# Processing parameters
+f1: 1.0                # minimum frequency for bandpass filter
+f2: 5.0                # maximum frequency for bandpass filter
+min_sta: 3             # minimum number of stations for detection
+# duration: 300        # Optional. Total window duration. Default: 300 s
+# taper: 5             # Optional. Pre-filter taper. Default: 5 s
+# latency: 10          # Optional. Delay when run from cron for data latency. Default: 10 s
+
+# Alerting parameters
+alert_memory: 3600     # lookback window (seconds)
+max_alerts: 3          # max alerts within that window
+
+# Plotting parameters
+# plot_duration: 3600  # Optional. Window length for spectrogram plot. Default 3600 s
+infrasound:            # Optional. List of infrasound channels to plot
+  - AV.CERB..BDF
+  - AV.CESW..BDF
+
+# Optinal volcano name used for calculating reduced displacement
+# Name and lat/lon must be in target list file set as environment variable
+volcano_name: Semisopochnoi

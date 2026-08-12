@@ -1,0 +1,23 @@
+# Default behavior is alerts are sent to "All Alarms" list below unless another
+# alarm name is specified, which will override the default for just that alarm.
+# NOTE: The alarm header must match `alarm_name` variable in corresponding config file.
+#
+# CRITICAL: Recipients must be defined in `config/phonebook.yml` or equivalent file
+#           defined in environment variable PHONEBOOK_FILE
+
+All Alarms:
+  - Johnny Volcano
+  - Dolly Lava
+  - Duty Scientist
+
+Earthquake Swarm:
+  - Johnny Volcano
+
+PIREP:
+  - Ruby Caldera
+
+Error:
+  - Bob
+
+Test:
+  - Dolly Lava

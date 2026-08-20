@@ -103,6 +103,9 @@ def process_vaa_id(vaa_id):
 
     vaa["header"] = vaa_info[0]
 
+    if "TEST VAA" in vaa["header"]:
+        return None
+
     for row in rows:
         for line in vaa_info:
             if row + ":" in line and "VA " + row + ":" not in line:

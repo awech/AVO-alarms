@@ -13,7 +13,7 @@ def create_message(vaa):
     volcano_name = "".join(vaa["VOLCANO"].split(" ")[:-1]).title()
     subject = f'{volcano_name} Volcanic Ash Advisory'
 
-    t = UTCDateTime(vaa["DTG"])
+    t = UTCDateTime(vaa["time"])
     time_txt = messaging.format_timestring(t)
 
     try:

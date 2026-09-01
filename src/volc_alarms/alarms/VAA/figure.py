@@ -61,7 +61,7 @@ def make_map(vaa, config, test=False):
     ax.legend(fontsize=6, loc='lower left')
 
     volcano_name = "".join(vaa["VOLCANO"].split(" ")[:-1]).title()
-    vaa_time = UTCDateTime(vaa["DTG"]).strftime("%Y-%m-%d %H:%M")
+    vaa_time = UTCDateTime(vaa["time"]).strftime("%Y-%m-%d %H:%M")
 
     ax.set_title(
         f"{volcano_name} VAA\n{level_0}\n{vaa_time}", fontsize=10

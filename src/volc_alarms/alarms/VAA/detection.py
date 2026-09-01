@@ -70,52 +70,103 @@ def fetch_vaa_page(url, max_tries=3, timeout=10, backoff=2):
     return None
 
 
+VAA_FIELDS = [
+    "DTG",
+    "VAAC",
+    "VOLCANO",
+    "PSN",
+    "AREA",
+    "SUMMIT ELEV",
+    "SOURCE ELEV",
+    "ADVISORY NR",
+    "INFO SOURCE",
+    "AVIATION COLOR CODE",
+    "ERUPTION DETAILS",
+    "OBS VA DTG",
+    "OBS VA CLD",
+    "FCST VA CLD +6HR",
+    "FCST VA CLD +12HR",
+    "FCST VA CLD +18HR",
+    "RMK",
+    "NXT ADVISORY",
+]
+
+
+def parse_vaa_fields(text, fields=None):
+    """Parse a VAA text product into a dict of field label -> value.
+
+    Handles both advisory layouts: fields separated by blank lines, and fields
+    on consecutive lines with no blank separators. Walks line by line, starting
+    a new field on any known ``LABEL:`` and treating other non-blank lines as
+    continuations. Newlines inside a value are preserved so polygon parsing can
+    still split on them. ``"header"`` holds the lines before the first field.
+    """
+    if fields is None:
+        fields = VAA_FIELDS
+
+    # Longest label first so e.g. "OBS VA DTG" is preferred over "DTG".
+    labels = sorted(fields, key=len, reverse=True)
+
+    vaa = {}
+    header_lines = []
+    current = None
+
+    for line in text.splitlines():
+        stripped = line.strip()
+
+        matched = None
+        for label in labels:
+            if stripped.startswith(label + ":"):
+                matched = label
+                break
+
+        if matched is not None:
+            current = matched
+            vaa[current] = stripped[len(matched) + 1:].strip().rstrip("=").rstrip()
+        elif not stripped:
+            continue
+        elif current is not None:
+            vaa[current] = f"{vaa[current]}\n{stripped.rstrip('=').rstrip()}".strip("\n")
+        else:
+            header_lines.append(stripped)
+
+    vaa["header"] = "\n".join(header_lines)
+    return vaa
+
+
+def parse_vaa_dtg(dtg):
+    """Convert a VAA ``DTG`` string to a UTC timestamp.
+
+    Advisories use either ``YYYYMMDD/HHMMZ`` or the abbreviated ``YYMMDD/HHMMZ``.
+    """
+    date_txt, _, time_txt = dtg.strip().rstrip("Z").partition("/")
+    fmt = "%Y%m%d%H%M" if len(date_txt) == 8 else "%y%m%d%H%M"
+    return pd.to_datetime(date_txt + time_txt, format=fmt, utc=True)
+
+
 def process_vaa_id(vaa_id):
 
     page = fetch_vaa_page(vaa_id["text_link"])
     if page is None:
         return None
-    vaa_info = page.text.split("\n\n")
 
-    vaa = dict()
+    vaa = parse_vaa_fields(page.text)
 
-    rows = [
-        "DTG",
-        "VAAC",
-        "VOLCANO",
-        "PSN",
-        "AREA",
-        "SUMMIT ELEV",
-        "ADVISORY NR",
-        "INFO SOURCE",
-        "AVIATION COLOR CODE",
-        "ERUPTION DETAILS",
-        "OBS VA DTG",
-        "OBS VA CLD",
-        "FCST VA CLD +6HR",
-        "FCST VA CLD +12HR",
-        "FCST VA CLD +18HR",
-        "RMK",
-        "NXT ADVISORY",
-        "id",
-        "time",
-    ]
+    if "TEST VAA" in vaa["header"]:
+        return None
 
-    vaa["header"] = vaa_info[0]
+    # A malformed or truncated advisory (missing field -> KeyError, junk value
+    # -> ValueError/IndexError) should skip that advisory, not kill the run.
+    try:
+        vaa["lat"], vaa["lon"] = text_to_latlon(vaa["PSN"])
+        vaa["time"] = parse_vaa_dtg(vaa["DTG"])
+        volcano = re.findall(r"\D+", vaa["VOLCANO"])[0]
+    except (KeyError, ValueError, IndexError) as e:
+        logger.warning(
+            f"Skipping malformed VAA {vaa_id['text_link']}: {type(e).__name__}: {e}"
+        )
+        return None
 
-    for row in rows:
-        for line in vaa_info:
-            if row + ":" in line and "VA " + row + ":" not in line:
-                line_txt = line.split(": ")[-1].replace("\n\n", " ")
-                line_txt = line_txt.replace("=\n", "")
-                vaa[row] = line_txt
-
-    v_lat, v_lon = text_to_latlon(vaa['PSN'])
-    vaa["lon"] = v_lon
-    vaa["lat"] = v_lat
-    vaa["time"] = pd.to_datetime(vaa["DTG"])
-
-    volcano = re.findall(r"\D+", vaa["VOLCANO"])[0]
     vaa["id"] = f"{vaa['DTG']}-{volcano.strip()}"
 
     return vaa

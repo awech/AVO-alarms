@@ -123,15 +123,15 @@ def main():
         logger.warning(str(e))
         return
 
+    args = update_arguments(args)
     # Kill switch: if `kill: true` is in the config, send icinga warning and exit
     config = load_config(args.config)
     if getattr(config, "kill", False):
         logger.warning(f"Kill switch active for {args.config} — skipping alarm")
-        messaging.icinga(config, "WARNING", f"{args.config} alarm has been killed", send=args.icinga)
+        messaging.icinga(config, "WARNING", f"{args.time.strftime('%Y-%m-%d %H:%M')} (UTC) Alarm has been killed", send=args.icinga)
         lock.release()
         return
 
-    args = update_arguments(args)
     if args.test:
         # e.g., it would set Nsta=0 for RSAM or relax all infrasound parameters
         logger.info("Running alarm in test mode")

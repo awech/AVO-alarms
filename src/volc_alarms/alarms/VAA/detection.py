@@ -173,54 +173,85 @@ def process_vaa_id(vaa_id):
 
 
 def process_polygons(vaa, field):
-    lats = []
-    lons = []
-    flight_level_txt = ""
+    """Parse a VAA cloud field into a list of per-sub-polygon groups.
 
+    Returns a LIST of ``(lons, lats, level_txt)`` tuples, one per parsed ring.
+    Returns ``[]`` for a missing field, a non-string field, a
+    ``VA NOT IDENTIFIABLE`` field, or a field with no real coordinate ring
+    (e.g. a whole-field ``NO VA EXP``).
+
+    A field can carry MULTIPLE sub-polygons (each its own level + ring),
+    separated by newlines. Forecast fields may lead with a ``DD/HHMM`` time
+    token and trail each ring with a ``MOV <DIR> <N>KT`` motion token; a
+    sub-polygon can also be ``NO VA EXP`` beside a real sibling ring.
+    """
     if field not in vaa:
-        return lons, lats, flight_level_txt
+        return []
 
     if not isinstance(vaa[field], str):
-        return lons, lats, flight_level_txt
+        return []
 
-    
+    # Normalize newlines to spaces first so wrapped coordinates join.
     obs_text = vaa[field].replace("\n", " ")
 
-    if "VA NOT IDENTIFIABLE " in obs_text:
-        return lons, lats, flight_level_txt
+    if "VA NOT IDENTIFIABLE" in obs_text:
+        return []
 
-    if "FL" in obs_text:
-        lvl_pattern = re.compile(r".*\S+/FL\S+")
-        time_and_level = lvl_pattern.findall(obs_text)
-        if time_and_level:
-            time_and_level = time_and_level[0]
-        else:
-            time_and_level = ""
+    # Recognize a level ONLY where a bound-pair is immediately followed by
+    # whitespace and a coordinate token ([NS]\d). This skips the leading
+    # DD/HHMM(Z) time token (followed by the level, not a coordinate) and any
+    # digit runs inside coordinates.
+    level_at = re.compile(r"(FL\d+|SFC|\d+)/(FL\d+|SFC|\d+)(?=\s+[NS]\d)")
 
-        tmp_text = obs_text.replace(time_and_level, "")
-        lat_lon_txt_pairs = tmp_text.split(" - ")
+    matches = list(level_at.finditer(obs_text))
+    if not matches:
+        # No real coordinate ring (e.g. whole-field "NO VA EXP").
+        return []
 
-        for pr in lat_lon_txt_pairs:
+    groups = []
+    for i, m in enumerate(matches):
+        lo_bound, hi_bound = m.group(1), m.group(2)
+
+        # This segment's coordinate run spans from after the level token to the
+        # next level token (or end of field).
+        seg_start = m.end()
+        seg_end = matches[i + 1].start() if i + 1 < len(matches) else len(obs_text)
+        coords = obs_text[seg_start:seg_end]
+
+        # Strip a trailing MOV <DIR> <N>KT motion token before splitting.
+        coords = re.sub(r"\s*MOV\s+\S+\s+\d+\s*KT.*$", "", coords).strip()
+
+        # A sub-polygon with no coordinate token (e.g. "NO VA EXP"): skip it
+        # without dropping sibling rings.
+        if not re.search(r"[NS]\d", coords):
+            continue
+
+        lats = []
+        lons = []
+        for pr in coords.split(" - "):
             tmp_lat, tmp_lon = text_to_latlon(pr)
             lats.append(tmp_lat)
             lons.append(tmp_lon)
 
-        if time_and_level:
-            level = time_and_level.split(" ")[-1].split("/")
-            flight_levels = np.array([])
-            for fl in level:
-                if fl == "SFC":
-                    height = 0
-                elif "FL" in fl:
-                    height = float(fl.split("FL")[-1]) * 100
-                else:
-                    height = np.nan
-                flight_levels = np.append(flight_levels, height)
+        flight_levels = np.array([])
+        for fl in (lo_bound, hi_bound):
+            if fl == "SFC":
+                height = 0
+            elif fl.startswith("FL"):
+                height = float(fl[2:]) * 100
+            elif fl.isdigit():
+                height = float(fl) * 100
+            else:
+                height = np.nan
+            flight_levels = np.append(flight_levels, height)
 
-        if np.nan not in flight_levels:
-            flight_level_txt = f"{flight_levels[0]:,g} - {flight_levels[1]:,g} ft"
+        level_txt = ""
+        if flight_levels.size == 2 and not np.isnan(flight_levels).any():
+            level_txt = f"{flight_levels[0]:,g} - {flight_levels[1]:,g} ft"
 
-    return lons, lats, flight_level_txt
+        groups.append((lons, lats, level_txt))
+
+    return groups
 
 
 def text_to_latlon(latlon_txt):

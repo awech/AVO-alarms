@@ -13,58 +13,106 @@ logger = get_logger(__name__)
 
 def make_map(vaa, config, test=False):
 
-    lons_0, lats_0, level_0 = process_polygons(vaa, "OBS VA CLD")
-    lons_6, lats_6, level_6 = process_polygons(vaa, "FCST VA CLD +6HR")
-    lons_12, lats_12, level_12 = process_polygons(vaa, "FCST VA CLD +12HR")
-    lons_18, lats_18, level_18 = process_polygons(vaa, "FCST VA CLD +18HR")
+    # process_polygons now returns a LIST of (lons, lats, level_txt) rings per
+    # field (possibly empty). Each field gets its own plot style, and each ring
+    # of a field is plotted as its own line so distinct rings are not joined by
+    # a spurious connecting segment.
+    groups_0 = process_polygons(vaa, "OBS VA CLD")
+    groups_6 = process_polygons(vaa, "FCST VA CLD +6HR")
+    groups_12 = process_polygons(vaa, "FCST VA CLD +12HR")
+    groups_18 = process_polygons(vaa, "FCST VA CLD +18HR")
 
-    LONS = np.concatenate((lons_0, lons_6, lons_12, lons_18))
-    LATS = np.concatenate((lats_0, lats_6, lats_12, lats_18))
-    LEVELS = np.array([level_0, level_6, level_12, level_18])
+    # Style per field: (linestyle, color, linewidth, zorder, legend label).
+    fields = [
+        (groups_0, '-', 'firebrick', 1.5, 100, 'Observed'),
+        (groups_6, '--', 'orangered', 1.25, 99, '6H Forecast'),
+        (groups_12, '--', 'orange', 1, 98, '12H Forecast'),
+        (groups_18, '-.', 'goldenrod', 0.75, 97, '18H Forecast'),
+    ]
 
-    n_levels = len(np.unique(LEVELS[LEVELS != ""]))
+    # Union of every ring's coordinates across all fields, for extent.
+    LONS = np.concatenate(
+        [np.array(lons) for groups, *_ in fields for lons, lats, level_txt in groups]
+        or [np.array([])]
+    )
+    LATS = np.concatenate(
+        [np.array(lats) for groups, *_ in fields for lons, lats, level_txt in groups]
+        or [np.array([])]
+    )
 
     if len(LONS) == 0 or len(LATS) == 0:
         logger.warning("No polygons to plot. Not generating figure.")
         return []
 
-    v_lat, v_lon = text_to_latlon(vaa['PSN'])
-    LONS = np.append(LONS, v_lon)
-    LATS = np.append(LATS, v_lat)
+    # Parse the volcano PSN defensively. A malformed / out-of-range upstream
+    # coordinate (e.g. a 7-char longitude that text_to_latlon reads as -1540.95)
+    # must not be allowed to flow into get_extent / the orthographic projection
+    # center, where it crashes cartopy with "Axis limits cannot be NaN or Inf".
+    # Treat the PSN as usable only if it parses AND is in range.
+    psn_ok = False
+    v_lat = v_lon = None
+    try:
+        v_lat, v_lon = text_to_latlon(vaa['PSN'])
+        psn_ok = -90 <= v_lat <= 90 and -180 <= v_lon <= 180
+    except (ValueError, IndexError, TypeError):
+        psn_ok = False
+
+    if psn_ok:
+        LONS = np.append(LONS, v_lon)
+        LATS = np.append(LATS, v_lat)
+        center_lat, center_lon = v_lat, v_lon
+    else:
+        logger.warning(
+            f"Volcano PSN {vaa.get('PSN')!r} could not be used; centering map on "
+            "polygon centroid and skipping volcano marker."
+        )
+        # Center on the polygon-only coordinates so the figure still renders.
+        center_lat = float(np.mean(LATS))
+        center_lon = float(np.mean(LONS))
+
     extent = get_extent(LONS, LATS)
 
     fig, ax = plt.subplots(figsize=(3.5, 3.5), layout="constrained")
 
     ax, extent = plotting.make_map(
-        ax, v_lat, v_lon, basemap="land", extent=extent, projection="orthographic"
+        ax, center_lat, center_lon, basemap="land", extent=extent,
+        projection="orthographic"
     )
     ax.coastlines(lw=0.2)
 
     plotting.map_ticks(ax, extent, grid_kwargs="default")
-    ax.plot(v_lon, v_lat, "^", mfc="k", mec="w", ms=6, transform=ccrs.Geodetic())
+    if psn_ok:
+        ax.plot(v_lon, v_lat, "^", mfc="k", mec="w", ms=6, transform=ccrs.Geodetic())
 
     t_form = ccrs.PlateCarree()
-    if lons_0:
-        lvl_txt = f"\n({level_0:,g} asl)" if n_levels > 1 else ""
-        ax.plot(lons_0, lats_0, '-', c='firebrick', lw=1.5, label=f'Observed{lvl_txt}', transform=t_form, zorder=100)
-    if lons_6:
-        lvl_txt = f"\n({level_6:,g} asl)" if n_levels > 1 else ""
-        ax.plot(lons_6, lats_6, '--', c='orangered', lw=1.25, label='6H Forecast', transform=t_form, zorder=99)
-    if lons_12:
-        lvl_txt = f"\n({level_12:,g} asl)" if n_levels > 1 else ""
-        ax.plot(lons_12, lats_12, '--', c='orange', lw=1, label='12H Forecast', transform=t_form, zorder=98)
-    if lons_18:
-        lvl_txt = f"\n({level_18:,g} asl)" if n_levels > 1 else ""
-        ax.plot(lons_18, lats_18, '-.', c='goldenrod', lw=0.75, label='18H Forecast', transform=t_form, zorder=97)
-
+    # Plot each ring of each field separately. Only the first ring of a field
+    # carries the field's legend label; subsequent rings use '_nolegend_' so the
+    # legend shows a single entry per field. The per-label ":,g asl" annotation
+    # from the old numeric-level model is dropped (it broke on the new string
+    # level_txt); level info now lives in the title instead.
+    for groups, style, color, lw, zorder, field_label in fields:
+        for j, (lons, lats, level_txt) in enumerate(groups):
+            label = field_label if j == 0 else '_nolegend_'
+            ax.plot(
+                lons, lats, style, c=color, lw=lw, label=label,
+                transform=t_form, zorder=zorder,
+            )
 
     ax.legend(fontsize=6, loc='lower left')
 
     volcano_name = "".join(vaa["VOLCANO"].split(" ")[:-1]).title()
     vaa_time = UTCDateTime(vaa["time"]).strftime("%Y-%m-%d %H:%M")
 
+    # Title lists all DISTINCT OBS ring levels, comma-separated (skip empties),
+    # preserving insertion order.
+    obs_levels = []
+    for lons, lats, level_txt in groups_0:
+        if level_txt and level_txt not in obs_levels:
+            obs_levels.append(level_txt)
+    levels = ", ".join(obs_levels)
+
     ax.set_title(
-        f"{volcano_name} VAA\n{level_0}\n{vaa_time}", fontsize=10
+        f"{volcano_name} VAA\n{levels}\n{vaa_time}", fontsize=10
     )
     plt.tight_layout()
 

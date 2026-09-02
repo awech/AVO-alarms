@@ -17,8 +17,9 @@ def create_message(vaa):
     time_txt = messaging.format_timestring(t)
 
     try:
-        lons_0, lats_0, level_0 = process_polygons(vaa, "OBS VA CLD")
-        message = f"VAA {level_0}\n{time_txt}\n\n#### *Original Message*\n"
+        groups_0 = process_polygons(vaa, "OBS VA CLD")
+        levels = ", ".join(dict.fromkeys(lt for _, _, lt in groups_0 if lt))
+        message = f"VAA {levels}\n{time_txt}\n\n#### *Original Message*\n"
     except Exception as e:
         logger.warning("Error generating message contents")
         logger.error(e)

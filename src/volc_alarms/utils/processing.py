@@ -151,7 +151,7 @@ def eq_picks_to_dataframe(cat):
     return STAS
 
 
-def Dr_to_RSAM(config, DR, volcano_name, base=25):
+def Dr_to_RSAM(DR, config=None, nslc_list=None, volcano=None, base=25):
     """_summary_
 
     Parameters
@@ -160,13 +160,13 @@ def Dr_to_RSAM(config, DR, volcano_name, base=25):
         _description_
     DR : _type_
         _description_
-    volcano_name : _type_
+    volcano : str, optional
         _description_
     base : int, optional
         _description_, by default 25
     """
 
-    client = FDSN_Client("IRIS")
+    client = FDSN_Client("earthscope")
 
     VELOCITY = 1.5  # km/s
     FREQ = 2  # dominant frequency (Hz)
@@ -174,19 +174,30 @@ def Dr_to_RSAM(config, DR, volcano_name, base=25):
 
     T0 = UTCDateTime.utcnow()
     VOLCS = load_volcano_list()
-    volcs = VOLCS[VOLCS["Name"] == volcano_name].copy()
+    if not volcano:
+        try:
+            volcano = config.volcano_name
+        except AttributeError:
+            logger.error("Volcano name not specified")
+            return
 
-    # Reconstruct the ordered station list from the canonical split schema
-    # (rsam_stations, plot-only infrasound channels with the sentinel value,
-    # arrestor last) the same way RSAM.run_alarm does.
-    SENTINEL = 1e7  # plot-only channels never exceed the detection threshold
-    stations = (
-        list(config.rsam_stations)
-        + [{"nslc": ch, "value": SENTINEL} for ch in config.infrasound]
-        + [config.arrestor]
-    )
+    volcs = VOLCS[VOLCS["Name"] == volcano].copy()
+
+    if config:
+        # Reconstruct the ordered station list with the arrestor station last
+        stations = (
+            list(config.rsam_stations)
+            + [config.arrestor]
+        )
+    elif nslc_list:
+        if isinstance(nslc_list, str):
+            nslc_list = [nslc_list]
+        stations = {"nslc": nslc_list}
+    else:
+        logger.error("No config or station list provided")
+        return
+    
     NSLC = pd.DataFrame.from_dict(stations)
-
     for nslc in NSLC.nslc:
         net, sta, loc, chan = nslc.split(".")
         inventory = client.get_stations(
@@ -227,6 +238,7 @@ def Dr_to_RSAM(config, DR, volcano_name, base=25):
 
         lvl = base * np.round(lvl / base)
 
+        print(f"{nslc}: {lvl:g}")
         logger.info(f"{nslc}: {lvl:g}")
 
     return

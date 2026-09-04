@@ -7,6 +7,7 @@ from obspy import Catalog, UTCDateTime, read_inventory
 from obspy.clients.fdsn import Client as FDSN_Client
 from obspy.core.event import Event
 from obspy.geodetics import gps2dist_azimuth
+from tabulate import tabulate
 
 from volc_alarms.utils.downloading import Earthscope_client
 from volc_alarms.utils.setup_utils import get_logger, load_volcano_list
@@ -198,6 +199,7 @@ def Dr_to_RSAM(DR, config=None, nslc_list=None, volcano=None, base=25):
         return
     
     NSLC = pd.DataFrame.from_dict(stations)
+    rows = []
     for nslc in NSLC.nslc:
         net, sta, loc, chan = nslc.split(".")
         inventory = client.get_stations(
@@ -238,10 +240,30 @@ def Dr_to_RSAM(DR, config=None, nslc_list=None, volcano=None, base=25):
 
         lvl = base * np.round(lvl / base)
 
-        print(f"{nslc}: {lvl:g}")
-        logger.info(f"{nslc}: {lvl:g}")
+        rows.append(
+            {
+                "Station": nslc,
+                "Volcano": volcano,
+                "Distance (km)": round(R, 1),
+                "DR Level": DR,
+                "RSAM Level": lvl,
+            }
+        )
 
-    return
+    table = pd.DataFrame(
+        rows,
+        columns=["Station", "Volcano", "Distance (km)", "DR Level", "RSAM Level"],
+    )
+    table_str = tabulate(
+        table,
+        headers="keys",
+        tablefmt="simple",
+        showindex=False,
+        floatfmt="g",
+    )
+    print("\n" + table_str + "\n")
+
+    return table
 
 
 def add_metadata(st):

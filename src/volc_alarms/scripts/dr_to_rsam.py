@@ -92,7 +92,7 @@ def main():
 
     config = load_config(args.config) if args.config else None
 
-    logger.info(f"Computing RSAM levels for DR={args.DR:g} cm^2 (rounded to {args.base:g})")
+    logger.info(f"\nComputing RSAM levels for DR={args.DR:g} cm^2 (rounded to {args.base:g})")
 
     Dr_to_RSAM(
         args.DR,

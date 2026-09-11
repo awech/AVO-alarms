@@ -57,6 +57,7 @@ test = [
 
 [project.scripts]
 run-alarm = "volc_alarms.scripts.run_alarm:main"
+get-rsam-levels = "volc_alarms.scripts.dr_to_rsam:main"
 email-test = "volc_alarms.scripts.email_test:main"
 generic-alarm = "volc_alarms.scripts.generic_alarm:main"
 update-metadata = "volc_alarms.scripts.update_metadata:main"

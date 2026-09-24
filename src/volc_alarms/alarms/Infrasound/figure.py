@@ -151,9 +151,39 @@ def make_figure(target, T0, config, mx_pressure, test=False):
     )
 
     ##### plot infrasound backazimuth #####
+    baz_target = target["back_azimuth"]
+    daz_factor = 5
+    # Nominal plot window centered on the target. Cap the half-window at 180
+    # deg so the axis never spans more than a full 360 deg circle (e.g. when
+    # az_tolerance is large).
+    half_window = min(daz_factor * target["az_tolerance"], 180)
+    ymin = baz_target - half_window
+    ymax = baz_target + half_window
+
+    # If the window runs above 360, slide it (and the target line) down by
+    # 360 so plotted values stay <= 360. Negative values are acceptable.
+    if ymax > 360:
+        ymin -= 360
+        ymax -= 360
+        baz_target -= 360
+
+    # Only unwrap the azimuths if the plot window straddles the 0/360
+    # boundary; otherwise leave the raw 0-360 values untouched. Unwrapping
+    # shifts each measurement to the copy nearest the window center, keeping
+    # near-boundary points (and their error bars) clustered. Use >=/<= so a
+    # window edge landing exactly on 0 or 360 still folds points inward.
+    if ymin <= 0 or ymax >= 360:
+        center = (ymin + ymax) / 2
+        az_plot = center + (((lts_df["Azimuth"] - center) + 180) % 360 - 180)
+        # Fold any points that landed above the window top down by 360 so
+        # plotted values never exceed 360 (negatives are acceptable).
+        az_plot = az_plot.where(az_plot <= ymax, az_plot - 360)
+    else:
+        az_plot = lts_df["Azimuth"]
+
     ax["azimuth"].errorbar(
         lts_df["Time"],
-        lts_df["Azimuth"],
+        az_plot,
         yerr=lts_df["Baz_err"],
         fmt="none",
         ecolor="gray",
@@ -162,7 +192,7 @@ def make_figure(target, T0, config, mx_pressure, test=False):
     )
     sc = ax["azimuth"].scatter(
         lts_df["Time"],
-        lts_df["Azimuth"],
+        az_plot,
         c=lts_df["MCCM"],
         s=scatter_size,
         edgecolors="k",
@@ -170,10 +200,13 @@ def make_figure(target, T0, config, mx_pressure, test=False):
         cmap=mycolormap,
     )
     sc.set_clim([0.2, 1.0])
-    ax["azimuth"].axhline(target["back_azimuth"], ls='--', lw=1, color='gray', zorder=-1)
-    ax["azimuth"].text(lts_df["Time"][1], target["back_azimuth"], target["name"], bbox=box_style, fontsize=6, va='center', style='italic', zorder=10)
-    daz_factor = 5
-    ax["azimuth"].set_ylim([target["back_azimuth"] - daz_factor*target["az_tolerance"], target["back_azimuth"] + daz_factor*target["az_tolerance"]])
+    ax["azimuth"].axhline(baz_target, ls='--', lw=1, color='gray', zorder=-1)
+    ax["azimuth"].text(lts_df["Time"][1], baz_target, target["name"], bbox=box_style, fontsize=6, va='center', style='italic', zorder=10)
+    # Use the nominal +/- daz_factor*az_tolerance window as-is (no expansion
+    # to chase points/error bars, which could be far-field LTS outliers).
+    # Keep the <=360 guard on the top edge.
+    ymax = min(ymax, 360)
+    ax["azimuth"].set_ylim([ymin, ymax])
     ax["azimuth"].set_ylabel("Backazimuth", fontsize=5)
 
     ##### plot infrasound velocity #####

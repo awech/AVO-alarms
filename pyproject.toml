@@ -71,3 +71,7 @@ packages = ["src/volc_alarms", "src/lts_array"]
 minversion = "7.0"
 testpaths = ["tests"]
 addopts = "-ra"
+markers = [
+    "unit: fast, isolated tests of a single function with local mocking only (no network, DB, email, or matplotlib rendering).",
+    "integration: end-to-end tests that drive an alarm's run_alarm() through the shared fakes harness and compare against a frozen baseline.",
+]

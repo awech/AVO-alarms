@@ -1,122 +1,112 @@
 # Tests
 
-## Directory structure
+This suite is organized so an unfamiliar reviewer can quickly see **what is
+tested, where, and how**. It is split by *target* (which part of the package)
+and then by *type* (unit vs integration).
+
+## Two kinds of tests
+
+| Type | Marker | What it does | How it mocks |
+|------|--------|--------------|--------------|
+| **Unit** | `@pytest.mark.unit` | Exercises a single function with crafted inputs and asserts its output/behavior. Fast and isolated. | Local mocking only — it mocks *just* the one external call the function under test makes (a download, `save_file`, etc.). Never touches the real network, database, email, or renders a real figure. |
+| **Integration** | `@pytest.mark.integration` | Drives a whole alarm's `run_alarm()` end to end and compares its observable behavior (Icinga state, Mattermost/email sends, DB writes, file cleanup, call order) to a frozen JSON baseline. | The shared **fakes harness** (`tests/_harness/`) replaces *every* external service at once. |
+
+Run a slice:
+
+```bash
+pytest -m unit           # fast, isolated function tests
+pytest -m integration    # full run_alarm() regression against baselines
+pytest                   # everything
+```
+
+## Directory layout
 
 ```
 tests/
-├── README.md                   # This file
-├── __init__.py                 # Makes tests/ importable for cross-file imports
-├── alarms/                     # Regression tests for alarm behavior
-│   ├── conftest.py             # Test setup and shared fixtures
-│   ├── fakes.py                # Fake services (replaces network, DB, email, etc.)
-│   ├── scenarios.py            # Test inputs + alarm invocations for each alarm type
-│   ├── snapshot_utils.py       # Captures alarm outputs and saves/loads JSON snapshots
-│   ├── baselines/              # Saved "known-good" JSON outputs (auto-generated)
-│   ├── test_regression.py      # Main tests: run alarms and compare to saved snapshots
-│   └── test_setup_verification.py  # Verifies the test fakes themselves work correctly
-└── make_map.py                 # Standalone script for generating map plotting examples
+├── README.md                       # this file (conventions + coverage matrix)
+├── __init__.py
+├── conftest.py                     # shared env setup + fixtures (unit + integration)
+├── _harness/                       # shared integration machinery (NOT tests)
+│   ├── fakes.py                    # CallRecorder, FakeAlarmDB, AlarmDoubles, install()
+│   ├── snapshot_utils.py           # capture behavior + save/load baseline JSON
+│   ├── scenarios.py                # per-alarm run_alarm scenario drivers
+│   └── baselines/                  # frozen known-good JSON snapshots
+├── utils/                          # unit tests for volc_alarms.utils.*
+│   ├── test_alarming.py
+│   ├── test_messaging.py
+│   ├── test_processing.py
+│   ├── test_plotting.py
+│   ├── test_setup_utils.py
+│   ├── test_downloading.py
+│   └── test_alarm_flow.py
+├── alarms/                         # one folder per alarm
+│   ├── test_harness_smoke.py       # verifies the fakes/doubles themselves
+│   └── <Alarm>/
+│       ├── test_detection.py       # unit: detection.py logic
+│       ├── test_message.py         # unit: message.py formatting
+│       ├── test_figure.py          # unit: figure.py logic (save_file mocked)
+│       └── test_run_alarm.py       # integration: scenario -> snapshot -> baseline
+├── scripts/                        # unit tests for volc_alarms.scripts.*
+│   └── test_run_alarm_cli.py
+└── fixtures/                       # shared static data + crafted sample inputs
+    └── data/station.xml
 ```
 
-## How the regression tests work
+## Naming and docstring conventions
 
-The goal is to catch unintended changes to alarm behavior during code changes.
+- **Files:** `test_<module>.py` for utils; `test_detection.py` / `test_message.py`
+  / `test_figure.py` for an alarm's units; `test_run_alarm.py` for an alarm's
+  integration test.
+- **Test functions:** `test_<function>_<behavior>`, e.g.
+  `test_process_polygons_parses_two_ring_field`.
+- **Docstrings:** the first line names the function under test and the behavior
+  being asserted. No references to bug-tracker IDs or spec requirement numbers.
 
-1. **Fakes** (`fakes.py`) replace every external service — network downloads,
-   database, email, Mattermost, Icinga — with fake versions that record what
-   was called but don't actually do anything.
+## Updating integration baselines
 
-2. **Scenarios** (`scenarios.py`) set up fake data and run each alarm's
-   `run_alarm()` at a fixed time. Each scenario represents a specific situation
-   (e.g., "RSAM with high signal → CRITICAL detection").
-
-3. **Snapshots** (`snapshot_utils.py` + `baselines/*.json`) capture what the
-   alarm *did* — what messages it sent, what Icinga state it reported, what it
-   wrote to the DB — and save it as a JSON file.
-
-4. **Tests** (`test_regression.py`) re-run the scenarios and check that the
-   outputs still match the saved JSON snapshots exactly.
-
-
-## What is and isn't being tested
-
-### What the tests capture (for every alarm):
-
-- **Icinga state** — the monitoring state reported (OK / WARNING / CRITICAL) and
-  the status message text
-- **Mattermost** — whether a post was made, and with what subject/body
-- **Email** — whether an alert was sent, and with what subject/body
-- **DB write** — whether `record_send` was called, and with what alarm_id,
-  volcano, and event_id
-- **File cleanup** — whether `os.remove` was called (figure deleted after sending)
-- **Call order** — the sequence of all the above (e.g., did Icinga get called
-  after Mattermost?)
-
-### What is NOT tested:
-
-- **Figure content** — matplotlib is completely bypassed; a placeholder file
-  path is returned instead of generating a real plot
-- **Detection algorithm correctness** — threshold math, signal processing, etc.
-  are only exercised indirectly (the tests confirm the *outcome* doesn't change,
-  not that the outcome is *correct*)
-- **Message formatting** — captured in snapshots as a side effect, but there are
-  no dedicated tests asserting specific formatting rules
-- **External service behavior** — no integration tests against real Mattermost,
-  Icinga, SMTP, or data APIs
-
-### Current scenario coverage by alarm:
-
-| Alarm | Scenarios | What's exercised |
-|-------|-----------|------------------|
-| RSAM | `representative`, `critical` | Full pipeline: detection → Mattermost → email → DB write → cleanup |
-| Lightning | `representative`, `critical` | Full pipeline with crafted stroke data |
-| Infrasound | `representative` only | Early WARNING ("not enough channels") |
-| Tremor | `representative` only | Early WARNING ("data missing") |
-| NOAA_CIMSS | `representative` only | Early WARNING ("API error") |
-| Pilot_Report | `representative` only | OK ("no new reports") |
-| SO2 | `representative` only | Early WARNING ("webpage error") |
-| VAA | `representative` only | Early WARNING ("webpage error") |
-| Magnitude | `representative` only | OK ("no new earthquakes") |
-| Swarm | `representative` only | OK ("no new swarm activity") |
-
-Most alarms only have a "nothing happened" scenario because triggering their
-CRITICAL path requires complex fake data (scraped HTML pages, FDSN XML
-responses, shapefiles, etc.) that hasn't been built yet.
-
-### What's missing (opportunities for future tests):
-
-- **CRITICAL scenarios** for remaining alarms (Infrasound, Tremor, NOAA_CIMSS,
-  Pilot_Report, SO2, VAA, Magnitude, Swarm) — would require crafting realistic
-  fake data for each alarm's download/detection pipeline
-- **Unit tests for detection logic** — test individual functions like
-  `RSAM_to_DR()`, `run_enveloc()`, or `check_volcano_mention()` in isolation
-  with known inputs and expected outputs
-- **Message formatting tests** — verify specific text patterns, volcano names,
-  timestamps appear correctly in alert messages
-- **Figure content tests** — verify plot elements (map extent, station markers,
-  axis labels) are correct for given inputs
-- **Configuration validation tests** — verify alarms fail gracefully with
-  missing or malformed config values
-- **Edge cases** — data gaps, timezone boundaries, network timeouts, empty
-  responses, duplicate events
-
-
-## Running tests
+When you deliberately change alarm behavior, the integration tests will fail
+because the captured behavior no longer matches the frozen JSON. Regenerate and
+review the diff before committing:
 
 ```bash
-pytest tests/                       # Run everything
-pytest tests/alarms/                # Run only alarm regression tests
-pytest tests/alarms/ -k "RSAM"      # Run only RSAM scenarios
+REGEN_BASELINES=1 pytest -m integration
+git diff tests/_harness/baselines
 ```
 
-## Updating snapshots after intentional changes
+## Coverage matrix
 
-When you deliberately change alarm behavior (e.g., modify detection thresholds
-or message formatting), the regression tests will fail because the output no
-longer matches the saved snapshot. To update:
+> Filled in as the suite is built out (see the framework task list). Legend:
+> ✅ covered · ⬜ planned · N/A intentionally not unit-tested (integration-only).
 
-```bash
-REGEN_BASELINES=1 pytest tests/alarms/test_regression.py
-```
+### utils
 
-This overwrites the saved JSON files with the new output. Always review the
-diffs (`git diff`) before committing to make sure the changes are expected.
+| Module | Unit test file | Status |
+|--------|----------------|--------|
+| `alarming` | `utils/test_alarming.py` | ⬜ |
+| `messaging` | `utils/test_messaging.py` | ⬜ |
+| `processing` | `utils/test_processing.py` | ⬜ |
+| `plotting` | `utils/test_plotting.py` | ⬜ |
+| `setup_utils` | `utils/test_setup_utils.py` | ⬜ |
+| `downloading` | `utils/test_downloading.py` | ⬜ |
+| `alarm_flow` | `utils/test_alarm_flow.py` | ⬜ |
+
+### alarms
+
+| Alarm | detection | message | figure | run_alarm (integration) |
+|-------|-----------|---------|--------|-------------------------|
+| Infrasound | ⬜ | ⬜ | ⬜ | ⬜ |
+| Lightning | ⬜ | ⬜ | ⬜ | ⬜ |
+| Magnitude | ⬜ | ⬜ | ⬜ | ⬜ |
+| NOAA_CIMSS | ⬜ | ⬜ | ⬜ | ⬜ |
+| Pilot_Report | ⬜ | ⬜ | ⬜ | ⬜ |
+| RSAM | ⬜ | ⬜ | ⬜ | ⬜ |
+| SO2 | ⬜ | ⬜ | ⬜ | ⬜ |
+| Swarm | ⬜ | ⬜ | ⬜ | ⬜ |
+| Tremor | ⬜ | ⬜ | ⬜ | ⬜ |
+| VAA | ⬜ | ⬜ | ⬜ | ⬜ |
+
+### scripts
+
+| Script | Unit test file | Status |
+|--------|----------------|--------|
+| `run_alarm.py` (CLI) | `scripts/test_run_alarm_cli.py` | ⬜ |

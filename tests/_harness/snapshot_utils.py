@@ -11,7 +11,7 @@ observable behavior into a deterministic, JSON-serializable dict:
 - os_remove: file cleanup calls (normalized paths)
 - call_order: full chronological call sequence
 
-The snapshots are persisted as JSON in tests/alarms/baselines/ and compared
+The snapshots are persisted as JSON in tests/_harness/baselines/ and compared
 on subsequent test runs to detect unintended behavior changes.
 
 Determinism is guaranteed by:
@@ -27,7 +27,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from tests.alarms.fakes import AlarmDoubles, CallRecorder, FakeAlarmDB
+from tests._harness.fakes import AlarmDoubles, CallRecorder, FakeAlarmDB
 
 # Frozen baselines live next to this module.
 BASELINES_DIR = Path(__file__).resolve().parent / "baselines"

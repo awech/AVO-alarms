@@ -1,13 +1,16 @@
-"""Pytest fixtures for the alarm regression tests.
+"""Shared pytest fixtures and environment setup for the whole test suite.
 
-Sets up a deterministic, offline test environment:
+Sets up a deterministic, offline test environment used by BOTH the unit tests
+(``tests/utils``, ``tests/alarms/<Alarm>/test_*.py``, ``tests/scripts``) and the
+integration tests (``tests/alarms/<Alarm>/test_run_alarm.py``):
 
-* CONFIGS_DIR → real config/*.yml files in the repo (configs are NOT mocked)
-* All external services replaced by fakes (see fakes.py) — no real network,
-  database, or email calls are made
+* CONFIGS_DIR -> real config/*.yml files in the repo (configs are NOT mocked)
+* Data-file env vars point at in-repo copies / temp dirs
 * FROMCRON unset so no sleeps or time-backup logic fires
 
-This conftest is shared by all tests under tests/alarms/.
+The integration-only fixtures (``alarm_doubles`` etc.) install the shared fakes
+from ``tests/_harness``. Unit tests generally do their own local mocking and only
+depend on the environment setup below.
 """
 
 from __future__ import annotations
@@ -19,10 +22,10 @@ import pytest
 
 from importlib.resources import files
 
-from tests.alarms.fakes import AlarmDoubles, CallRecorder, FakeAlarmDB, install
+from tests._harness.fakes import AlarmDoubles, CallRecorder, FakeAlarmDB, install
 
-# Repo root is two levels up from tests/alarms/.
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# Repo root is one level up from tests/.
+REPO_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_DIR = REPO_ROOT / "config"
 DATA_DIR = files("volc_alarms.data")
 
@@ -41,7 +44,9 @@ os.environ.setdefault("FDSN_URL", "https://service.example.com/fdsnws/event/1/qu
 # Never touch a real alarm-history DB; the fakes are in-memory regardless.
 os.environ.setdefault("DB_FILE", str(REPO_ROOT / "tmp_files" / "__test_alarms__.db"))
 # Point at the test station XML so add_metadata and RSAM_to_DR work offline.
-os.environ.setdefault("STATION_XML", str(REPO_ROOT / "tests" / "data" / "station.xml"))
+os.environ.setdefault(
+    "STATION_XML", str(REPO_ROOT / "tests" / "fixtures" / "data" / "station.xml")
+)
 # Make sure no test accidentally runs as if launched from cron unless it asks.
 os.environ.pop("FROMCRON", None)
 
@@ -85,7 +90,8 @@ def alarm_doubles(monkeypatch, recorder, fake_db) -> AlarmDoubles:
 
     Replaces every external service call (downloads, Mattermost, email, Icinga,
     DB access, figure save, os.remove) with recording fakes so an alarm's
-    run_alarm runs fully offline and deterministically.
+    run_alarm runs fully offline and deterministically. Used by the integration
+    tests under tests/alarms/<Alarm>/test_run_alarm.py.
     """
     handle = AlarmDoubles(recorder, fake_db, monkeypatch)
     return install(handle)
@@ -97,7 +103,7 @@ def load_alarm_config():
 
     ``CONFIGS_DIR`` already points at the repo ``config/`` directory, so e.g.
     ``load_alarm_config("RSAM")`` returns the genuine config object that
-    ``run_alarm`` expects (Req 10.1, 10.2).
+    ``run_alarm`` expects.
     """
     from volc_alarms.utils import setup_utils
 

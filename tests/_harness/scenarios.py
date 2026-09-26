@@ -17,7 +17,7 @@ Scenario types:
 To add a new scenario:
 1. Write a function taking (doubles, load_config) and calling run_alarm
 2. Register it in the SCENARIOS dict at the bottom of this file
-3. Run: REGEN_BASELINES=1 pytest tests/alarms/test_baselines.py -k "your_scenario"
+3. Run: REGEN_BASELINES=1 pytest -m integration -k "your_scenario"
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ import pandas as pd
 from obspy import Stream, Trace, UTCDateTime
 from obspy.core.event import Catalog, Event, Magnitude as EventMagnitude, Origin, ResourceIdentifier
 
-from tests.alarms.snapshot_utils import T0
+from tests._harness.snapshot_utils import T0
 
 
 # ---------------------------------------------------------------------------

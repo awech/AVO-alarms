@@ -163,8 +163,16 @@ FDSN XML) and is a known follow-up — see "Extending coverage" below.
 
 | Script | Unit tests | Notes |
 |--------|-----------|-------|
-| `run_alarm.py` (CLI) | ✅ `scripts/test_run_alarm_cli.py` | arg parsing, time defaulting, cron/lock/kill-switch/dispatch/error branches |
-| others (`dr_to_rsam`, `list_alerts`, `update_metadata`, …) | — | not yet covered; scheduled for a later pass |
+| `run_alarm.py` | ✅ `scripts/test_run_alarm_cli.py` | arg parsing, time defaulting, cron/lock/kill-switch/dispatch/error branches |
+| `dr_to_rsam.py` | ✅ `scripts/test_dr_to_rsam_cli.py` | arg validation (--config vs --nslc/--volcano) + Dr_to_RSAM dispatch |
+| `list_alerts.py` | ✅ `scripts/test_list_alerts_cli.py` | start/end/duration validation, query-dict assembly, filtered_list dispatch |
+| `email_test.py` | ✅ `scripts/test_email_test_cli.py` | lock-held return; sends a "Test" alert on the happy path |
+| `generic_alarm.py` | ✅ `scripts/test_generic_alarm_cli.py` | lock-held return; sets the alarm's Icinga service to OK |
+| `update_metadata.py` | ✅ `scripts/test_update_metadata_cli.py` | lock-held return; refreshes the station XML |
+| `notification_html.py` | ✅ `scripts/test_notification_html_cli.py` | lock-held return; renders the distribution table to HTML |
+
+All script tests mock the lock, logging, env loading, and the network/messaging
+boundary, so no real lock file, email, Icinga call, or download occurs.
 
 > Note: `tests/make_map.py` is a pre-existing standalone plotting example, not a
 > pytest test (no `test_` prefix, not collected).

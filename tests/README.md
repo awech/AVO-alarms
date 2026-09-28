@@ -75,38 +75,57 @@ git diff tests/_harness/baselines
 
 ## Coverage matrix
 
-> Filled in as the suite is built out (see the framework task list). Legend:
-> ✅ covered · ⬜ planned · N/A intentionally not unit-tested (integration-only).
+This maps each part of `volc_alarms` to the test(s) that exercise it. Legend:
+
+- ✅ **unit** — has dedicated unit tests for its pure logic
+- 🔄 **integration** — exercised end to end via the alarm's `run_alarm` baseline
+  (and/or the harness smoke tests), not as isolated units
+- N/A — no standalone unit-level logic to test (thin wrapper, or the whole
+  behavior only makes sense end to end)
+
+Every `run_alarm` pipeline is covered by an integration baseline; unit tests
+focus on the pure logic (parsing, math, thresholds, message formatting).
+Network/DB/email/matplotlib boundaries are deliberately left to the integration
+layer, so `figure.py` and the network `download_*` helpers are integration-only.
 
 ### utils
 
-| Module | Unit test file | Status |
-|--------|----------------|--------|
-| `alarming` | `utils/test_alarming.py` | ⬜ |
-| `messaging` | `utils/test_messaging.py` | ⬜ |
-| `processing` | `utils/test_processing.py` | ⬜ |
-| `plotting` | `utils/test_plotting.py` | ⬜ |
-| `setup_utils` | `utils/test_setup_utils.py` | ⬜ |
-| `downloading` | `utils/test_downloading.py` | ⬜ |
-| `alarm_flow` | `utils/test_alarm_flow.py` | ⬜ |
+| Module | Unit tests | Notes |
+|--------|-----------|-------|
+| `alarming` | ✅ `utils/test_alarming.py` | DB/rate-limit logic against a temp sqlite; operator CLI list/remove helpers left as TODO |
+| `processing` | ✅ `utils/test_processing.py` | geodesy, volcano lookup, stream preprocessing; FDSN-backed `Dr_to_RSAM`/`eq_picks_to_dataframe` are integration-only |
+| `messaging` | ✅ `utils/test_messaging.py` | pure formatting + `send=False` short-circuits; live SMTP/Mattermost send paths are integration-only |
+| `setup_utils` | ✅ `utils/test_setup_utils.py` | config parse, math-expr eval, path/tz detection, volcano-list loading |
+| `plotting` | ✅ `utils/test_plotting.py` | pure geometry/tick math; cartopy/spectrogram rendering is integration-only |
+| `downloading` | ✅ `utils/test_downloading.py` | trace QC + HTTP retry wrappers (mocked `requests`); FDSN/Winston waveform fetch is integration-only |
+| `alarm_flow` | ✅ `utils/test_alarm_flow.py` | cron-latency backup + the shared CRITICAL send sequence |
 
 ### alarms
 
-| Alarm | detection | message | figure | run_alarm (integration) |
-|-------|-----------|---------|--------|-------------------------|
-| Infrasound | ⬜ | ⬜ | ⬜ | ⬜ |
-| Lightning | ⬜ | ⬜ | ⬜ | ⬜ |
-| Magnitude | ⬜ | ⬜ | ⬜ | ⬜ |
-| NOAA_CIMSS | ⬜ | ⬜ | ⬜ | ⬜ |
-| Pilot_Report | ⬜ | ⬜ | ⬜ | ⬜ |
-| RSAM | ⬜ | ⬜ | ⬜ | ⬜ |
-| SO2 | ⬜ | ⬜ | ⬜ | ⬜ |
-| Swarm | ⬜ | ⬜ | ⬜ | ⬜ |
-| Tremor | ⬜ | ⬜ | ⬜ | ⬜ |
-| VAA | ⬜ | ⬜ | ⬜ | ⬜ |
+| Alarm | detection | message | figure | run_alarm |
+|-------|-----------|---------|--------|-----------|
+| Infrasound | ✅ | N/A (inline) | 🔄 | 🔄 |
+| Lightning | ✅ | ✅ | 🔄 | 🔄 |
+| Magnitude | ✅ | 🔄 (via `process_event`) | 🔄 | 🔄 |
+| NOAA_CIMSS | ✅ | 🔄 | 🔄 | 🔄 |
+| Pilot_Report | ✅ | 🔄 | 🔄 | 🔄 |
+| RSAM | ✅ | ✅ | 🔄 | 🔄 |
+| SO2 | ✅ (offline path) | 🔄 | 🔄 | 🔄 |
+| Swarm | ✅ | 🔄 | 🔄 | 🔄 |
+| Tremor | ✅ | 🔄 | 🔄 | 🔄 |
+| VAA | ✅ | ✅ | ✅ | 🔄 |
+
+Unit tests live in `tests/alarms/<Alarm>/test_detection.py` / `test_message.py`
+/ `test_figure.py`; the `run_alarm` column is the integration baseline in
+`tests/alarms/<Alarm>/test_run_alarm.py`. "N/A (inline)" means the alarm builds
+its message inside `run_alarm` rather than in a separate `message.py`.
 
 ### scripts
 
-| Script | Unit test file | Status |
-|--------|----------------|--------|
-| `run_alarm.py` (CLI) | `scripts/test_run_alarm_cli.py` | ⬜ |
+| Script | Unit tests | Notes |
+|--------|-----------|-------|
+| `run_alarm.py` (CLI) | ✅ `scripts/test_run_alarm_cli.py` | arg parsing, time defaulting, cron/lock/kill-switch/dispatch/error branches |
+| others (`dr_to_rsam`, `list_alerts`, `update_metadata`, …) | — | not yet covered; scheduled for a later pass |
+
+> Note: `tests/make_map.py` is a pre-existing standalone plotting example, not a
+> pytest test (no `test_` prefix, not collected).

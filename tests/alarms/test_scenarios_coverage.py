@@ -18,7 +18,12 @@ def test_every_alarm_has_a_scenario():
         "Infrasound", "RSAM", "Tremor", "Lightning", "NOAA_CIMSS",
         "Pilot_Report", "SO2", "Swarm", "Magnitude", "VAA",
     }
-    # Scenario names are "<AlarmType>_<variant>"; strip the trailing variant.
-    covered = {n.rsplit("_", 1)[0] for n in SCENARIOS}
-    missing = alarm_types - covered
+    # Scenario names are "<AlarmType>_<variant>" where <variant> may itself
+    # contain underscores (e.g. "Infrasound_not_enough_channels"), so match by
+    # alarm-type prefix rather than splitting on the last underscore.
+    missing = {
+        atype
+        for atype in alarm_types
+        if not any(name == atype or name.startswith(f"{atype}_") for name in SCENARIOS)
+    }
     assert not missing, f"Alarms without a baseline scenario: {sorted(missing)}"

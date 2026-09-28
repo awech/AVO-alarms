@@ -38,7 +38,14 @@ os.environ["CONFIGS_DIR"] = str(CONFIG_DIR)
 # Keep the harness self-contained: point data files at in-repo copies / temp.
 os.environ.setdefault("VOLCANO_LIST", str(DATA_DIR.joinpath("volcano_list.csv")))
 os.environ.setdefault("TMP_FIGURE_DIR", str(REPO_ROOT / "tmp_files"))
-os.environ.setdefault("TIMEZONE", "UTC")
+# Pin TIMEZONE (force, not setdefault) so the frozen baselines are deterministic
+# regardless of a developer's inherited environment (e.g. from sourcing a
+# deployment .env). We deliberately pin a NON-UTC zone that matches production
+# (US/Alaska) rather than UTC: alarm messages render both a UTC and a local-time
+# line, so pinning a real zone means the integration baselines actually exercise
+# the UTC<->local rendering. T0 and the scenario event times are fixed constants,
+# so the resulting local-time strings are still fully reproducible.
+os.environ["TIMEZONE"] = "US/Alaska"
 # FDSN base URL used by the Swarm alarm to build its (mocked) download request.
 os.environ.setdefault("FDSN_URL", "https://service.example.com/fdsnws/event/1/query?")
 # Never touch a real alarm-history DB; the fakes are in-memory regardless.

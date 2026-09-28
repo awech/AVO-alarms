@@ -106,7 +106,7 @@ the network `download_*` helpers are integration-only.
 
 | Alarm | detection | message | figure | run_alarm (integration depth) |
 |-------|-----------|---------|--------|-------------------------------|
-| Infrasound | ✅ | N/A (inline) | 🔄 | 🟡 early-exit only |
+| Infrasound | ✅ | N/A (inline) | 🔄 | 🟢 full send + ⚪ no-detect + 🟡 early-exit (all branches) |
 | Lightning | ✅ | ✅ | 🔄 | 🟢 full send + 🟡 early-exit |
 | Magnitude | ✅ | 🔄 (via `process_event`) | 🔄 | 🟢 full send + ⚪ no-op OK |
 | NOAA_CIMSS | ✅ | 🔄 | 🔄 | 🟡 early-exit only |
@@ -128,34 +128,53 @@ The `run_alarm` column reports **how much of the pipeline the frozen baseline
 actually reaches**, because this is uneven across alarms and the format alone
 does not reveal it:
 
-- 🟢 **full send** — the scenario feeds crafted fixtures that trigger a real
-  CRITICAL detection and the complete send sequence (figure → Mattermost →
-  email → DB record → cleanup → Icinga). This is the strongest regression guard.
-  Alarms: **RSAM**, **Lightning**, **Magnitude** (all have a `_critical` scenario).
-- ⚪ **no-op OK** — the scenario reaches a genuine "nothing to report" OK result
-  that the alarm is designed to produce (empty catalog / no new reports). The
-  decision logic runs; there is just no event. Alarms: **Pilot_Report**,
-  **Swarm**, **Magnitude** (representative).
+- 🟢 **full send** — the scenario feeds fixtures that trigger a real CRITICAL
+  detection and the complete send sequence (figure → Mattermost → email → DB
+  record → cleanup → Icinga). This is the strongest regression guard. Alarms:
+  **RSAM**, **Lightning**, **Magnitude**, **Infrasound** (all have a `_critical`
+  scenario).
+- ⚪ **no-detect / no-op OK** — the decision logic fully runs but reaches a
+  genuine "no alert" result: either a "nothing to report" no-op the alarm is
+  designed to produce (empty catalog / no new reports — **Pilot_Report**,
+  **Swarm**, **Magnitude** representative), or a real signal that the detection
+  logic evaluates and rejects (**Infrasound** `wrong_backazimuth`: a coherent
+  airwave whose back-azimuth no target accepts).
 - 🟡 **early-exit only** — the scenario feeds no usable input, so the alarm bails
   at an input guard (missing data / not-enough-channels / API or webpage error)
-  and returns WARNING **before its detection logic runs**. These baselines verify
-  the plumbing and the guard, **not** the science. Alarms with *only* this depth:
-  **Infrasound**, **NOAA_CIMSS**, **SO2**, **Tremor**, **VAA**.
+  **before its detection logic runs**. These baselines verify the plumbing and
+  the guard, **not** the science. Alarms with *only* this depth: **NOAA_CIMSS**,
+  **SO2**, **Tremor**, **VAA**. (Note: **Infrasound** also has an early-exit
+  scenario, but it is not limited to that depth — it covers every branch.)
 
 For the 🟡 alarms, the detection science is instead covered by the `detection`
-unit tests (e.g. VAA `process_polygons`, Infrasound `filter_lts_results`, Swarm
-clustering). The remaining gap is that no *end-to-end* baseline drives those
-alarms through a real detection + send. Building those requires crafting
-realistic fake inputs per alarm (multi-channel array data, scraped HTML pages,
-FDSN XML) and is a known follow-up — see "Extending coverage" below.
+unit tests (e.g. VAA `process_polygons`, Swarm clustering). The remaining gap is
+that no *end-to-end* baseline drives those alarms through a real detection +
+send.
+
+##### Record/replay pattern (how Infrasound reaches full coverage)
+
+Infrasound's four scenarios all replay ONE real recorded event, captured offline
+and committed as a fixture, then steered down each `run_alarm` branch with a
+small config tweak:
+
+- The raw waveforms of a known KENI array event were downloaded once via
+  `tests/fixtures/_record_infrasound_event.py` and saved to
+  `tests/fixtures/data/infrasound_KENI_20260514T2256.mseed`.
+- The scenarios feed that MiniSEED to the faked `download_waveforms`, so the LTS
+  array processing runs deterministically with no network.
+- `not_enough_channels` (WARNING), `below_amplitude` (OK), `wrong_backazimuth`
+  (OK, no detection), and `critical` (CRITICAL send) each apply one config tweak
+  to hit a different branch. KENI station metadata lives in the test station XML
+  and the KENI config under `tests/fixtures/configs/` (not the repo `config/`).
+
+This record/replay recipe is the template for lifting the remaining 🟡 alarms.
 
 #### Extending coverage (known follow-ups)
 
-- Add a `_critical` (real-detection) scenario for the 🟡 alarms so their
+- Apply the record/replay pattern above to the remaining 🟡 alarms so their
   `run_alarm` baseline exercises detection + send, not just an input guard.
-  Cheaper candidates first (Tremor, VAA); HTML-scraper alarms (NOAA_CIMSS, SO2)
-  are the most fixture-heavy.
-- Add unit tests for the remaining `scripts/*` entry points.
+  Cheaper candidates first (Tremor); HTML-scraper alarms (NOAA_CIMSS, SO2) are
+  the most fixture-heavy (need saved scraped pages rather than waveforms).
 - Unit-test the FDSN-backed helpers (`Dr_to_RSAM`, `eq_picks_to_dataframe`) with
   a mocked client.
 

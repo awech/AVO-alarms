@@ -30,12 +30,40 @@ import pandas as pd
 from obspy import Stream, Trace, UTCDateTime
 from obspy.core.event import Catalog, Event, Magnitude as EventMagnitude, Origin, ResourceIdentifier
 
+from obspy import read as read_stream
+
 from tests._harness.snapshot_utils import T0
+
+# Fixtures dir holding test-only configs (e.g. KENI_Infrasound.yml) and recorded
+# waveform data used to drive real-detection scenarios offline.
+FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures"
+FIXTURE_CONFIGS_DIR = FIXTURES_DIR / "configs"
+FIXTURE_DATA_DIR = FIXTURES_DIR / "data"
 
 
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
+
+def _load_fixture_config(config_name):
+    """Load a test-only config from tests/fixtures/configs via the real loader.
+
+    Temporarily points ``CONFIGS_DIR`` at the fixtures config dir so
+    ``setup_utils.load_config`` (and its Infrasound enrichment) run exactly as in
+    production, then restores the original value. Keeps these test configs out of
+    the repo ``config/`` directory.
+    """
+    from volc_alarms.utils import setup_utils
+
+    original = os.environ.get("CONFIGS_DIR")
+    os.environ["CONFIGS_DIR"] = str(FIXTURE_CONFIGS_DIR)
+    try:
+        return setup_utils.load_config(config_name)
+    finally:
+        if original is None:
+            os.environ.pop("CONFIGS_DIR", None)
+        else:
+            os.environ["CONFIGS_DIR"] = original
 
 def _clean_test_db():
     """Remove the sqlite file the un-doubled DB helpers touch, for determinism.
@@ -110,14 +138,110 @@ def rsam_critical(doubles, load_config):
 
 # ---------------------------------------------------------------------------
 # Infrasound
+#
+# All four scenarios drive the SAME recorded KENI array event through the KENI
+# config; each makes one small config tweak to steer run_alarm down a different
+# outcome branch (data-quality WARNING, below-amplitude OK, wrong-back-azimuth
+# no-detection, and a genuine CRITICAL detection + send).
 # ---------------------------------------------------------------------------
-def infrasound_representative(doubles, load_config):
-    """Default zero-filled waveforms -> 'Not enough channels!' WARNING."""
-    config = load_config("Infrasound")
+
+# Recorded real KENI array event (2026-05-14 22:56 UTC). The MiniSEED fixture
+# spans a wide pad around the event; the waveform factory returns the slice
+# run_alarm asks for, so the whole LTS array-processing path runs offline and
+# deterministically. All four Infrasound scenarios drive this same real event
+# through the KENI config, differing only in a small config tweak that steers
+# run_alarm down each of its outcome branches.
+INFRASOUND_EVENT_T0 = UTCDateTime("2026-05-14T22:56:00")
+INFRASOUND_EVENT_FIXTURE = FIXTURE_DATA_DIR / "infrasound_KENI_20260514T2256.mseed"
+
+
+def _keni_waveform_factory(zero_all_but=None):
+    """Build a waveform factory serving the recorded KENI event window.
+
+    Returns a copy of the recorded stream trimmed to the requested [T1, T2].
+    If ``zero_all_but`` is given (a count), all but that many channels are
+    zero-filled -- used to drive the data-quality (not-enough-channels) branch.
+    """
+    recorded = read_stream(str(INFRASOUND_EVENT_FIXTURE))
+
+    def _factory(nslc_list, T1, T2, **_):
+        st = recorded.copy().trim(T1, T2)
+        if zero_all_but is not None:
+            for tr in st[zero_all_but:]:
+                tr.data = np.zeros_like(tr.data)
+        return st
+
+    return _factory
+
+
+def infrasound_not_enough_channels(doubles, load_config):
+    """Only 2 live KENI channels (< min_chan) -> 'Not enough channels!' WARNING.
+
+    QC_data drops the zero-filled traces, leaving fewer than ``min_chan``, so
+    run_alarm exits at the data-quality gate before any array processing.
+    """
+    config = _load_fixture_config("KENI_Infrasound")
     from volc_alarms import Infrasound
 
+    doubles.waveform_factory = _keni_waveform_factory(zero_all_but=2)
     doubles.patch_figure_builder(Infrasound, "make_figure")
-    Infrasound.run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True)
+    Infrasound.run_alarm(config, INFRASOUND_EVENT_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def infrasound_below_amplitude(doubles, load_config):
+    """Real event but a high min_pa -> 'not enough channels exceeding amplitude'.
+
+    The array data passes QC, but with every target's ``min_pa`` raised above
+    the observed peak pressure, too few channels exceed the amplitude gate, so
+    run_alarm returns OK before inverting for back-azimuth.
+    """
+    config = _load_fixture_config("KENI_Infrasound")
+    from volc_alarms import Infrasound
+
+    # Observed per-channel peaks are ~0.6-1.0 Pa; 1.5 Pa suppresses all of them.
+    for target in config.targets:
+        target["min_pa"] = 1.5
+
+    doubles.waveform_factory = _keni_waveform_factory()
+    doubles.patch_figure_builder(Infrasound, "make_figure")
+    Infrasound.run_alarm(config, INFRASOUND_EVENT_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def infrasound_wrong_backazimuth(doubles, load_config):
+    """Coherent airwave, but from a back-azimuth no target accepts -> no detection.
+
+    The recorded event's LTS solution points at ~216-221 deg. Here we pin every
+    target's ``back_azimuth`` to ~40 deg (roughly opposite the arrival) while
+    leaving ``min_pa`` untouched, so the array data still clears QC and the
+    amplitude gate and LTS runs -- but every target's azimuth filter rejects the
+    wave, so run_alarm reaches the end with no CRITICAL detection. This exercises
+    the full array-processing path and the "coherent wave from an unmonitored
+    direction" outcome. Pre-setting ``back_azimuth`` is preserved by
+    ``get_target_backazimuth`` (which only fills it when absent).
+    """
+    config = _load_fixture_config("KENI_Infrasound")
+    from volc_alarms import Infrasound
+
+    for target in config.targets:
+        target["back_azimuth"] = 40.0
+
+    doubles.waveform_factory = _keni_waveform_factory()
+    doubles.patch_figure_builder(Infrasound, "make_figure")
+    Infrasound.run_alarm(config, INFRASOUND_EVENT_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def infrasound_critical(doubles, load_config):
+    """Recorded KENI array event -> CRITICAL airwave detection + full send.
+
+    The unmodified KENI config accepts the ~216-221 deg arrival at Fourpeaked
+    and Katmai, driving the complete detection + send sequence for each.
+    """
+    config = _load_fixture_config("KENI_Infrasound")
+    from volc_alarms import Infrasound
+
+    doubles.waveform_factory = _keni_waveform_factory()
+    doubles.patch_figure_builder(Infrasound, "make_figure")
+    Infrasound.run_alarm(config, INFRASOUND_EVENT_T0, test_flag=False, mm_flag=True, icinga_flag=True)
 
 
 # ---------------------------------------------------------------------------
@@ -289,7 +413,10 @@ def swarm_representative(doubles, load_config):
 SCENARIOS = {
     "RSAM_representative": rsam_representative,
     "RSAM_critical": rsam_critical,
-    "Infrasound_representative": infrasound_representative,
+    "Infrasound_not_enough_channels": infrasound_not_enough_channels,
+    "Infrasound_below_amplitude": infrasound_below_amplitude,
+    "Infrasound_wrong_backazimuth": infrasound_wrong_backazimuth,
+    "Infrasound_critical": infrasound_critical,
     "Tremor_representative": tremor_representative,
     "Lightning_representative": lightning_representative,
     "Lightning_critical": lightning_critical,

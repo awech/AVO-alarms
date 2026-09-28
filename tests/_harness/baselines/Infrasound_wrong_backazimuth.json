@@ -3,12 +3,12 @@
     "download_waveforms",
     "icinga"
   ],
-  "detection_state": "WARNING",
+  "detection_state": "OK",
   "icinga": [
     {
       "send": true,
-      "state": "WARNING",
-      "state_message": "2025-01-01 00:00 (UTC) SDPI Infrasound - Not enough channels!"
+      "state": "OK",
+      "state_message": "2026-05-14 22:56 (UTC) KENI Infrasound"
     }
   ],
   "os_remove": [],

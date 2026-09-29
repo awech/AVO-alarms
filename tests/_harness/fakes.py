@@ -322,8 +322,14 @@ def install(handle: AlarmDoubles) -> AlarmDoubles:
 
     def _filter_dataframe(df, id_column="id", test=False, table=None):
         rec.record("filter_dataframe", (df,), {"id_column": id_column, "test": test, "table": table})
-        if handle.filter_dataframe_result is not None:
-            return handle.filter_dataframe_result
+        override = handle.filter_dataframe_result
+        if override is not None:
+            # A callable models DB-backed recent state per call (Lightning calls
+            # filter_dataframe twice -- full set, then per-volcano -- so a fixed
+            # tuple can't express which ids were already recorded on each pass).
+            if callable(override):
+                return override(df, id_column=id_column, test=test, table=table)
+            return override
         # Default: nothing previously seen -> every row is "new".
         return df.copy(), df
 

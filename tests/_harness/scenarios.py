@@ -25,6 +25,7 @@ To add a new scenario:
 from __future__ import annotations
 
 import os
+from importlib.resources import files
 from pathlib import Path
 
 import numpy as np
@@ -528,9 +529,143 @@ def tremor_critical(doubles, load_config):
 
 # ---------------------------------------------------------------------------
 # Lightning
+#
+# Lightning's input is JSON from the volcview "avorecent" API. Three scenarios
+# replay a real pared API pull (tests/fixtures/data/lightning_avorecent.json)
+# through the REAL download_lightning parser (only the curl/os.popen call is
+# faked) and the normal cron path (find_nearest_volcano against the volcano
+# list), differing only in which recorded storm window T0 selects. The remaining
+# scenarios drive control-flow / DB-state branches with small crafted inputs.
+#
+# The real-fixture scenarios point VOLCANO_LIST at the shipped volcano_list_avo.csv
+# because it carries the per-alarm "Lightning" opt-out column (Y/N) that the
+# packaged placeholder volcano_list.csv lacks. That column is what makes the
+# ignore path real: strokes the API attributes to an N volcano are reassigned to
+# the nearest Y volcano and dropped when none is within dist2.
 # ---------------------------------------------------------------------------
-def lightning_representative(doubles, load_config):
-    """Default download returns None -> Volcview-API error WARNING."""
+# Volcano list carrying the Lightning Y/N ignore column (Edgecumbe=Y; Duncan
+# Canal, Tlevak Strait, Behm Canal-Rudyerd Bay = N).
+LIGHTNING_VOLCANO_LIST = files("volc_alarms.data").joinpath("volcano_list_avo.csv")
+
+# Capture the genuine download_lightning at import time, BEFORE the harness's
+# install() doubles the module attribute. The real-fixture scenarios reinstall
+# this so the production parser runs (we fake only its curl/os.popen source).
+from volc_alarms.alarms.Lightning import detection as _lightning_detection  # noqa: E402
+
+_REAL_DOWNLOAD_LIGHTNING = _lightning_detection.download_lightning
+
+# Each real-fixture scenario has its OWN single-storm fixture file, because
+# run_alarm only trims strokes on the lower bound (time > T0 - duration) -- there
+# is no upper bound (in production the API only returns recent strokes). One file
+# per storm keeps each scenario isolated; T0 is set just after that storm's last
+# stroke so the 1-hour look-back captures the whole storm and nothing else.
+LIGHTNING_CRITICAL_FIXTURE = FIXTURE_DATA_DIR / "lightning_critical.json"
+LIGHTNING_DISTAL_FIXTURE = FIXTURE_DATA_DIR / "lightning_distal.json"
+LIGHTNING_IGNORED_FIXTURE = FIXTURE_DATA_DIR / "lightning_ignored.json"
+
+LIGHTNING_CRITICAL_T0 = UTCDateTime("2026-08-31T20:59:00")     # Edgecumbe proximal (last stroke 20:58:38)
+LIGHTNING_DISTAL_T0 = UTCDateTime("2026-09-21T00:00:00")       # far Edgecumbe (last stroke 23:59:59)
+LIGHTNING_IGNORED_T0 = UTCDateTime("2026-09-23T18:26:00")      # Behm Canal N (last stroke 18:25:50)
+
+
+def _run_lightning_from_fixture(doubles, fixture_path, T0_event):
+    """Drive Lightning.run_alarm over a recorded single-storm API fixture.
+
+    Runs the REAL download_lightning: os.popen is faked to return the fixture
+    JSON (so the genuine parse + column-rename path runs), and VOLCANO_LIST
+    points at volcano_list_avo.csv so the Y/N ignore column is active. The figure
+    builder is stubbed to a placeholder; everything else uses the shared doubles.
+    """
+    import io
+
+    from volc_alarms import Lightning
+    from volc_alarms.alarms.Lightning import detection as lightning_detection
+
+    mp = doubles.monkeypatch
+    fixture_text = Path(fixture_path).read_text(encoding="utf-8")
+
+    # Re-install the REAL parser (install() had doubled it) so the fixture flows
+    # through the production download_lightning, then fake only its curl source.
+    # run_alarm calls download_lightning via the name imported into the Lightning
+    # package namespace, so patch both the package and the detection module.
+    mp.setattr(lightning_detection, "download_lightning", _REAL_DOWNLOAD_LIGHTNING)
+    mp.setattr(Lightning, "download_lightning", _REAL_DOWNLOAD_LIGHTNING)
+
+    def _fake_popen(_cmd, *a, **k):
+        return io.StringIO(fixture_text)
+
+    mp.setattr(lightning_detection.os, "popen", _fake_popen)
+    # download_lightning builds a curl string from these; values are irrelevant
+    # since popen is faked, but must exist so the f-string formats.
+    mp.setenv("LIGHTNING_URL", "https://example.test/vv-api/lightningApi/avorecent")
+    mp.setenv("API_USERNAME", "test")
+    mp.setenv("API_PASSWORD", "test")
+    # Activate the Y/N ignore column via the fuller shipped volcano list.
+    mp.setenv("VOLCANO_LIST", str(LIGHTNING_VOLCANO_LIST))
+
+    config = load_config_lightning()
+    doubles.patch_figure_builder(Lightning, "plot_fig")
+    Lightning.run_alarm(config, T0_event, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def load_config_lightning():
+    """Load the real config/Lightning.yml (no test-only enrichment needed)."""
+    from volc_alarms.utils import setup_utils
+
+    return setup_utils.load_config("Lightning")
+
+
+def lightning_critical(doubles, load_config):
+    """Real Edgecumbe storm, proximal first stroke -> CRITICAL + full send.
+
+    T0 selects the 2026-08-31 20-21Z window: 17 strokes reassign to Edgecumbe
+    (a Y volcano), first stroke ~8 km (proximal), so run_alarm reaches CRITICAL
+    and the full figure -> Mattermost -> email -> DB record -> cleanup sequence.
+    The lone API-labeled Duncan Canal stroke reattributes past dist2 and drops.
+    """
+    _clean_test_db()
+    _run_lightning_from_fixture(doubles, LIGHTNING_CRITICAL_FIXTURE, LIGHTNING_CRITICAL_T0)
+
+
+def lightning_distal(doubles, load_config):
+    """Real storm, all strokes distal (first > dist1) -> WARNING, no send.
+
+    T0 selects the 2026-09-20 23Z-09-21 00Z window: 37 strokes reassign to
+    Edgecumbe but the nearest is ~35 km (outside dist1), so the first new stroke
+    is distal and run_alarm reports the 'Distal Lightning Detection!' WARNING
+    without sending. Duncan Canal / Tlevak strokes (N volcanoes) drop out.
+    """
+    _clean_test_db()
+    _run_lightning_from_fixture(doubles, LIGHTNING_DISTAL_FIXTURE, LIGHTNING_DISTAL_T0)
+
+
+def lightning_ignored_volcano(doubles, load_config):
+    """Proximal strokes at an IGNORED (N) volcano -> suppressed -> OK.
+
+    T0 selects the 2026-09-23 17:30-18:30Z window: 10 strokes the API attributes
+    to Behm Canal-Rudyerd Bay, 8 of them proximal (down to ~8 km) -- an obvious
+    would-be CRITICAL. But Behm Canal is Lightning=N, so find_nearest_volcano
+    reassigns every stroke to the nearest Y volcano (>100 km away) and the dist2
+    filter drops them all, leaving zero new strokes -> OK 'No new strokes'. This
+    is the explicit proof the ignore column works.
+    """
+    _clean_test_db()
+    _run_lightning_from_fixture(doubles, LIGHTNING_IGNORED_FIXTURE, LIGHTNING_IGNORED_T0)
+
+
+def lightning_no_data(doubles, load_config):
+    """API returns an empty stroke list -> OK 'No new strokes detected'."""
+    config = load_config("Lightning")
+    from volc_alarms import Lightning
+
+    doubles.download_returns["download_lightning"] = pd.DataFrame(
+        columns=["id", "time", "latitude", "longitude", "dataSource", "api_vname", "api_vlat", "api_vlon", "api_vdist"]
+    )
+    Lightning.run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def lightning_api_error(doubles, load_config):
+    """download_lightning returns None (API failure) -> Volcview-API WARNING."""
     config = load_config("Lightning")
     from volc_alarms import Lightning
 
@@ -538,29 +673,45 @@ def lightning_representative(doubles, load_config):
     Lightning.run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True)
 
 
-def lightning_critical(doubles, load_config):
-    """Recorded proximal strokes -> CRITICAL send with event-id list record."""
+def lightning_all_seen(doubles, load_config):
+    """Proximal strokes, but the DB already recorded every id -> OK, no re-alert.
+
+    Models the DB-backed recent-state suppression: the API returns strokes that
+    would be a CRITICAL proximal detection, but filter_dataframe (backed by the
+    alarm-history DB) reports zero NEW ids, so run_alarm resolves to OK 'No new
+    strokes' without sending. The filter_dataframe double is given a callable so
+    both of run_alarm's filter passes (full set, then per-volcano) see the same
+    'already seen' verdict.
+    """
     config = load_config("Lightning")
     from volc_alarms import Lightning
 
-    # Two proximal strokes near a single volcano within the look-back window.
     strokes = pd.DataFrame(
         {
-            "id": ["L1", "L2"],
-            "time": pd.to_datetime(["2024-12-31 23:30:00", "2024-12-31 23:40:00"]),
-            "api_vdist": [5.0, 8.0],
-            "api_vname": ["Pavlof", "Pavlof"],
-            "api_vlat": [55.420, 55.420],
-            "api_vlon": [-161.887, -161.887],
-            "latitude": [55.40, 55.41],
-            "longitude": [-161.85, -161.86],
-            "dataSource": ["EN", "EN"],
+            "id": ["L1", "L2", "L3"],
+            "time": pd.to_datetime(
+                ["2024-12-31 23:20:00", "2024-12-31 23:30:00", "2024-12-31 23:40:00"]
+            ),
+            "api_vdist": [4.0, 6.0, 9.0],
+            "api_vname": ["Pavlof", "Pavlof", "Pavlof"],
+            "api_vlat": [55.420, 55.420, 55.420],
+            "api_vlon": [-161.887, -161.887, -161.887],
+            "latitude": [55.40, 55.41, 55.42],
+            "longitude": [-161.85, -161.86, -161.87],
+            "dataSource": ["EN", "EN", "EN"],
         }
     )
     doubles.download_returns["download_lightning"] = strokes
-    # test_flag=True takes the api_vdist/api_vname branch (no volcano-list lookup).
-    doubles.patch_figure_builder(Lightning, "plot_fig")
-    Lightning.run_alarm(config, T0, test_flag=True, mm_flag=True, icinga_flag=True)
+
+    # Every id is "already seen": new_df is empty, df is unchanged. Returned for
+    # each filter_dataframe call regardless of the (full vs per-volcano) input.
+    def _all_seen(df, **_):
+        return df.iloc[0:0].copy(), df
+
+    doubles.filter_dataframe_result = _all_seen
+    # force_flag defaults False -> find_nearest_volcano runs against the default
+    # volcano list; the crafted coords sit near Pavlof so assignment succeeds.
+    Lightning.run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True)
 
 
 # ---------------------------------------------------------------------------
@@ -701,8 +852,12 @@ SCENARIOS = {
     "Tremor-low_amplitude": ("Tremor", tremor_low_amplitude),
     "Tremor-missing_rsam_station": ("Tremor", tremor_missing_rsam_station),
     "Tremor-critical": ("Tremor", tremor_critical),
-    "Lightning-representative": ("Lightning", lightning_representative),
     "Lightning-critical": ("Lightning", lightning_critical),
+    "Lightning-distal": ("Lightning", lightning_distal),
+    "Lightning-ignored_volcano": ("Lightning", lightning_ignored_volcano),
+    "Lightning-no_data": ("Lightning", lightning_no_data),
+    "Lightning-api_error": ("Lightning", lightning_api_error),
+    "Lightning-all_seen": ("Lightning", lightning_all_seen),
     "NOAA_CIMSS-representative": ("NOAA_CIMSS", noaa_cimss_representative),
     "Pilot_Report-representative": ("Pilot_Report", pilot_report_representative),
     "SO2-representative": ("SO2", so2_representative),

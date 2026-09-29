@@ -1,0 +1,2 @@
+time,latitude,longitude,depth,mag,magType,nst,gap,dmin,rms,net,id,updated,place,type,horizontalError,depthError,magError,magNst,status,locationSource,magSource,eventSource
+2026-01-04T20:16:41.260Z,58.44217,-154.51601,7.950,3.25,l,33,177.00,6.00,0.34,AV,93980456,2026-01-08T00:42:00.000Z,"",eq,0.69,0.96,0.29,41,F,AV,AV,RT1

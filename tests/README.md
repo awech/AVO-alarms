@@ -31,6 +31,8 @@ tests/
 │   ├── snapshot_utils.py           # capture behavior + save/load baseline JSON
 │   ├── scenarios.py                # per-alarm run_alarm scenario drivers
 │   └── baselines/                  # frozen known-good JSON snapshots
+│       └── <Alarm>/                # one subdir per alarm
+│           └── <Alarm>-<variant>.json
 ├── utils/                          # unit tests for volc_alarms.utils.*
 │   ├── test_alarming.py
 │   ├── test_messaging.py
@@ -49,8 +51,19 @@ tests/
 ├── scripts/                        # unit tests for volc_alarms.scripts.*
 │   └── test_run_alarm_cli.py
 └── fixtures/                       # shared static data + crafted sample inputs
-    └── data/station.xml
+    ├── configs/                    # test-only alarm configs (KENI, Pavlof, ...)
+    └── data/                       # recorded events (MiniSEED / API JSON), station.xml
 ```
+
+### Baseline file naming
+
+Frozen baselines live at `_harness/baselines/<Alarm>/<Alarm>-<variant>.json`. The
+`-` separates the alarm module from the scenario variant so the name splits
+unambiguously even though several module names (`NOAA_CIMSS`, `Pilot_Report`) and
+variants (`not_enough_channels`, `ignored_volcano`) contain `_`. The scenario
+registry key is exactly the `<Alarm>-<variant>` string; `SCENARIOS` maps it to a
+`(module, driver)` tuple, and the module names the baseline subdir (so the path
+is derived from an explicit field, never by parsing the name).
 
 ## Naming and docstring conventions
 
@@ -107,7 +120,7 @@ the network `download_*` helpers are integration-only.
 | Alarm | detection | message | figure | run_alarm (integration depth) |
 |-------|-----------|---------|--------|-------------------------------|
 | Infrasound | ✅ | 🔄 | ✅ | 🟢 full send + ⚪ no-detect + 🟡 early-exit (all branches) |
-| Lightning | ✅ | ✅ | ❌ | 🟢 full send + 🟡 early-exit |
+| Lightning | ✅ | ✅ | ✅ | 🟢 full send + ⚪ distal/ignored/all-seen + 🟡 API error (all branches) |
 | Magnitude | ✅ | 🔄 | ❌ | 🟢 full send + ⚪ no-op OK |
 | NOAA_CIMSS | ✅ | ❌ | ❌ | 🟡 early-exit only |
 | Pilot_Report | ✅ | ❌ | ❌ | ⚪ no-op OK only |
@@ -135,12 +148,21 @@ The `detection`/`message`/`figure` columns describe how each alarm's
   spectrogram builder in `utils/plotting.py`; both have figure smoke tests that
   drive that shared builder (marked ✅ "shared builder").
 
-> Figure tests (where present) are **smoke tests**: they confirm `make_figure`
-> runs end to end and returns a path — the failure mode that matters, since
-> figure generation is wrapped in try/except in production — not that the output
-> looks a certain way. See VAA `test_figure.py` (cartopy map) and Infrasound
-> `test_figure.py` (mosaic + spectrograms); both fake the data/compute
-> boundaries and let the real plotting code run.
+> Figure tests (where present) are **smoke tests**: they confirm the figure
+> builder runs end to end and returns a path — the failure mode that matters,
+> since figure generation is wrapped in try/except in production — not that the
+> output looks a certain way. See VAA `test_figure.py` (cartopy map), Lightning
+> `test_figure.py` (cartopy map + time-colored stroke scatter), and Infrasound
+> `test_figure.py` (mosaic + spectrograms); all fake the data/compute boundaries
+> (`save_file` and any download) and let the real plotting code run.
+
+> **Coverage gotcha (cartopy + the default tracer).** Measuring figure coverage
+> with coverage.py's default C tracer *understates* it: when cartopy's C
+> extensions call back into Python, the tracer stops recording, so lines after
+> the first `make_map` call execute but are not counted (e.g. Lightning
+> `figure.py` reads as ~47% when it is actually 100%). Measure figure/cartopy
+> code with the `sys.monitoring` tracer instead:
+> `COVERAGE_CORE=sysmon coverage run -m pytest ...`.
 
 #### Integration baseline depth (important)
 
@@ -152,22 +174,25 @@ does not reveal it:
   detection and the complete send sequence (figure → Mattermost → email → DB
   record → cleanup → Icinga). This is the strongest regression guard. Alarms:
   **RSAM**, **Lightning**, **Magnitude**, **Infrasound**, **Tremor** (all have a
-  `_critical` scenario).
+  `critical` scenario).
 - ⚪ **no-detect / no-op OK / sub-threshold** — the decision logic fully runs but
   reaches a non-CRITICAL result: a "nothing to report" no-op the alarm is
   designed to produce (empty catalog / no new reports — **Pilot_Report**,
   **Swarm**, **Magnitude** representative); a real signal the detection logic
   evaluates and rejects (**Infrasound** `wrong_backazimuth`: a coherent airwave
-  no target accepts); or real data that lands below/around threshold
-  (**RSAM** `elevated`/`arrested`/`normal`: the same recorded event scaled to the
+  no target accepts; **Lightning** `distal`: a real storm whose strokes are all
+  outside the inner ring, `ignored_volcano`: real proximal strokes at a volcano
+  opted out via the ignore column, `all_seen`: strokes the DB already recorded);
+  or real data that lands below/around threshold (**RSAM**
+  `elevated`/`arrested`/`normal`: the same recorded event scaled to the
   elevated-WARNING, arrestor-vetoed, and OK branches).
 - 🟡 **early-exit only** — the scenario feeds no usable input, so the alarm bails
   at an input guard (missing data / not-enough-channels / API or webpage error)
   **before its detection logic runs**. These baselines verify the plumbing and
   the guard, **not** the science. Alarms with *only* this depth: **NOAA_CIMSS**,
-  **SO2**, **VAA**. (Note: **Infrasound**, **RSAM**, and **Tremor** also have
-  early-exit/data-missing scenarios, but are not limited to that depth — they
-  cover every branch.)
+  **SO2**, **VAA**. (Note: **Infrasound**, **RSAM**, **Tremor**, and **Lightning**
+  also have early-exit / API-error / data-missing scenarios, but are not limited
+  to that depth — they cover every branch.)
 
 For the 🟡 alarms, the detection science is instead covered by the `detection`
 unit tests (e.g. VAA `process_polygons`, NOAA_CIMSS/SO2 parsers). The remaining
@@ -202,6 +227,34 @@ fixture, then steered down each `run_alarm` branch with a small config tweak:
   `tests/fixtures/configs/` (not the repo `config/`).
 
 This record/replay recipe is the template for lifting the remaining 🟡 alarms.
+
+##### Record/replay for API-JSON alarms (Lightning)
+
+Lightning's input is JSON from the volcview "avorecent" API rather than
+waveforms, so it uses the same record/replay idea with a different seam:
+
+- A real API pull was pared to three single-storm fixtures under
+  `tests/fixtures/data/` (`lightning_critical.json` — Edgecumbe proximal;
+  `lightning_distal.json` — far Edgecumbe; `lightning_ignored.json` — proximal
+  strokes at Behm Canal-Rudyerd Bay). One storm per file because `run_alarm`
+  only trims strokes on the *lower* time bound (`time > T0 - duration`); in
+  production the API returns just recent strokes, so there is no upper bound. Each
+  scenario sets `T0` just after its storm's last stroke.
+- The scenarios run the **real** `download_lightning` (captured at import before
+  the harness doubles it) and fake only its `os.popen` curl call to return the
+  fixture text, so the genuine parse + column-rename path runs. From there the
+  normal cron path (`find_nearest_volcano` against the volcano list) executes.
+- `VOLCANO_LIST` is pointed at the shipped `volcano_list_avo.csv`, which carries
+  the per-alarm `Lightning` opt-out column (`Y`/`N`). The packaged
+  `volcano_list.csv` placeholder omits that column, so the ignore path would be a
+  no-op with it. The `ignored_volcano` scenario is the explicit proof the ignore
+  works: strokes the API attributes to an `N` volcano are reassigned to the
+  nearest `Y` volcano and dropped past `dist2`, yielding zero new strokes.
+- The DB-state branches (`all_seen`) do not need a fixture — they drive the
+  `filter_dataframe` double with a callable that reports every id as already
+  seen, modelling the alarm-history DB suppressing a re-alert. (The double
+  accepts either a fixed `(new_df, df)` tuple or such a callable, since Lightning
+  calls `filter_dataframe` twice — the full set, then per volcano.)
 
 #### Extending coverage (known follow-ups)
 

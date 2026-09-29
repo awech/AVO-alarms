@@ -121,7 +121,7 @@ the network `download_*` helpers are integration-only.
 |-------|-----------|---------|--------|-------------------------------|
 | Infrasound | ✅ | 🔄 | ✅ | 🟢 full send + ⚪ no-detect + 🟡 early-exit (all branches) |
 | Lightning | ✅ | ✅ | ✅ | 🟢 full send + ⚪ distal/ignored/all-seen + 🟡 API error (all branches) |
-| Magnitude | ✅ | 🔄 | ❌ | 🟢 full send + ⚪ no-op OK |
+| Magnitude | ✅ | 🔄 | ✅ | 🟢 full send + ⚪ no-op/not-near/already-processed + 🟡 FDSN error (all branches) |
 | NOAA_CIMSS | ✅ | ❌ | ❌ | 🟡 early-exit only |
 | Pilot_Report | ✅ | ❌ | ❌ | ⚪ no-op OK only |
 | RSAM | ✅ | ✅ | ✅ (shared builder) | 🟢 full send + ⚪ normal OK + 🟡 data-missing (all branches) |
@@ -152,9 +152,11 @@ The `detection`/`message`/`figure` columns describe how each alarm's
 > builder runs end to end and returns a path — the failure mode that matters,
 > since figure generation is wrapped in try/except in production — not that the
 > output looks a certain way. See VAA `test_figure.py` (cartopy map), Lightning
-> `test_figure.py` (cartopy map + time-colored stroke scatter), and Infrasound
-> `test_figure.py` (mosaic + spectrograms); all fake the data/compute boundaries
-> (`save_file` and any download) and let the real plotting code run.
+> `test_figure.py` (cartopy map + time-colored stroke scatter), Magnitude
+> `test_figure.py` (trace mosaic + response removal + map, from a recorded event),
+> and Infrasound `test_figure.py` (mosaic + spectrograms); all fake the
+> data/compute boundaries (`save_file`, downloads, and — for Magnitude — the
+> Earthscope station-metadata client) and let the real plotting code run.
 
 > **Coverage gotcha (cartopy + the default tracer).** Measuring figure coverage
 > with coverage.py's default C tracer *understates* it: when cartopy's C
@@ -182,7 +184,9 @@ does not reveal it:
   evaluates and rejects (**Infrasound** `wrong_backazimuth`: a coherent airwave
   no target accepts; **Lightning** `distal`: a real storm whose strokes are all
   outside the inner ring, `ignored_volcano`: real proximal strokes at a volcano
-  opted out via the ignore column, `all_seen`: strokes the DB already recorded);
+  opted out via the ignore column, `all_seen`: strokes the DB already recorded;
+  **Magnitude** `not_near_volcano`: a quake beyond the config distance from any
+  volcano, `already_processed`: the recorded event whose id is already in the DB);
   or real data that lands below/around threshold (**RSAM**
   `elevated`/`arrested`/`normal`: the same recorded event scaled to the
   elevated-WARNING, arrestor-vetoed, and OK branches).
@@ -190,9 +194,9 @@ does not reveal it:
   at an input guard (missing data / not-enough-channels / API or webpage error)
   **before its detection logic runs**. These baselines verify the plumbing and
   the guard, **not** the science. Alarms with *only* this depth: **NOAA_CIMSS**,
-  **SO2**, **VAA**. (Note: **Infrasound**, **RSAM**, **Tremor**, and **Lightning**
-  also have early-exit / API-error / data-missing scenarios, but are not limited
-  to that depth — they cover every branch.)
+  **SO2**, **VAA**. (Note: **Infrasound**, **RSAM**, **Tremor**, **Lightning**, and
+  **Magnitude** also have early-exit / API-error / FDSN-error / data-missing
+  scenarios, but are not limited to that depth — they cover every branch.)
 
 For the 🟡 alarms, the detection science is instead covered by the `detection`
 unit tests (e.g. VAA `process_polygons`, NOAA_CIMSS/SO2 parsers). The remaining
@@ -256,14 +260,42 @@ waveforms, so it uses the same record/replay idea with a different seam:
   accepts either a fixed `(new_df, df)` tuple or such a callable, since Lightning
   calls `filter_dataframe` twice — the full set, then per volcano.)
 
+##### Record/replay for a catalog + waveform alarm (Magnitude)
+
+Magnitude's input is an FDSN earthquake catalog plus, for the figure, waveforms
+and station metadata. The detection/message and the figure render are split
+across the integration test and `test_figure.py`:
+
+- Four fixtures under `tests/fixtures/data/` capture a real M3.25 event near
+  Denison (2026-01-04): `..._..csv` (the FDSN hypocenters row), `..._..quakeml`
+  (the per-event QuakeML with 68 picks / 41 stations), `..._..mseed` (70 s
+  waveforms for the nearest 10 BHZ channels), and `..._.._inv.xml` (StationXML:
+  coords for all 41 pick stations + full responses for the 10 recorded channels,
+  pared to the event epoch — see `_record_magnitude_event.py`).
+- The **integration** scenarios (`critical`, `already_processed`) feed the CSV +
+  QuakeML to the faked downloaders and stub `plot_event`, so `run_alarm` runs the
+  real `find_nearest_volcano` (places the event ~4.7 km from Denison, inside the
+  10 km config distance) + `create_message` (rendered from the real picks) + the
+  send/record/cleanup sequence — without rendering.
+- The **figure** smoke test (`test_figure.py`) owns the full `plot_event` render:
+  it serves the MiniSEED to `download_waveforms` and points a small
+  local-inventory client (backed by the StationXML) at both `Earthscope_client`
+  call sites, so `eq_picks_to_dataframe`'s per-station coord lookups and
+  `st.remove_response` run offline while the real mosaic + map draw.
+- `already_processed` seeds the recorded event id into the real (non-test)
+  `sent_events` table via `alarming.get_conn`, so `run_alarm`'s `already_processed`
+  sqlite check short-circuits to the "Old event detected" OK branch. `fdsn_error`
+  uses the `hypocenter_csv_error` doubles knob to make the CSV downloader return
+  `None`; `not_near_volcano` feeds a crafted offshore quake.
+
 #### Extending coverage (known follow-ups)
 
 - Apply the record/replay pattern above to the remaining 🟡 alarms so their
   `run_alarm` baseline exercises detection + send, not just an input guard. The
   HTML-scraper alarms (NOAA_CIMSS, SO2, VAA) are the most fixture-heavy — they
   need saved scraped pages rather than waveforms.
-- Unit-test the FDSN-backed helpers (`Dr_to_RSAM`, `eq_picks_to_dataframe`) with
-  a mocked client.
+- Unit-test the remaining FDSN-backed helper `Dr_to_RSAM` with a mocked client
+  (`eq_picks_to_dataframe` is now exercised by the Magnitude figure test).
 
 ### scripts
 

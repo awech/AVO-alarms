@@ -111,3 +111,42 @@ def test_get_latitude_parses_radiative_center_coordinates():
     lat, lon = get_latitude(soup)
     assert lat == pytest.approx(55.42)
     assert lon == pytest.approx(-161.89)
+
+
+# ---------------------------------------------------------------------------
+# process_alert_soup (against the real recorded alert page)
+# ---------------------------------------------------------------------------
+def test_process_alert_soup_parses_recorded_spurr_alert(monkeypatch):
+    """process_alert_soup extracts instrument/status/type/aid from the real page.
+
+    Uses the committed Spurr ash alert HTML (report 448880). get_cimss_image is
+    stubbed so no images are downloaded; only the parsing is exercised.
+    """
+    from pathlib import Path
+
+    from bs4 import BeautifulSoup
+
+    from volc_alarms.alarms.NOAA_CIMSS import detection as det
+
+    html = Path("tests/fixtures/data/noaa_cimss_alert_448880.html").read_bytes()
+    soup = BeautifulSoup(html, "html.parser")
+    monkeypatch.setattr(det, "get_cimss_image", lambda *a, **k: None)
+
+    # The alert whose object_date_time + radiative center the page section matches.
+    alert = pd.Series(
+        {
+            "object_date_time": "2026-09-29 14:30:38",
+            "lat_rc": 61.30,
+            "lon_rc": -152.25,
+            "alert_url": "https://volcano.ssec.wisc.edu/alert/report/448880",
+        }
+    )
+
+    out_alert, output = det.process_alert_soup(soup, alert.copy(), SimpleNamespace())
+
+    assert output is not None
+    assert output["instrument"] == "GOES-18 ABI"
+    assert "Alert Status" in output["status_txt"]
+    assert "Ash Emission" in output["type_txt"]
+    # aid is extracted from the "individual" links on the page.
+    assert out_alert["aid"] is not None

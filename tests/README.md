@@ -106,21 +106,41 @@ the network `download_*` helpers are integration-only.
 
 | Alarm | detection | message | figure | run_alarm (integration depth) |
 |-------|-----------|---------|--------|-------------------------------|
-| Infrasound | ✅ | N/A (inline) | 🔄 | 🟢 full send + ⚪ no-detect + 🟡 early-exit (all branches) |
-| Lightning | ✅ | ✅ | 🔄 | 🟢 full send + 🟡 early-exit |
-| Magnitude | ✅ | 🔄 (via `process_event`) | 🔄 | 🟢 full send + ⚪ no-op OK |
-| NOAA_CIMSS | ✅ | 🔄 | 🔄 | 🟡 early-exit only |
-| Pilot_Report | ✅ | 🔄 | 🔄 | ⚪ no-op OK only |
-| RSAM | ✅ | ✅ | 🔄 | 🟢 full send + 🟡 early-exit |
-| SO2 | ✅ (offline path) | 🔄 | 🔄 | 🟡 early-exit only |
-| Swarm | ✅ | 🔄 | 🔄 | ⚪ no-op OK only |
-| Tremor | ✅ | 🔄 | 🔄 | 🟡 early-exit only |
+| Infrasound | ✅ | 🔄 | ✅ | 🟢 full send + ⚪ no-detect + 🟡 early-exit (all branches) |
+| Lightning | ✅ | ✅ | ❌ | 🟢 full send + 🟡 early-exit |
+| Magnitude | ✅ | 🔄 | ❌ | 🟢 full send + ⚪ no-op OK |
+| NOAA_CIMSS | ✅ | ❌ | ❌ | 🟡 early-exit only |
+| Pilot_Report | ✅ | ❌ | ❌ | ⚪ no-op OK only |
+| RSAM | ✅ | ✅ | ❌ (thin wrapper) | 🟢 full send + 🟡 early-exit |
+| SO2 | ✅ (offline path) | ❌ | ❌ | 🟡 early-exit only |
+| Swarm | ✅ | ❌ | ❌ | ⚪ no-op OK only |
+| Tremor | ✅ | ❌ | ❌ (thin wrapper) | 🟡 early-exit only |
 | VAA | ✅ | ✅ | ✅ | 🟡 early-exit only |
 
-Unit-test columns (`detection`/`message`/`figure`) live in
-`tests/alarms/<Alarm>/test_*.py`; ✅ = dedicated unit tests, 🔄 = exercised only
-via the integration baseline, N/A (inline) = the alarm builds its message inside
-`run_alarm` rather than a separate `message.py`.
+The `detection`/`message`/`figure` columns describe how each alarm's
+`<Alarm>/{detection,message,figure}.py` is tested (unit tests live in
+`tests/alarms/<Alarm>/test_*.py`). Every alarm has all three modules:
+
+- ✅ — has a dedicated unit test.
+- 🔄 — no dedicated unit test, but the module's code **actually runs** during the
+  `run_alarm` integration baseline, so a crash there would be caught. For
+  `message.py` this means the alarm reaches a send in some scenario (only the
+  🟢 full-send alarms do), so its `create_message` executes.
+- ❌ — **not tested at all.** For `message.py`, the alarm's baselines never reach
+  a send (they resolve to a no-op OK or an early exit), so `create_message` never
+  runs in integration and has no unit test. For `figure.py`, the integration
+  scenarios stub out `make_figure`/`save_file` to avoid rendering, so figure
+  builders are never exercised by integration either — a bug in one would go
+  uncaught. "(thin wrapper)" marks alarms whose `figure.py` just delegates to the
+  shared spectrogram builder in `utils/plotting.py`, so there is little
+  alarm-specific figure code to test.
+
+> Figure tests (where present) are **smoke tests**: they confirm `make_figure`
+> runs end to end and returns a path — the failure mode that matters, since
+> figure generation is wrapped in try/except in production — not that the output
+> looks a certain way. See VAA `test_figure.py` (cartopy map) and Infrasound
+> `test_figure.py` (mosaic + spectrograms); both fake the data/compute
+> boundaries and let the real plotting code run.
 
 #### Integration baseline depth (important)
 

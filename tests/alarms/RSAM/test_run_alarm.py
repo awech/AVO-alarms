@@ -24,11 +24,11 @@ from tests._harness.compare import run_and_compare
 @pytest.mark.parametrize(
     "name",
     [
-        "RSAM_critical",
-        "RSAM_elevated",
-        "RSAM_arrested",
-        "RSAM_normal",
-        "RSAM_data_missing",
+        "RSAM-critical",
+        "RSAM-elevated",
+        "RSAM-arrested",
+        "RSAM-normal",
+        "RSAM-data_missing",
     ],
 )
 def test_run_alarm_matches_baseline(name, alarm_doubles, load_alarm_config):

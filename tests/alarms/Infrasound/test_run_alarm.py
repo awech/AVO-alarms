@@ -23,10 +23,10 @@ from tests._harness.compare import run_and_compare
 @pytest.mark.parametrize(
     "name",
     [
-        "Infrasound_not_enough_channels",
-        "Infrasound_below_amplitude",
-        "Infrasound_wrong_backazimuth",
-        "Infrasound_critical",
+        "Infrasound-not_enough_channels",
+        "Infrasound-below_amplitude",
+        "Infrasound-wrong_backazimuth",
+        "Infrasound-critical",
     ],
 )
 def test_run_alarm_matches_baseline(name, alarm_doubles, load_alarm_config):

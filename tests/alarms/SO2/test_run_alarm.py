@@ -14,4 +14,4 @@ from tests._harness.compare import run_and_compare
 @pytest.mark.integration
 def test_run_alarm_matches_baseline(alarm_doubles, load_alarm_config):
     """SO2.run_alarm() representative behavior matches its frozen baseline."""
-    run_and_compare("SO2_representative", alarm_doubles, load_alarm_config)
+    run_and_compare("SO2-representative", alarm_doubles, load_alarm_config)

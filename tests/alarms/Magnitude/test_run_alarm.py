@@ -16,7 +16,7 @@ from tests._harness.compare import run_and_compare
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("name", ["Magnitude_representative", "Magnitude_critical"])
+@pytest.mark.parametrize("name", ["Magnitude-representative", "Magnitude-critical"])
 def test_run_alarm_matches_baseline(name, alarm_doubles, load_alarm_config):
     """Magnitude.run_alarm() behavior matches its frozen baseline for each scenario."""
     run_and_compare(name, alarm_doubles, load_alarm_config)

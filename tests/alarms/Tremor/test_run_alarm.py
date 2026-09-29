@@ -27,13 +27,13 @@ from tests._harness.compare import run_and_compare
 @pytest.mark.parametrize(
     "name",
     [
-        "Tremor_data_missing",
-        "Tremor_normal",
-        "Tremor_elevated",
-        "Tremor_elevated_no_new_events",
-        "Tremor_low_amplitude",
-        "Tremor_missing_rsam_station",
-        "Tremor_critical",
+        "Tremor-data_missing",
+        "Tremor-normal",
+        "Tremor-elevated",
+        "Tremor-elevated_no_new_events",
+        "Tremor-low_amplitude",
+        "Tremor-missing_rsam_station",
+        "Tremor-critical",
     ],
 )
 def test_run_alarm_matches_baseline(name, alarm_doubles, load_alarm_config):

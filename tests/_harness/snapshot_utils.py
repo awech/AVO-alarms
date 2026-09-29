@@ -133,8 +133,22 @@ def capture(doubles: AlarmDoubles) -> dict:
     return snapshot(doubles.recorder, doubles.db, doubles.placeholder_figure)
 
 
+def _module_for(name: str) -> str:
+    """Return the alarm-module subdir for scenario ``name`` from the registry.
+
+    The module is taken from ``SCENARIOS`` (an explicit ``(module, driver)``
+    entry) rather than parsed out of ``name`` -- several module names and
+    variants contain ``_``, so the module can't be recovered by splitting.
+    Imported lazily to avoid a circular import (scenarios imports T0 from here).
+    """
+    from tests._harness.scenarios import SCENARIOS
+
+    return SCENARIOS[name][0]
+
+
 def baseline_path(name: str) -> Path:
-    return BASELINES_DIR / f"{name}.json"
+    """Path to the frozen baseline: baselines/<Module>/<name>.json."""
+    return BASELINES_DIR / _module_for(name) / f"{name}.json"
 
 
 def load_baseline(name: str) -> dict:
@@ -144,8 +158,8 @@ def load_baseline(name: str) -> dict:
 
 def freeze_baseline(name: str, data: dict) -> Path:
     """Persist ``data`` as a frozen JSON fixture and return its path."""
-    BASELINES_DIR.mkdir(parents=True, exist_ok=True)
     path = baseline_path(name)
+    path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as fh:
         json.dump(data, fh, indent=2, sort_keys=True, ensure_ascii=False)
         fh.write("\n")

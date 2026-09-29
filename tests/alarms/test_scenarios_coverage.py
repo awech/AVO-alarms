@@ -18,12 +18,10 @@ def test_every_alarm_has_a_scenario():
         "Infrasound", "RSAM", "Tremor", "Lightning", "NOAA_CIMSS",
         "Pilot_Report", "SO2", "Swarm", "Magnitude", "VAA",
     }
-    # Scenario names are "<AlarmType>_<variant>" where <variant> may itself
-    # contain underscores (e.g. "Infrasound_not_enough_channels"), so match by
-    # alarm-type prefix rather than splitting on the last underscore.
-    missing = {
-        atype
-        for atype in alarm_types
-        if not any(name == atype or name.startswith(f"{atype}_") for name in SCENARIOS)
-    }
+    # Each SCENARIOS entry carries its alarm module explicitly as the first item
+    # of the (module, driver) value, so read the covered set from there rather
+    # than parsing scenario-name strings (module names and variants both contain
+    # "_", e.g. "NOAA_CIMSS-representative", "Infrasound-not_enough_channels").
+    covered = {module for module, _driver in SCENARIOS.values()}
+    missing = alarm_types - covered
     assert not missing, f"Alarms without a baseline scenario: {sorted(missing)}"

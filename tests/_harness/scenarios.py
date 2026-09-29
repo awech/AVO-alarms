@@ -16,7 +16,9 @@ Scenario types:
 
 To add a new scenario:
 1. Write a function taking (doubles, load_config) and calling run_alarm
-2. Register it in the SCENARIOS dict at the bottom of this file
+2. Register it in the SCENARIOS dict at the bottom of this file as
+   "<Module>-<variant>": ("<Module>", driver_fn). The frozen JSON will live at
+   baselines/<Module>/<Module>-<variant>.json.
 3. Run: REGEN_BASELINES=1 pytest -m integration -k "your_scenario"
 """
 
@@ -677,31 +679,35 @@ def swarm_representative(doubles, load_config):
 # ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
-# Maps frozen-baseline name -> scenario driver. The test parametrizes over this.
+# Maps frozen-baseline name -> (alarm module, scenario driver). The test
+# parametrizes over the keys; the module names the baselines/<Module>/ subdir the
+# frozen JSON lives in. Keys use "-" as the module/variant boundary so they split
+# unambiguously even though several module names and variants contain "_"
+# (e.g. "NOAA_CIMSS-representative", "Infrasound-not_enough_channels").
 SCENARIOS = {
-    "RSAM_critical": rsam_critical,
-    "RSAM_elevated": rsam_elevated,
-    "RSAM_arrested": rsam_arrested,
-    "RSAM_normal": rsam_normal,
-    "RSAM_data_missing": rsam_data_missing,
-    "Infrasound_not_enough_channels": infrasound_not_enough_channels,
-    "Infrasound_below_amplitude": infrasound_below_amplitude,
-    "Infrasound_wrong_backazimuth": infrasound_wrong_backazimuth,
-    "Infrasound_critical": infrasound_critical,
-    "Tremor_data_missing": tremor_data_missing,
-    "Tremor_normal": tremor_normal,
-    "Tremor_elevated": tremor_elevated,
-    "Tremor_elevated_no_new_events": tremor_elevated_no_new_events,
-    "Tremor_low_amplitude": tremor_low_amplitude,
-    "Tremor_missing_rsam_station": tremor_missing_rsam_station,
-    "Tremor_critical": tremor_critical,
-    "Lightning_representative": lightning_representative,
-    "Lightning_critical": lightning_critical,
-    "NOAA_CIMSS_representative": noaa_cimss_representative,
-    "Pilot_Report_representative": pilot_report_representative,
-    "SO2_representative": so2_representative,
-    "VAA_representative": vaa_representative,
-    "Magnitude_representative": magnitude_representative,
-    "Magnitude_critical": magnitude_critical,
-    "Swarm_representative": swarm_representative,
+    "RSAM-critical": ("RSAM", rsam_critical),
+    "RSAM-elevated": ("RSAM", rsam_elevated),
+    "RSAM-arrested": ("RSAM", rsam_arrested),
+    "RSAM-normal": ("RSAM", rsam_normal),
+    "RSAM-data_missing": ("RSAM", rsam_data_missing),
+    "Infrasound-not_enough_channels": ("Infrasound", infrasound_not_enough_channels),
+    "Infrasound-below_amplitude": ("Infrasound", infrasound_below_amplitude),
+    "Infrasound-wrong_backazimuth": ("Infrasound", infrasound_wrong_backazimuth),
+    "Infrasound-critical": ("Infrasound", infrasound_critical),
+    "Tremor-data_missing": ("Tremor", tremor_data_missing),
+    "Tremor-normal": ("Tremor", tremor_normal),
+    "Tremor-elevated": ("Tremor", tremor_elevated),
+    "Tremor-elevated_no_new_events": ("Tremor", tremor_elevated_no_new_events),
+    "Tremor-low_amplitude": ("Tremor", tremor_low_amplitude),
+    "Tremor-missing_rsam_station": ("Tremor", tremor_missing_rsam_station),
+    "Tremor-critical": ("Tremor", tremor_critical),
+    "Lightning-representative": ("Lightning", lightning_representative),
+    "Lightning-critical": ("Lightning", lightning_critical),
+    "NOAA_CIMSS-representative": ("NOAA_CIMSS", noaa_cimss_representative),
+    "Pilot_Report-representative": ("Pilot_Report", pilot_report_representative),
+    "SO2-representative": ("SO2", so2_representative),
+    "VAA-representative": ("VAA", vaa_representative),
+    "Magnitude-representative": ("Magnitude", magnitude_representative),
+    "Magnitude-critical": ("Magnitude", magnitude_critical),
+    "Swarm-representative": ("Swarm", swarm_representative),
 }

@@ -31,11 +31,11 @@ def run_and_compare(name, alarm_doubles, load_alarm_config):
     """Drive scenario ``name``, snapshot its behavior, and freeze-or-compare.
 
     Args:
-        name: a key in ``scenarios.SCENARIOS`` (e.g. ``"RSAM_critical"``).
+        name: a key in ``scenarios.SCENARIOS`` (e.g. ``"RSAM-critical"``).
         alarm_doubles: the installed fakes handle (``alarm_doubles`` fixture).
         load_alarm_config: the config loader factory (``load_alarm_config``).
     """
-    scenario = SCENARIOS[name]
+    _module, scenario = SCENARIOS[name]
 
     # Drive the current alarm's run_alarm with recorded fixtures + doubles.
     scenario(alarm_doubles, load_alarm_config)

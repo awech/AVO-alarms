@@ -16,7 +16,7 @@ from tests._harness.compare import run_and_compare
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("name", ["Lightning_representative", "Lightning_critical"])
+@pytest.mark.parametrize("name", ["Lightning-representative", "Lightning-critical"])
 def test_run_alarm_matches_baseline(name, alarm_doubles, load_alarm_config):
     """Lightning.run_alarm() behavior matches its frozen baseline for each scenario."""
     run_and_compare(name, alarm_doubles, load_alarm_config)

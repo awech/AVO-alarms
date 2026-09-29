@@ -218,6 +218,9 @@ class AlarmDoubles:
         # --- configurable knobs ---------------------------------------
         self.waveform_factory: Callable[..., Stream] = default_stream_factory
         self.hypocenter_csv: Any = None
+        # When True, the download_hypocenters_csv double returns None (the FDSN
+        # error branch) instead of an empty df.
+        self.hypocenter_csv_error: bool = False
         self.hypocenter_xml: Any = None
         self.can_send_result: bool = True
         self.filter_dataframe_result: Any = None
@@ -348,6 +351,8 @@ def install(handle: AlarmDoubles) -> AlarmDoubles:
 
     def _download_hypocenters_csv(URL):
         rec.record("download_hypocenters_csv", (URL,))
+        if handle.hypocenter_csv_error:
+            return None  # simulate the FDSN failure branch (catalog_df is None)
         if handle.hypocenter_csv is not None:
             return handle.hypocenter_csv
         return empty_hypocenter_df()

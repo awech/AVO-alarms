@@ -14,32 +14,32 @@
     {
       "send": true,
       "state": "CRITICAL",
-      "state_message": "2024-12-31 23:55:00 (UTC) M3.2 earthquake at Pavlof"
+      "state_message": "2026-01-04 20:16:41 (UTC) M3.2 earthquake at Denison"
     },
     {
       "send": true,
       "state": "CRITICAL",
-      "state_message": "2024-12-31 23:55:00 (UTC) M3.2 earthquake at Pavlof"
+      "state_message": "2026-01-04 20:16:41 (UTC) M3.2 earthquake at Denison"
     }
   ],
   "os_remove": [],
   "post_mattermost": [
     {
-      "body": "2024-12-31 23:55:00 UTC\n2024-12-31 14:55:00 AKST\n\n**Magnitude:** 3.2\n**Latitude:** 55.417\n**Longitude:** -161.894\n**Depth:** 5.0 km\n**Event ID:** eventak0258testevt\n**Nearest volcanoes:** Pavlof (0 km), Pavlof Sister (5 km), Emmons Lake Volcanic Center (14 km)\n\n***--- REVIEWED Location ---***",
+      "body": "2026-01-04 20:16:41 UTC\n2026-01-04 11:16:41 AKST\n\n**Magnitude:** 3.2\n**Latitude:** 58.442\n**Longitude:** -154.516\n**Depth:** 8.0 km\n**Event ID:** av93980456\n**Nearest volcanoes:** Denison (5 km), Steller (7 km), Kukak (9 km)\n\n***--- REVIEWED Location ---***\nUsing 33 phases from 19 stations\n**Azimuthal Gap:** 177 degrees\n**Standard Error:** 0.34 s\n**Vertical/Horizontal Error:** 1.0 km / 0.7 km",
       "channel_ids": null,
       "send": true,
-      "subject": "M3.2 earthquake at Pavlof",
+      "subject": "M3.2 earthquake at Denison",
       "test": false,
-      "volcano": "Pavlof"
+      "volcano": "Denison"
     }
   ],
   "record_send": [
     {
       "alarm_id": "Earthquake Magnitude",
-      "event_id": "ak0258testevt",
-      "process_time": "2025-01-01T00:00:00",
+      "event_id": 93980456,
+      "process_time": "2026-01-04T20:30:00",
       "test": false,
-      "volcano": "Pavlof"
+      "volcano": "Denison"
     }
   ],
   "send_alert": []

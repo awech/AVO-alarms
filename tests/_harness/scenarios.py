@@ -34,6 +34,7 @@ from obspy import Stream, Trace, UTCDateTime
 from obspy.core.event import Catalog, Event, Magnitude as EventMagnitude, Origin, ResourceIdentifier
 
 from obspy import read as read_stream
+from obspy import read_events, read_inventory
 
 from tests._harness.snapshot_utils import T0
 
@@ -764,7 +765,28 @@ def vaa_representative(doubles, load_config):
 
 # ---------------------------------------------------------------------------
 # Magnitude
+#
+# The critical scenario replays a real M3.25 event near Denison (2026-01-04
+# 20:16:41 UTC) through the real detection + message path from two recorded
+# fixtures -- the FDSN hypocenters CSV row and the per-event QuakeML -- with the
+# figure builder stubbed (the full plot_event render is unit-tested separately in
+# tests/alarms/Magnitude/test_figure.py, which owns the waveform + StationXML
+# fixtures). The other scenarios drive the remaining run_alarm branches with
+# small crafted inputs / seeded DB state.
 # ---------------------------------------------------------------------------
+MAGNITUDE_EVENT_T0 = UTCDateTime("2026-01-04T20:30:00")  # ~13 min after the event
+MAGNITUDE_CSV_FIXTURE = FIXTURE_DATA_DIR / "magnitude_Denison_20260104T2016.csv"
+MAGNITUDE_QUAKEML_FIXTURE = FIXTURE_DATA_DIR / "magnitude_Denison_20260104T2016.quakeml"
+MAGNITUDE_EVENT_ID = "93980456"
+
+
+def _load_magnitude_csv():
+    """Load the recorded FDSN hypocenters CSV as download_hypocenters_csv returns it."""
+    csv_df = pd.read_csv(MAGNITUDE_CSV_FIXTURE).rename(columns={"id": "event_id"})
+    csv_df["time"] = pd.to_datetime(csv_df["time"])
+    return csv_df
+
+
 def magnitude_representative(doubles, load_config):
     """Default empty FDSN catalog -> 'No new earthquakes' OK."""
     config = load_config("Magnitude")
@@ -774,45 +796,93 @@ def magnitude_representative(doubles, load_config):
 
 
 def magnitude_critical(doubles, load_config):
-    """Crafted event near Pavlof -> CRITICAL detection + send sequence."""
+    """Recorded M3.25 Denison event -> CRITICAL detection + full send.
+
+    Feeds the recorded CSV + QuakeML to the faked downloaders and stubs the figure
+    builder (plot_event), so run_alarm runs the real detection + message path:
+    find_nearest_volcano places the event ~4.7 km from Denison (< the 10 km config
+    distance) -> CRITICAL, create_message renders the alert from the real picks,
+    and the full Mattermost -> DB record -> cleanup -> Icinga sequence fires. The
+    render itself is covered by test_figure.py.
+    """
     _clean_test_db()
     config = load_config("Magnitude")
     from volc_alarms import Magnitude
 
-    # Hypocenter CSV (download_hypocenters_csv return): one event at Pavlof.
-    doubles.hypocenter_csv = pd.DataFrame(
-        {
-            "time": ["2024-12-31 23:55:00"],
-            "latitude": [55.4173],
-            "longitude": [-161.8937],
-            "depth": [5.0],
-            "mag": [3.2],
-            "event_id": ["ak0258testevt"],
-        }
-    )
-
-    # Hypocenter XML (download_hypocenter_xml return): a minimal Catalog.
-    origin = Origin(
-        latitude=55.4173,
-        longitude=-161.8937,
-        depth=5000.0,
-        time=UTCDateTime("2024-12-31T23:55:00"),
-        evaluation_mode="manual",
-    )
-    mag = EventMagnitude(mag=3.2)
-    event = Event(
-        resource_id=ResourceIdentifier(id="smi:local/event/ak0258testevt"),
-        origins=[origin],
-        magnitudes=[mag],
-    )
-    event.preferred_origin_id = origin.resource_id
-    event.preferred_magnitude_id = mag.resource_id
-    doubles.hypocenter_xml = Catalog(events=[event])
-
-    # Avoid matplotlib by replacing the figure builder used in process_event.
+    doubles.hypocenter_csv = _load_magnitude_csv()
+    doubles.hypocenter_xml = read_events(str(MAGNITUDE_QUAKEML_FIXTURE))
     doubles.patch_figure_builder(Magnitude.detection, "plot_event")
 
+    Magnitude.run_alarm(config, MAGNITUDE_EVENT_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def magnitude_fdsn_error(doubles, load_config):
+    """download_hypocenters_csv returns None (FDSN failure) -> WARNING."""
+    config = load_config("Magnitude")
+    from volc_alarms import Magnitude
+
+    doubles.hypocenter_csv_error = True  # CSV double returns None (error branch)
     Magnitude.run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def magnitude_not_near_volcano(doubles, load_config):
+    """A real-magnitude quake far from any volcano -> OK 'No new earthquakes'.
+
+    The event clears magmin/maxdep so it appears in the catalog, but sits in the
+    Gulf of Alaska > the 10 km config distance from every volcano, so the
+    distance filter drops it before any detection.
+    """
+    _clean_test_db()
+    config = load_config("Magnitude")
+    from volc_alarms import Magnitude
+
+    doubles.hypocenter_csv = pd.DataFrame(
+        {
+            "time": pd.to_datetime(["2026-01-04 20:00:00"]),
+            "latitude": [56.0],
+            "longitude": [-150.0],   # open Gulf of Alaska, far from any volcano
+            "depth": [10.0],
+            "mag": [3.5],
+            "event_id": ["ak_offshore_test"],
+        }
+    )
+    Magnitude.run_alarm(config, MAGNITUDE_EVENT_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def magnitude_already_processed(doubles, load_config):
+    """The recorded event, but already in the DB -> OK 'Old event detected'.
+
+    Seeds the event id into the alarm-history DB via the real record_send, so
+    run_alarm's already_processed() check (a real sqlite read) short-circuits the
+    per-event loop to the 'Old event detected' OK branch without re-sending.
+    """
+    _clean_test_db()
+    config = load_config("Magnitude")
+    from volc_alarms import Magnitude
+    from volc_alarms.utils import alarming
+
+    # Pre-record this event id under the Magnitude alarm_id directly in the sqlite
+    # DB that already_processed() reads. run_alarm runs with test_flag=False, so it
+    # queries the non-test 'sent_events' table; seed there. (alarming.record_send
+    # is doubled to an in-memory store by install(), so we write via get_conn to
+    # reach the real file already_processed uses.)
+    conn = alarming.get_conn(test=False)
+    try:
+        table = alarming.resolve_table_name(test=False)
+        conn.execute(
+            f"INSERT INTO {table} (alarm_id, event_id, volcano, process_time, send_time) "
+            f"VALUES (?, ?, ?, ?, ?)",
+            (config.alarm_name, MAGNITUDE_EVENT_ID, "Denison",
+             "2026-01-04T20:16:41Z", "2026-01-04T20:30:00Z"),
+        )
+    finally:
+        conn.close()
+
+    doubles.hypocenter_csv = _load_magnitude_csv()
+    doubles.hypocenter_xml = read_events(str(MAGNITUDE_QUAKEML_FIXTURE))
+    doubles.patch_figure_builder(Magnitude.detection, "plot_event")
+
+    Magnitude.run_alarm(config, MAGNITUDE_EVENT_T0, test_flag=False, mm_flag=True, icinga_flag=True)
 
 
 # ---------------------------------------------------------------------------
@@ -864,5 +934,8 @@ SCENARIOS = {
     "VAA-representative": ("VAA", vaa_representative),
     "Magnitude-representative": ("Magnitude", magnitude_representative),
     "Magnitude-critical": ("Magnitude", magnitude_critical),
+    "Magnitude-fdsn_error": ("Magnitude", magnitude_fdsn_error),
+    "Magnitude-not_near_volcano": ("Magnitude", magnitude_not_near_volcano),
+    "Magnitude-already_processed": ("Magnitude", magnitude_already_processed),
     "Swarm-representative": ("Swarm", swarm_representative),
 }

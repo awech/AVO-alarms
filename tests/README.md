@@ -122,7 +122,7 @@ the network `download_*` helpers are integration-only.
 | Infrasound | ✅ | 🔄 | ✅ | 🟢 full send + ⚪ no-detect + 🟡 early-exit (all branches) |
 | Lightning | ✅ | ✅ | ✅ | 🟢 full send + ⚪ distal/ignored/all-seen + 🟡 API error (all branches) |
 | Magnitude | ✅ | 🔄 | ✅ | 🟢 full send + ⚪ no-op/not-near/already-processed + 🟡 FDSN error (all branches) |
-| NOAA_CIMSS | ✅ | ❌ | ❌ | 🟡 early-exit only |
+| NOAA_CIMSS | ✅ | 🔄 | ✅ | 🟢 full send + ⚪ no-new/ignored/already-processed + 🟡 API/webpage error (all branches) |
 | Pilot_Report | ✅ | ❌ | ❌ | ⚪ no-op OK only |
 | RSAM | ✅ | ✅ | ✅ (shared builder) | 🟢 full send + ⚪ normal OK + 🟡 data-missing (all branches) |
 | SO2 | ✅ (offline path) | ❌ | ❌ | 🟡 early-exit only |
@@ -154,9 +154,11 @@ The `detection`/`message`/`figure` columns describe how each alarm's
 > output looks a certain way. See VAA `test_figure.py` (cartopy map), Lightning
 > `test_figure.py` (cartopy map + time-colored stroke scatter), Magnitude
 > `test_figure.py` (trace mosaic + response removal + map, from a recorded event),
-> and Infrasound `test_figure.py` (mosaic + spectrograms); all fake the
-> data/compute boundaries (`save_file`, downloads, and — for Magnitude — the
-> Earthscope station-metadata client) and let the real plotting code run.
+> Infrasound `test_figure.py` (mosaic + spectrograms), and NOAA_CIMSS
+> `test_figure.py` (two alert images + map, with the recorded PNGs staged into
+> TMP_DIR); all fake the data/compute boundaries (`save_file`, downloads, and —
+> for Magnitude — the Earthscope station-metadata client) and let the real
+> plotting code run.
 
 > **Coverage gotcha (cartopy + the default tracer).** Measuring figure coverage
 > with coverage.py's default C tracer *understates* it: when cartopy's C
@@ -175,8 +177,8 @@ does not reveal it:
 - 🟢 **full send** — the scenario feeds fixtures that trigger a real CRITICAL
   detection and the complete send sequence (figure → Mattermost → email → DB
   record → cleanup → Icinga). This is the strongest regression guard. Alarms:
-  **RSAM**, **Lightning**, **Magnitude**, **Infrasound**, **Tremor** (all have a
-  `critical` scenario).
+  **RSAM**, **Lightning**, **Magnitude**, **NOAA_CIMSS**, **Infrasound**,
+  **Tremor** (all have a `critical` scenario).
 - ⚪ **no-detect / no-op OK / sub-threshold** — the decision logic fully runs but
   reaches a non-CRITICAL result: a "nothing to report" no-op the alarm is
   designed to produce (empty catalog / no new reports — **Pilot_Report**,
@@ -186,22 +188,25 @@ does not reveal it:
   outside the inner ring, `ignored_volcano`: real proximal strokes at a volcano
   opted out via the ignore column, `all_seen`: strokes the DB already recorded;
   **Magnitude** `not_near_volcano`: a quake beyond the config distance from any
-  volcano, `already_processed`: the recorded event whose id is already in the DB);
-  or real data that lands below/around threshold (**RSAM**
+  volcano, `already_processed`: the recorded event whose id is already in the DB;
+  **NOAA_CIMSS** `no_new_alerts`: alerts all beyond max_distance, `ignored_volcano`:
+  an alert at a volcano opted out via the NOAA column, `already_processed`: an
+  alert id already in the DB); or real data that lands below/around threshold
+  (**RSAM**
   `elevated`/`arrested`/`normal`: the same recorded event scaled to the
   elevated-WARNING, arrestor-vetoed, and OK branches).
 - 🟡 **early-exit only** — the scenario feeds no usable input, so the alarm bails
   at an input guard (missing data / not-enough-channels / API or webpage error)
   **before its detection logic runs**. These baselines verify the plumbing and
-  the guard, **not** the science. Alarms with *only* this depth: **NOAA_CIMSS**,
-  **SO2**, **VAA**. (Note: **Infrasound**, **RSAM**, **Tremor**, **Lightning**, and
-  **Magnitude** also have early-exit / API-error / FDSN-error / data-missing
-  scenarios, but are not limited to that depth — they cover every branch.)
+  the guard, **not** the science. Alarms with *only* this depth: **SO2**, **VAA**.
+  (Note: **Infrasound**, **RSAM**, **Tremor**, **Lightning**, **Magnitude**, and
+  **NOAA_CIMSS** also have early-exit / API-error / FDSN-error / webpage-error /
+  data-missing scenarios, but are not limited to that depth — they cover every
+  branch.)
 
 For the 🟡 alarms, the detection science is instead covered by the `detection`
-unit tests (e.g. VAA `process_polygons`, NOAA_CIMSS/SO2 parsers). The remaining
-gap is that no *end-to-end* baseline drives those alarms through a real
-detection + send.
+unit tests (e.g. VAA `process_polygons`, the SO2 parser). The remaining gap is
+that no *end-to-end* baseline drives those alarms through a real detection + send.
 
 ##### Record/replay pattern (how Infrasound and RSAM reach full coverage)
 
@@ -288,12 +293,36 @@ across the integration test and `test_figure.py`:
   uses the `hypocenter_csv_error` doubles knob to make the CSV downloader return
   `None`; `not_near_volcano` feeds a crafted offshore quake.
 
+##### Record/replay for a scraped-page alarm (NOAA_CIMSS)
+
+NOAA_CIMSS pulls an alert list from the volcview API, then scrapes each alert's
+detail page (behind a login) and downloads its images. All three are recorded:
+
+- Fixtures under `tests/fixtures/data/`: `noaa_cimss_vvapi.json` (a real 100-alert
+  API pull) and `noaa_cimss_vvapi_spurr.json` (pared to the one Spurr ash alert,
+  report 448880); `noaa_cimss_alert_448880.html` (the scraped detail page); and
+  two downscaled alert PNGs.
+- The `critical` / `webpage_error` / `already_processed` scenarios run the **real**
+  `download_cimss_vv_api` (os.popen faked to serve the JSON) so the genuine
+  `pd.read_json` + `format_cimss_dataframe` + `find_nearest_volcano` +
+  `check_ignore_volcano` path runs, then return a `BeautifulSoup` of the recorded
+  HTML from the `scrape_cimss_alert` double so the **real** `process_alert_soup`
+  parsing runs (instrument, timestamp+radiative-center match, status/type, aid,
+  image links). `get_cimss_image` is a harness no-op and `plot_fig` is stubbed;
+  the render is covered by `test_figure.py`, which stages the two recorded PNGs
+  into `TMP_DIR` where `plot_fig` reads them.
+- `ignored_volcano` points `VOLCANO_LIST` at `volcano_list_avo.csv` and feeds a
+  crafted alert on Tana (NOAA=N there), so `check_ignore_volcano` drops it -> OK:
+  the explicit proof the NOAA opt-out column works. `already_processed` seeds the
+  alert id into the real `sent_events` table; `api_error` / `no_new_alerts` use
+  crafted download returns.
+
 #### Extending coverage (known follow-ups)
 
 - Apply the record/replay pattern above to the remaining 🟡 alarms so their
   `run_alarm` baseline exercises detection + send, not just an input guard. The
-  HTML-scraper alarms (NOAA_CIMSS, SO2, VAA) are the most fixture-heavy — they
-  need saved scraped pages rather than waveforms.
+  remaining scraped/HTML alarms (**SO2**, **VAA**) need saved scraped pages
+  rather than waveforms (NOAA_CIMSS now follows this pattern).
 - Unit-test the remaining FDSN-backed helper `Dr_to_RSAM` with a mocked client
   (`eq_picks_to_dataframe` is now exercised by the Magnitude figure test).
 

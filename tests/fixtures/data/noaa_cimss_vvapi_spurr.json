@@ -1,0 +1,16 @@
+[
+  {
+    "vv_id": 451255,
+    "vaac_region": "Anchorage",
+    "alert_id": 1,
+    "alert_header": "POSSIBLE VOLCANIC ASH CLOUD FOUND",
+    "alert_type": "ash",
+    "alert_url": "https://volcano.ssec.wisc.edu/alert/report/448880",
+    "status": "New Volcanic Feature",
+    "confidence": "HIGH",
+    "method": "Plume/Puff Extraction (SECO+)",
+    "lon_rc": -152.25,
+    "lat_rc": 61.3,
+    "object_date_time": "2026-09-29 14:30:38"
+  }
+]

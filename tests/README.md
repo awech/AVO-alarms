@@ -111,7 +111,7 @@ the network `download_*` helpers are integration-only.
 | Magnitude | ✅ | 🔄 | ❌ | 🟢 full send + ⚪ no-op OK |
 | NOAA_CIMSS | ✅ | ❌ | ❌ | 🟡 early-exit only |
 | Pilot_Report | ✅ | ❌ | ❌ | ⚪ no-op OK only |
-| RSAM | ✅ | ✅ | ❌ (thin wrapper) | 🟢 full send + 🟡 early-exit |
+| RSAM | ✅ | ✅ | ✅ (shared builder) | 🟢 full send + ⚪ normal OK + 🟡 data-missing (all branches) |
 | SO2 | ✅ (offline path) | ❌ | ❌ | 🟡 early-exit only |
 | Swarm | ✅ | ❌ | ❌ | ⚪ no-op OK only |
 | Tremor | ✅ | ❌ | ❌ (thin wrapper) | 🟡 early-exit only |
@@ -131,9 +131,10 @@ The `detection`/`message`/`figure` columns describe how each alarm's
   runs in integration and has no unit test. For `figure.py`, the integration
   scenarios stub out `make_figure`/`save_file` to avoid rendering, so figure
   builders are never exercised by integration either — a bug in one would go
-  uncaught. "(thin wrapper)" marks alarms whose `figure.py` just delegates to the
-  shared spectrogram builder in `utils/plotting.py`, so there is little
-  alarm-specific figure code to test.
+  uncaught. RSAM and Tremor `figure.py` are thin wrappers over the shared
+  spectrogram builder in `utils/plotting.py`; RSAM's figure smoke test drives
+  that shared builder (marked ✅ "shared builder"), so Tremor's figure path is
+  largely exercised too even though Tremor has no dedicated figure test yet.
 
 > Figure tests (where present) are **smoke tests**: they confirm `make_figure`
 > runs end to end and returns a path — the failure mode that matters, since
@@ -153,12 +154,14 @@ does not reveal it:
   record → cleanup → Icinga). This is the strongest regression guard. Alarms:
   **RSAM**, **Lightning**, **Magnitude**, **Infrasound** (all have a `_critical`
   scenario).
-- ⚪ **no-detect / no-op OK** — the decision logic fully runs but reaches a
-  genuine "no alert" result: either a "nothing to report" no-op the alarm is
+- ⚪ **no-detect / no-op OK / sub-threshold** — the decision logic fully runs but
+  reaches a non-CRITICAL result: a "nothing to report" no-op the alarm is
   designed to produce (empty catalog / no new reports — **Pilot_Report**,
-  **Swarm**, **Magnitude** representative), or a real signal that the detection
-  logic evaluates and rejects (**Infrasound** `wrong_backazimuth`: a coherent
-  airwave whose back-azimuth no target accepts).
+  **Swarm**, **Magnitude** representative); a real signal the detection logic
+  evaluates and rejects (**Infrasound** `wrong_backazimuth`: a coherent airwave
+  no target accepts); or real data that lands below/around threshold
+  (**RSAM** `elevated`/`arrested`/`normal`: the same recorded event scaled to the
+  elevated-WARNING, arrestor-vetoed, and OK branches).
 - 🟡 **early-exit only** — the scenario feeds no usable input, so the alarm bails
   at an input guard (missing data / not-enough-channels / API or webpage error)
   **before its detection logic runs**. These baselines verify the plumbing and
@@ -171,21 +174,25 @@ unit tests (e.g. VAA `process_polygons`, Swarm clustering). The remaining gap is
 that no *end-to-end* baseline drives those alarms through a real detection +
 send.
 
-##### Record/replay pattern (how Infrasound reaches full coverage)
+##### Record/replay pattern (how Infrasound and RSAM reach full coverage)
 
-Infrasound's four scenarios all replay ONE real recorded event, captured offline
-and committed as a fixture, then steered down each `run_alarm` branch with a
-small config tweak:
+Both alarms replay ONE real recorded event, captured offline and committed as a
+fixture, then steered down each `run_alarm` branch with a small config tweak:
 
-- The raw waveforms of a known KENI array event were downloaded once via
-  `tests/fixtures/_record_infrasound_event.py` and saved to
-  `tests/fixtures/data/infrasound_KENI_20260514T2256.mseed`.
-- The scenarios feed that MiniSEED to the faked `download_waveforms`, so the LTS
-  array processing runs deterministically with no network.
-- `not_enough_channels` (WARNING), `below_amplitude` (OK), `wrong_backazimuth`
-  (OK, no detection), and `critical` (CRITICAL send) each apply one config tweak
-  to hit a different branch. KENI station metadata lives in the test station XML
-  and the KENI config under `tests/fixtures/configs/` (not the repo `config/`).
+- The raw waveforms were downloaded once via a `tests/fixtures/_record_*_event.py`
+  recorder and saved as MiniSEED under `tests/fixtures/data/` (a KENI array event
+  for Infrasound; a Pavlof event for RSAM).
+- The scenarios feed that MiniSEED to the faked `download_waveforms`, so the real
+  processing (LTS array inversion; RSAM RMS + reduced-displacement math) runs
+  deterministically with no network.
+- Each scenario applies one config tweak to hit a different branch:
+  - Infrasound: `not_enough_channels` (WARNING), `below_amplitude` (OK),
+    `wrong_backazimuth` (OK, no detection), `critical` (CRITICAL send).
+  - RSAM: `critical` (CRITICAL send, unmodified config), `elevated` and `normal`
+    (thresholds scaled), `arrested` (arrestor threshold lowered), `data_missing`
+    (channels zeroed).
+- Station metadata lives in the test station XML and the per-alarm config under
+  `tests/fixtures/configs/` (not the repo `config/`).
 
 This record/replay recipe is the template for lifting the remaining 🟡 alarms.
 

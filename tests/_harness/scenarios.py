@@ -96,44 +96,127 @@ def _make_trace(nslc, T1, data, sampling_rate=100.0):
 
 # ---------------------------------------------------------------------------
 # RSAM
+#
+# All five scenarios replay ONE real recorded Pavlof event (2026-09-28 20:40
+# UTC) through the Pavlof_RSAM config; each makes one small config tweak to
+# steer run_alarm down a different outcome branch. The recorded event, as-is,
+# is a genuine CRITICAL detection (arrestor quiet, 4 of 6 source stations over
+# threshold); scaling thresholds or the arrestor threshold reaches the elevated
+# / arrested / normal branches, and zeroing channels reaches the data-missing
+# branch.
 # ---------------------------------------------------------------------------
-def rsam_representative(doubles, load_config):
-    """Default zero-filled waveforms -> 'RSAM data missing!' WARNING."""
-    config = load_config("RSAM")
-    from volc_alarms import RSAM
 
-    doubles.patch_figure_builder(RSAM, "make_figure")
-    RSAM.run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True)
+RSAM_EVENT_T0 = UTCDateTime("2026-09-28T20:40:00")
+RSAM_EVENT_FIXTURE = FIXTURE_DATA_DIR / "rsam_Pavlof_20260928T2040.mseed"
+
+
+def _pavlof_waveform_factory(zero_all_but=None):
+    """Waveform factory serving the recorded Pavlof event window.
+
+    Returns a copy of the recorded stream trimmed to the requested [T1, T2].
+    run_alarm calls download_waveforms twice (source stations, then arrestor);
+    the recording contains both, so selecting by the requested NSLC list serves
+    each call correctly. ``zero_all_but`` zero-fills all but that many of the
+    requested channels -- used for the data-missing branch.
+    """
+    recorded = read_stream(str(RSAM_EVENT_FIXTURE))
+
+    def _factory(nslc_list, T1, T2, **_):
+        st = Stream()
+        for nslc in nslc_list:
+            sel = recorded.select(id=nslc)
+            if sel:
+                st += sel.copy().trim(T1, T2)
+        if zero_all_but is not None:
+            for tr in st[zero_all_but:]:
+                tr.data = np.zeros_like(tr.data)
+        return st
+
+    return _factory
+
+
+def _scale_thresholds(config, factor):
+    """Multiply every source-station and arrestor RSAM threshold by ``factor``."""
+    for sta in config.rsam_stations:
+        sta["value"] = sta["value"] * factor
+    config.arrestor["value"] = config.arrestor["value"] * factor
 
 
 def rsam_critical(doubles, load_config):
-    """Crafted waveforms (3 source stations hot, arrestor quiet) -> CRITICAL send."""
-    config = load_config("RSAM")
+    """Recorded Pavlof event -> CRITICAL RSAM detection + full send.
+
+    Unmodified Pavlof_RSAM config: the arrestor is quiet and 4 of 6 source
+    stations exceed their thresholds, so run_alarm reaches CRITICAL and the full
+    figure -> Mattermost -> email -> DB record -> cleanup -> Icinga sequence.
+    """
+    config = _load_fixture_config("Pavlof_RSAM")
     from volc_alarms import RSAM
 
-    hot = {"CEAP", "CERA", "CETU"}  # exceed their levels -> detection
-    arrestor = "AMKA"  # must stay below its level
-
-    def _factory(nslc_list, T1, T2, **_):
-        sr = 100.0
-        npts = max(int(round((T2 - T1) * sr)), 1)
-        t = np.arange(npts) / sr
-        st = Stream()
-        for nslc in nslc_list:
-            sta = nslc.split(".")[1]
-            if sta in hot:
-                data = 3000.0 * np.sin(2 * np.pi * 2.0 * t)
-            elif sta == arrestor:
-                data = 5.0 * np.sin(2 * np.pi * 2.0 * t)
-            else:
-                data = np.zeros(npts)
-            st += _make_trace(nslc, T1, data, sampling_rate=sr)
-        return st
-
-    doubles.waveform_factory = _factory
-    # Avoid matplotlib / the second waveform download in make_figure.
+    doubles.waveform_factory = _pavlof_waveform_factory()
     doubles.patch_figure_builder(RSAM, "make_figure")
-    RSAM.run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True)
+    RSAM.run_alarm(config, RSAM_EVENT_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def rsam_elevated(doubles, load_config):
+    """Thresholds x2 -> too few over full threshold, enough over half -> WARNING.
+
+    Same real waveforms; doubling every threshold means <min_sta stations exceed
+    the full level (so no CRITICAL) but >=min_sta still exceed half -> the
+    'RSAM elevated!' WARNING branch.
+    """
+    config = _load_fixture_config("Pavlof_RSAM")
+    from volc_alarms import RSAM
+
+    _scale_thresholds(config, 2.0)
+    doubles.waveform_factory = _pavlof_waveform_factory()
+    doubles.patch_figure_builder(RSAM, "make_figure")
+    RSAM.run_alarm(config, RSAM_EVENT_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def rsam_arrested(doubles, load_config):
+    """Lowered arrestor threshold -> arrestor 'loud' vetoes a real detection.
+
+    The recorded arrestor RMS (~50) is quiet against its real threshold (200),
+    but lowering that threshold to 10 makes the arrestor count as loud while the
+    source stations still exceed their levels -> the 'RSAM normal (arrested)'
+    WARNING branch (a regional/teleseismic-style veto).
+    """
+    config = _load_fixture_config("Pavlof_RSAM")
+    from volc_alarms import RSAM
+
+    config.arrestor["value"] = 10
+    doubles.waveform_factory = _pavlof_waveform_factory()
+    doubles.patch_figure_builder(RSAM, "make_figure")
+    RSAM.run_alarm(config, RSAM_EVENT_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def rsam_normal(doubles, load_config):
+    """Thresholds x10 -> nothing exceeds even half threshold -> OK 'RSAM normal'.
+
+    Same real waveforms with every threshold raised far above the observed RMS,
+    so the alarm resolves to the baseline OK state.
+    """
+    config = _load_fixture_config("Pavlof_RSAM")
+    from volc_alarms import RSAM
+
+    _scale_thresholds(config, 10.0)
+    doubles.waveform_factory = _pavlof_waveform_factory()
+    doubles.patch_figure_builder(RSAM, "make_figure")
+    RSAM.run_alarm(config, RSAM_EVENT_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def rsam_data_missing(doubles, load_config):
+    """Only 2 live source channels (< min_sta) -> 'RSAM data missing!' WARNING.
+
+    Zero-filling all but two source channels leaves fewer than ``min_sta`` with
+    any data, so run_alarm reports the data-missing WARNING.
+    """
+    config = _load_fixture_config("Pavlof_RSAM")
+    from volc_alarms import RSAM
+
+    doubles.waveform_factory = _pavlof_waveform_factory(zero_all_but=2)
+    doubles.patch_figure_builder(RSAM, "make_figure")
+    RSAM.run_alarm(config, RSAM_EVENT_T0, test_flag=False, mm_flag=True, icinga_flag=True)
 
 
 # ---------------------------------------------------------------------------
@@ -411,8 +494,11 @@ def swarm_representative(doubles, load_config):
 # ---------------------------------------------------------------------------
 # Maps frozen-baseline name -> scenario driver. The test parametrizes over this.
 SCENARIOS = {
-    "RSAM_representative": rsam_representative,
     "RSAM_critical": rsam_critical,
+    "RSAM_elevated": rsam_elevated,
+    "RSAM_arrested": rsam_arrested,
+    "RSAM_normal": rsam_normal,
+    "RSAM_data_missing": rsam_data_missing,
     "Infrasound_not_enough_channels": infrasound_not_enough_channels,
     "Infrasound_below_amplitude": infrasound_below_amplitude,
     "Infrasound_wrong_backazimuth": infrasound_wrong_backazimuth,

@@ -1,0 +1,48 @@
+{
+  "call_order": [
+    "get_cimss_image",
+    "can_send",
+    "plot_fig",
+    "post_mattermost",
+    "record_send",
+    "os.remove",
+    "icinga",
+    "icinga"
+  ],
+  "detection_state": "CRITICAL",
+  "icinga": [
+    {
+      "send": true,
+      "state": "CRITICAL",
+      "state_message": "2026-09-29 23:00 (UTC) Spurr: Possible Volcanic Ash Cloud"
+    },
+    {
+      "send": true,
+      "state": "CRITICAL",
+      "state_message": "2026-09-29 23:00 (UTC) Spurr: Possible Volcanic Ash Cloud"
+    }
+  ],
+  "os_remove": [
+    "<FIGURE>"
+  ],
+  "post_mattermost": [
+    {
+      "body": "2026-09-29 14:30:38 UTC\n2026-09-29 06:30:38 AKDT\n**Primary Instrument:** GOES-18 ABI\n**Alert Status:**  New Volcanic Feature\n**Event type:**  Potential Ash Emission\n**Latitude:** 61.300\n**Longitude:** -152.250\n**Method:** Plume/Puff Extraction (SECO+)\n**Nearest volcanoes:** Spurr (0 km), Hayes (35 km), Double Glacier (69 km)\n\n**More info:** https://volcano.ssec.wisc.edu/alert/individual/531652\n",
+      "channel_ids": [],
+      "send": true,
+      "subject": "Spurr: Possible Volcanic Ash Cloud",
+      "test": false,
+      "volcano": null
+    }
+  ],
+  "record_send": [
+    {
+      "alarm_id": "NOAA CIMSS",
+      "event_id": 448880,
+      "process_time": "2026-09-29T23:00:00",
+      "test": false,
+      "volcano": "Spurr"
+    }
+  ],
+  "send_alert": []
+}

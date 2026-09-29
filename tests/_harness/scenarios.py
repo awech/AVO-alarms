@@ -717,14 +717,191 @@ def lightning_all_seen(doubles, load_config):
 
 # ---------------------------------------------------------------------------
 # NOAA_CIMSS
+#
+# The critical scenario replays a real recorded alert (a Spurr ash alert,
+# NOAA report 448880, 2026-09-29) through the real detection path offline:
+#   - noaa_cimss_vvapi_spurr.json    the volcview-API alert list (one alert)
+#   - noaa_cimss_alert_448880.html   the scraped alert-detail page
+# download_cimss_vv_api runs for real with os.popen faked to serve the JSON, so
+# the genuine pd.read_json + format/find_nearest/ignore filtering runs. The
+# scrape double returns a BeautifulSoup of the recorded HTML, so the real
+# process_alert_soup parsing (instrument, timestamp+radiative-center match,
+# status/type, aid, image links) runs. get_cimss_image is a harness no-op and
+# plot_fig is stubbed -- the figure render is covered by test_figure.py.
 # ---------------------------------------------------------------------------
-def noaa_cimss_representative(doubles, load_config):
-    """Default download returns None -> Volcview-API error WARNING."""
+NOAA_CIMSS_T0 = UTCDateTime("2026-09-29T23:00:00")
+NOAA_CIMSS_JSON_FIXTURE = FIXTURE_DATA_DIR / "noaa_cimss_vvapi_spurr.json"
+NOAA_CIMSS_HTML_FIXTURE = FIXTURE_DATA_DIR / "noaa_cimss_alert_448880.html"
+NOAA_CIMSS_EVENT_ID = "448880"
+
+# Capture the genuine download_cimss_vv_api before install() doubles it.
+from volc_alarms.alarms.NOAA_CIMSS import detection as _cimss_detection  # noqa: E402
+
+_REAL_DOWNLOAD_CIMSS = _cimss_detection.download_cimss_vv_api
+
+
+def _install_real_cimss_download(doubles, json_fixture):
+    """Reinstall the real download_cimss_vv_api, faking only its os.popen curl.
+
+    Serves the fixture JSON text so the genuine pd.read_json + downstream
+    format/find_nearest/ignore path runs, recorded as one download call.
+    """
+    import io
+
+    from volc_alarms import NOAA_CIMSS
+    from volc_alarms.alarms.NOAA_CIMSS import detection as cimss_detection
+
+    mp = doubles.monkeypatch
+    text = Path(json_fixture).read_text(encoding="utf-8")
+
+    mp.setattr(cimss_detection, "download_cimss_vv_api", _REAL_DOWNLOAD_CIMSS)
+    mp.setattr(NOAA_CIMSS, "download_cimss_vv_api", _REAL_DOWNLOAD_CIMSS)
+    mp.setattr(cimss_detection.os, "popen", lambda *a, **k: io.StringIO(text))
+    mp.setenv("NOAA_CIMSS_URL", "https://example.test/vv-api/noaa_cimss")
+    mp.setenv("API_USERNAME", "test")
+    mp.setenv("API_PASSWORD", "test")
+
+
+def _install_cimss_scrape_soup(doubles):
+    """Install a scrape_cimss_alert double returning the recorded HTML as soup.
+
+    run_alarm calls scrape_cimss_alert via the name imported into the NOAA_CIMSS
+    package, so patch both the package and the detection module.
+    """
+    from bs4 import BeautifulSoup
+
+    from volc_alarms import NOAA_CIMSS
+    from volc_alarms.alarms.NOAA_CIMSS import detection as cimss_detection
+
+    html = NOAA_CIMSS_HTML_FIXTURE.read_bytes()
+
+    def _scrape(alert, *a, **k):
+        return BeautifulSoup(html, "html.parser")
+
+    doubles.monkeypatch.setattr(cimss_detection, "scrape_cimss_alert", _scrape)
+    doubles.monkeypatch.setattr(NOAA_CIMSS, "scrape_cimss_alert", _scrape)
+
+
+def noaa_cimss_api_error(doubles, load_config):
+    """download_cimss_vv_api returns None (API failure) -> Volcview-API WARNING."""
     config = load_config("NOAA_CIMSS")
     from volc_alarms import NOAA_CIMSS
 
     doubles.download_returns["download_cimss_vv_api"] = None
-    NOAA_CIMSS.run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True)
+    NOAA_CIMSS.run_alarm(config, NOAA_CIMSS_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def noaa_cimss_no_new_alerts(doubles, load_config):
+    """Alerts present but all far from any volcano -> OK 'No new recent alerts'.
+
+    A crafted alert list with a single alert in the open Pacific (> max_distance
+    from every volcano), so the distance filter drops it before the loop.
+    """
+    config = load_config("NOAA_CIMSS")
+    from volc_alarms import NOAA_CIMSS
+
+    doubles.download_returns["download_cimss_vv_api"] = pd.DataFrame(
+        [
+            {
+                "alert_header": "POSSIBLE VOLCANIC ASH CLOUD FOUND",
+                "alert_type": "ash",
+                "alert_url": "https://example.test/alert/report/999001",
+                "method": "test",
+                "lon_rc": -140.0,
+                "lat_rc": 40.0,  # mid-Pacific, far from any AVO volcano
+                "object_date_time": "2026-09-29 12:00:00",
+            }
+        ]
+    )
+    NOAA_CIMSS.run_alarm(config, NOAA_CIMSS_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def noaa_cimss_webpage_error(doubles, load_config):
+    """Real near-volcano alert, but the alert page won't scrape -> webpage WARNING."""
+    _clean_test_db()
+    config = load_config("NOAA_CIMSS")
+    from volc_alarms import NOAA_CIMSS
+
+    _install_real_cimss_download(doubles, NOAA_CIMSS_JSON_FIXTURE)
+    doubles.download_returns["scrape_cimss_alert"] = None  # scrape fails -> None
+    NOAA_CIMSS.run_alarm(config, NOAA_CIMSS_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def noaa_cimss_already_processed(doubles, load_config):
+    """The recorded alert, but already in the DB -> OK 'No new recent alerts'."""
+    _clean_test_db()
+    config = load_config("NOAA_CIMSS")
+    from volc_alarms import NOAA_CIMSS
+    from volc_alarms.utils import alarming
+
+    # Seed the NOAA_id into the real (non-test) sent_events table so
+    # already_processed() short-circuits the loop.
+    conn = alarming.get_conn(test=False)
+    try:
+        table = alarming.resolve_table_name(test=False)
+        conn.execute(
+            f"INSERT INTO {table} (alarm_id, event_id, volcano, process_time, send_time) "
+            f"VALUES (?, ?, ?, ?, ?)",
+            (config.alarm_name, NOAA_CIMSS_EVENT_ID, "Spurr",
+             "2026-09-29T14:30:38Z", "2026-09-29T23:00:00Z"),
+        )
+    finally:
+        conn.close()
+
+    _install_real_cimss_download(doubles, NOAA_CIMSS_JSON_FIXTURE)
+    _install_cimss_scrape_soup(doubles)
+    NOAA_CIMSS.run_alarm(config, NOAA_CIMSS_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def noaa_cimss_critical(doubles, load_config):
+    """Recorded Spurr ash alert -> CRITICAL detection + full send.
+
+    Runs the real download_cimss_vv_api over the recorded single-alert JSON and
+    the real process_alert_soup over the recorded alert HTML (returned by the
+    scrape double), so find_nearest_volcano places it at Spurr, the parser reads
+    instrument/status/type/aid, and create_message renders the alert before the
+    full Mattermost -> DB record -> cleanup -> Icinga sequence. plot_fig is
+    stubbed (render covered by test_figure.py); get_cimss_image is a harness no-op.
+    """
+    _clean_test_db()
+    config = load_config("NOAA_CIMSS")
+    from volc_alarms import NOAA_CIMSS
+
+    _install_real_cimss_download(doubles, NOAA_CIMSS_JSON_FIXTURE)
+    _install_cimss_scrape_soup(doubles)
+    doubles.patch_figure_builder(NOAA_CIMSS, "plot_fig")
+    NOAA_CIMSS.run_alarm(config, NOAA_CIMSS_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def noaa_cimss_ignored_volcano(doubles, load_config):
+    """An alert at an IGNORED (NOAA=N) volcano -> suppressed -> OK.
+
+    A crafted ash alert whose radiative center sits on Tana, which is NOAA=N in
+    volcano_list_avo.csv (its per-alarm opt-out column). find_nearest_volcano
+    assigns it to Tana, then check_ignore_volcano drops it, so the loop never
+    runs and run_alarm resolves to OK 'No new recent NOAA CIMSS alerts'. Points
+    VOLCANO_LIST at the avo list because the packaged placeholder volcano_list.csv
+    lacks the NOAA column (the ignore path would be a no-op with it). This is the
+    explicit proof the NOAA opt-out column works.
+    """
+    config = load_config("NOAA_CIMSS")
+    from volc_alarms import NOAA_CIMSS
+
+    doubles.monkeypatch.setenv("VOLCANO_LIST", str(LIGHTNING_VOLCANO_LIST))
+    doubles.download_returns["download_cimss_vv_api"] = pd.DataFrame(
+        [
+            {
+                "alert_header": "POSSIBLE VOLCANIC ASH CLOUD FOUND",
+                "alert_type": "ash",
+                "alert_url": "https://example.test/alert/report/999002",
+                "method": "test",
+                "lon_rc": -169.758,   # Tana (NOAA=N in volcano_list_avo.csv)
+                "lat_rc": 52.839,
+                "object_date_time": "2026-09-29 12:00:00",
+            }
+        ]
+    )
+    NOAA_CIMSS.run_alarm(config, NOAA_CIMSS_T0, test_flag=False, mm_flag=True, icinga_flag=True)
 
 
 # ---------------------------------------------------------------------------
@@ -928,7 +1105,12 @@ SCENARIOS = {
     "Lightning-no_data": ("Lightning", lightning_no_data),
     "Lightning-api_error": ("Lightning", lightning_api_error),
     "Lightning-all_seen": ("Lightning", lightning_all_seen),
-    "NOAA_CIMSS-representative": ("NOAA_CIMSS", noaa_cimss_representative),
+    "NOAA_CIMSS-critical": ("NOAA_CIMSS", noaa_cimss_critical),
+    "NOAA_CIMSS-api_error": ("NOAA_CIMSS", noaa_cimss_api_error),
+    "NOAA_CIMSS-no_new_alerts": ("NOAA_CIMSS", noaa_cimss_no_new_alerts),
+    "NOAA_CIMSS-webpage_error": ("NOAA_CIMSS", noaa_cimss_webpage_error),
+    "NOAA_CIMSS-already_processed": ("NOAA_CIMSS", noaa_cimss_already_processed),
+    "NOAA_CIMSS-ignored_volcano": ("NOAA_CIMSS", noaa_cimss_ignored_volcano),
     "Pilot_Report-representative": ("Pilot_Report", pilot_report_representative),
     "SO2-representative": ("SO2", so2_representative),
     "VAA-representative": ("VAA", vaa_representative),

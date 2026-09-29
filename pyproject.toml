@@ -53,6 +53,7 @@ avo = [
 test = [
     "pytest>=7.0",
     "coverage",
+    "tzdata",  # IANA tz DB so zoneinfo resolves US/Alaska on tzdata-less CI images
 ]
 
 [project.scripts]

@@ -3,7 +3,7 @@ import pandas as pd
 from obspy import UTCDateTime
 from obspy.signal.filter import envelope
 
-from volc_alarms.utils.setup_utils import TMP_DIR, get_logger
+from volc_alarms.utils.setup_utils import get_logger
 
 logger = get_logger(__name__)
 
@@ -27,13 +27,21 @@ def test_traveltime(st, config, grid):
 
     npzfile = np.load(config.grid_file)
     new_grd = grid
-    if not np.array_equal(new_grd["lats"], npzfile["lats"]):
+    # Compare grid axes with allclose (not array_equal): both the stored grid and
+    # the freshly-built one come from np.arange, which can differ by ~1e-15 across
+    # numpy/platform versions. An exact comparison would treat those identical
+    # grids as mismatched and needlessly recompute the whole travel-time grid on
+    # every run. Genuine grid-definition changes differ far above this tolerance.
+    def _axes_differ(a, b):
+        return a.shape != b.shape or not np.allclose(a, b)
+
+    if _axes_differ(new_grd["lats"], npzfile["lats"]):
         logger.warning("Latitude grid nodes do not match. Calculate new travel times")
         return False
-    elif not np.array_equal(new_grd["lons"], npzfile["lons"]):
+    elif _axes_differ(new_grd["lons"], npzfile["lons"]):
         logger.warning("Longitude grid nodes do not match. Calculate new travel times")
         return False
-    elif not np.array_equal(new_grd["deps"], npzfile["deps"]):
+    elif _axes_differ(new_grd["deps"], npzfile["deps"]):
         logger.warning("Depth grid nodes do not match. Calculate new travel times")
         return False
     for tr in st:
@@ -48,7 +56,8 @@ def run_enveloc(st, band_env, high_env, config):
     from enveloc.core import XCOR
 
     grid = build_grid(config)
-    grid_file = TMP_DIR / config.grid_file
+    # Use config.grid_file directly (matches how test_traveltime locates it).
+    grid_file = config.grid_file
     if test_traveltime(st, config, grid):
         XC = XCOR(
             band_env,

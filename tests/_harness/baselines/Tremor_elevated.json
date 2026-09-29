@@ -1,0 +1,18 @@
+{
+  "call_order": [
+    "download_waveforms",
+    "icinga"
+  ],
+  "detection_state": "WARNING",
+  "icinga": [
+    {
+      "send": true,
+      "state": "WARNING",
+      "state_message": "2026-09-29 10:35 (UTC) Pavlof Tremor Elevated seismicity. Seismicity detected in 15 of past 60 minutes. Most recent: 0 minutes ago. PS1A RSAM:35/180"
+    }
+  ],
+  "os_remove": [],
+  "post_mattermost": [],
+  "record_send": [],
+  "send_alert": []
+}

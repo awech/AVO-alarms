@@ -329,14 +329,199 @@ def infrasound_critical(doubles, load_config):
 
 # ---------------------------------------------------------------------------
 # Tremor
+#
+# The Tremor alarm accumulates state: each run reads prior located events from
+# the tremor DB table, runs the (real) enveloc solver on freshly-downloaded
+# waveforms, merges the two, and branches on how many minutes of the lookback
+# window are covered plus an RSAM amplitude gate. All scenarios replay ONE
+# recorded Pavlof event (2026-09-29 10:35 UTC) through the real solver; the
+# branch is set by how many prior events we seed into the DB (via the real
+# record_tremor_event_ids) and small config tweaks.
 # ---------------------------------------------------------------------------
-def tremor_representative(doubles, load_config):
-    """Empty tremor DB + zero-filled waveforms -> 'Data missing!' WARNING."""
+TREMOR_EVENT_T0 = UTCDateTime("2026-09-29T10:35:00")
+TREMOR_EVENT_FIXTURE = FIXTURE_DATA_DIR / "tremor_Pavlof_20260929T1035.mseed"
+TREMOR_GRID_FIXTURE = FIXTURE_DATA_DIR / "Pavlof_Tremor_grid.npz"
+
+
+def _load_tremor_config():
+    """Load the Pavlof tremor config pointed at the committed grid fixture.
+
+    Sets an absolute ``grid_file`` (so run_enveloc reuses the precomputed
+    travel-time grid) and a large ``max_scatter`` so a real located event is
+    never dropped by the bootstrap-scatter filter -- the scatter estimate is the
+    only non-deterministic part of enveloc and it is not captured in the baseline.
+    """
+    config = _load_fixture_config("Pavlof_tremor")
+    config.grid_file = TREMOR_GRID_FIXTURE.resolve()
+    config.max_scatter = 1e9
+    return config
+
+
+def _tremor_waveform_factory(*, zero_all_but=None, noise=False):
+    """Waveform factory serving the recorded Pavlof tremor window.
+
+    ``zero_all_but`` zero-fills all but that many channels (data-missing branch).
+    ``noise`` replaces every channel with seeded low-amplitude white noise that
+    passes QC but yields zero enveloc detections (the elevated-but-no-new-events
+    branch).
+    """
+    recorded = read_stream(str(TREMOR_EVENT_FIXTURE))
+    if noise:
+        rng = np.random.default_rng(1234)
+        for tr in recorded:
+            tr.data = (rng.standard_normal(tr.stats.npts) * 5.0).astype("float64")
+
+    def _factory(nslc_list, T1, T2, **_):
+        st = Stream()
+        for nslc in nslc_list:
+            sel = recorded.select(id=nslc)
+            if sel:
+                st += sel.copy().trim(T1, T2)
+        if zero_all_but is not None:
+            for tr in st[zero_all_but:]:
+                tr.data = np.zeros_like(tr.data)
+        return st
+
+    return _factory
+
+
+def _seed_tremor_events(config, n, spacing_min=5):
+    """Seed ``n`` prior tremor events into the DB (via record_tremor_event_ids),
+    spaced ``spacing_min`` apart and ending just before the real 10:30 detection."""
+    from volc_alarms.utils import alarming
+
+    # UTC-aware timestamps: record_tremor_event_ids -> iso_utc calls
+    # .astimezone(UTC), which would shift a tz-naive time by the pinned local
+    # zone offset and push these events outside the lookback window.
+    last_prior = pd.Timestamp("2026-09-29 10:25:00", tz="UTC")
+    times = [last_prior - pd.Timedelta(minutes=spacing_min * i) for i in range(n)][::-1]
+    df = pd.DataFrame(
+        {
+            "time": pd.to_datetime(times, utc=True),
+            "latitude": [55.40] * n,
+            "longitude": [-161.82] * n,
+            "depth": [5.0] * n,
+            "volcano": [config.volcano] * n,
+        }
+    )
+    alarming.record_tremor_event_ids(df, test=False)
+
+
+def tremor_data_missing(doubles, load_config):
+    """Only 2 live channels (< min_sta) -> 'Data missing!' WARNING.
+
+    Zero-filling all but two channels fails qc_checks/min_sta, so run_alarm exits
+    before running enveloc.
+    """
     _clean_test_db()
-    config = load_config("Tremor")
+    config = _load_tremor_config()
     from volc_alarms import Tremor
 
-    Tremor.run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True)
+    doubles.waveform_factory = _tremor_waveform_factory(zero_all_but=2)
+    doubles.patch_figure_builder(Tremor.figure, "make_figure")
+    Tremor.run_alarm(config, TREMOR_EVENT_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def tremor_normal(doubles, load_config):
+    """Real detection, empty prior DB -> short duration -> OK 'Seismicity normal'."""
+    _clean_test_db()
+    config = _load_tremor_config()
+    from volc_alarms import Tremor
+
+    doubles.waveform_factory = _tremor_waveform_factory()
+    doubles.patch_figure_builder(Tremor.figure, "make_figure")
+    Tremor.run_alarm(config, TREMOR_EVENT_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def tremor_elevated(doubles, load_config):
+    """Real detection + 4 seeded prior events -> 'Elevated seismicity' WARNING.
+
+    Puts the covered duration in [threshold/2, threshold), the elevated band.
+    """
+    _clean_test_db()
+    config = _load_tremor_config()
+    from volc_alarms import Tremor
+
+    _seed_tremor_events(config, n=4)
+    doubles.waveform_factory = _tremor_waveform_factory()
+    doubles.patch_figure_builder(Tremor.figure, "make_figure")
+    Tremor.run_alarm(config, TREMOR_EVENT_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def tremor_elevated_no_new_events(doubles, load_config):
+    """Prior events keep duration high, but enveloc finds nothing new -> WARNING.
+
+    Seeds 9 prior events (duration >= threshold) and feeds noise so enveloc
+    locates zero new events, exercising the 'elevated seismicity but no new
+    events' branch (Tremor/Swarm detection WARNING, no send).
+    """
+    _clean_test_db()
+    config = _load_tremor_config()
+    from volc_alarms import Tremor
+
+    # Lower the RSAM gate so it passes (else the low-amplitude branch, which is
+    # checked first, would catch this case); the point here is the separate
+    # "duration high but zero NEW events" branch.
+    config.rsam_threshold = 0
+    _seed_tremor_events(config, n=9)
+    doubles.waveform_factory = _tremor_waveform_factory(noise=True)
+    doubles.patch_figure_builder(Tremor.figure, "make_figure")
+    Tremor.run_alarm(config, TREMOR_EVENT_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def tremor_low_amplitude(doubles, load_config):
+    """Duration >= threshold + new event, but RSAM gate fails -> low-amplitude WARNING.
+
+    Seeds 8 prior events so duration >= threshold with a new real detection, but
+    the recorded RSAM on rsam_station (~35) is below the real threshold (180), so
+    run_alarm reports 'Tremor/Swarm detection, but low amplitude' (no send).
+    """
+    _clean_test_db()
+    config = _load_tremor_config()
+    from volc_alarms import Tremor
+
+    _seed_tremor_events(config, n=8)
+    doubles.waveform_factory = _tremor_waveform_factory()
+    doubles.patch_figure_builder(Tremor.figure, "make_figure")
+    Tremor.run_alarm(config, TREMOR_EVENT_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def tremor_missing_rsam_station(doubles, load_config):
+    """rsam_station absent -> gate can't block, alarm still fires + error alert.
+
+    Pointing rsam_station at a channel not in the stream makes run_alarm set
+    rsam_test above threshold (so a real detection is not vetoed) and send an
+    'Error' alert about the missing station. With 8 seeded prior events + the new
+    detection this reaches CRITICAL and additionally emits the missing-station
+    error email.
+    """
+    _clean_test_db()
+    config = _load_tremor_config()
+    from volc_alarms import Tremor
+
+    config.rsam_station = "AV.NONE..BHZ"  # not in the recording
+    _seed_tremor_events(config, n=8)
+    doubles.waveform_factory = _tremor_waveform_factory()
+    doubles.patch_figure_builder(Tremor.figure, "make_figure")
+    Tremor.run_alarm(config, TREMOR_EVENT_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def tremor_critical(doubles, load_config):
+    """Real detection + prior events + passing RSAM gate -> CRITICAL + send.
+
+    Seeds 8 prior events (duration >= threshold with the new detection present)
+    and lowers rsam_threshold so the recorded RSAM (~35) clears the gate, so
+    run_alarm reaches CRITICAL and the full send sequence + tremor-DB update.
+    """
+    _clean_test_db()
+    config = _load_tremor_config()
+    from volc_alarms import Tremor
+
+    config.rsam_threshold = 20  # recorded PS1A RSAM ~35 clears this gate
+    _seed_tremor_events(config, n=8)
+    doubles.waveform_factory = _tremor_waveform_factory()
+    doubles.patch_figure_builder(Tremor.figure, "make_figure")
+    Tremor.run_alarm(config, TREMOR_EVENT_T0, test_flag=False, mm_flag=True, icinga_flag=True)
 
 
 # ---------------------------------------------------------------------------
@@ -503,7 +688,13 @@ SCENARIOS = {
     "Infrasound_below_amplitude": infrasound_below_amplitude,
     "Infrasound_wrong_backazimuth": infrasound_wrong_backazimuth,
     "Infrasound_critical": infrasound_critical,
-    "Tremor_representative": tremor_representative,
+    "Tremor_data_missing": tremor_data_missing,
+    "Tremor_normal": tremor_normal,
+    "Tremor_elevated": tremor_elevated,
+    "Tremor_elevated_no_new_events": tremor_elevated_no_new_events,
+    "Tremor_low_amplitude": tremor_low_amplitude,
+    "Tremor_missing_rsam_station": tremor_missing_rsam_station,
+    "Tremor_critical": tremor_critical,
     "Lightning_representative": lightning_representative,
     "Lightning_critical": lightning_critical,
     "NOAA_CIMSS_representative": noaa_cimss_representative,

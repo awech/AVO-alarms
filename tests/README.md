@@ -114,7 +114,7 @@ the network `download_*` helpers are integration-only.
 | RSAM | ✅ | ✅ | ✅ (shared builder) | 🟢 full send + ⚪ normal OK + 🟡 data-missing (all branches) |
 | SO2 | ✅ (offline path) | ❌ | ❌ | 🟡 early-exit only |
 | Swarm | ✅ | ❌ | ❌ | ⚪ no-op OK only |
-| Tremor | ✅ | ❌ | ❌ (thin wrapper) | 🟡 early-exit only |
+| Tremor | ✅ | 🔄 | ✅ (shared builder) | 🟢 full send + ⚪ normal OK + 🟡 data-missing (all branches) |
 | VAA | ✅ | ✅ | ✅ | 🟡 early-exit only |
 
 The `detection`/`message`/`figure` columns describe how each alarm's
@@ -132,9 +132,8 @@ The `detection`/`message`/`figure` columns describe how each alarm's
   scenarios stub out `make_figure`/`save_file` to avoid rendering, so figure
   builders are never exercised by integration either — a bug in one would go
   uncaught. RSAM and Tremor `figure.py` are thin wrappers over the shared
-  spectrogram builder in `utils/plotting.py`; RSAM's figure smoke test drives
-  that shared builder (marked ✅ "shared builder"), so Tremor's figure path is
-  largely exercised too even though Tremor has no dedicated figure test yet.
+  spectrogram builder in `utils/plotting.py`; both have figure smoke tests that
+  drive that shared builder (marked ✅ "shared builder").
 
 > Figure tests (where present) are **smoke tests**: they confirm `make_figure`
 > runs end to end and returns a path — the failure mode that matters, since
@@ -152,8 +151,8 @@ does not reveal it:
 - 🟢 **full send** — the scenario feeds fixtures that trigger a real CRITICAL
   detection and the complete send sequence (figure → Mattermost → email → DB
   record → cleanup → Icinga). This is the strongest regression guard. Alarms:
-  **RSAM**, **Lightning**, **Magnitude**, **Infrasound** (all have a `_critical`
-  scenario).
+  **RSAM**, **Lightning**, **Magnitude**, **Infrasound**, **Tremor** (all have a
+  `_critical` scenario).
 - ⚪ **no-detect / no-op OK / sub-threshold** — the decision logic fully runs but
   reaches a non-CRITICAL result: a "nothing to report" no-op the alarm is
   designed to produce (empty catalog / no new reports — **Pilot_Report**,
@@ -166,13 +165,14 @@ does not reveal it:
   at an input guard (missing data / not-enough-channels / API or webpage error)
   **before its detection logic runs**. These baselines verify the plumbing and
   the guard, **not** the science. Alarms with *only* this depth: **NOAA_CIMSS**,
-  **SO2**, **Tremor**, **VAA**. (Note: **Infrasound** also has an early-exit
-  scenario, but it is not limited to that depth — it covers every branch.)
+  **SO2**, **VAA**. (Note: **Infrasound**, **RSAM**, and **Tremor** also have
+  early-exit/data-missing scenarios, but are not limited to that depth — they
+  cover every branch.)
 
 For the 🟡 alarms, the detection science is instead covered by the `detection`
-unit tests (e.g. VAA `process_polygons`, Swarm clustering). The remaining gap is
-that no *end-to-end* baseline drives those alarms through a real detection +
-send.
+unit tests (e.g. VAA `process_polygons`, NOAA_CIMSS/SO2 parsers). The remaining
+gap is that no *end-to-end* baseline drives those alarms through a real
+detection + send.
 
 ##### Record/replay pattern (how Infrasound and RSAM reach full coverage)
 
@@ -181,16 +181,23 @@ fixture, then steered down each `run_alarm` branch with a small config tweak:
 
 - The raw waveforms were downloaded once via a `tests/fixtures/_record_*_event.py`
   recorder and saved as MiniSEED under `tests/fixtures/data/` (a KENI array event
-  for Infrasound; a Pavlof event for RSAM).
+  for Infrasound; Pavlof events for RSAM and Tremor).
 - The scenarios feed that MiniSEED to the faked `download_waveforms`, so the real
-  processing (LTS array inversion; RSAM RMS + reduced-displacement math) runs
-  deterministically with no network.
-- Each scenario applies one config tweak to hit a different branch:
+  processing (LTS array inversion; RSAM RMS + reduced-displacement math; the
+  enveloc location solver) runs deterministically with no network.
+- Each scenario applies one config tweak (and, for Tremor, seeded prior DB state)
+  to hit a different branch:
   - Infrasound: `not_enough_channels` (WARNING), `below_amplitude` (OK),
     `wrong_backazimuth` (OK, no detection), `critical` (CRITICAL send).
   - RSAM: `critical` (CRITICAL send, unmodified config), `elevated` and `normal`
     (thresholds scaled), `arrested` (arrestor threshold lowered), `data_missing`
     (channels zeroed).
+  - Tremor: seven scenarios covering QC data-missing, normal OK, elevated,
+    elevated-with-no-new-events, low-amplitude (RSAM-gate veto), missing
+    rsam_station, and CRITICAL. Prior events are seeded into the tremor DB via
+    the real `record_tremor_event_ids` so the "N events over T minutes"
+    accumulation is exercised; the enveloc travel-time grid is a coarse
+    precomputed `.npz` fixture (same extent as production, far fewer nodes).
 - Station metadata lives in the test station XML and the per-alarm config under
   `tests/fixtures/configs/` (not the repo `config/`).
 
@@ -199,9 +206,9 @@ This record/replay recipe is the template for lifting the remaining 🟡 alarms.
 #### Extending coverage (known follow-ups)
 
 - Apply the record/replay pattern above to the remaining 🟡 alarms so their
-  `run_alarm` baseline exercises detection + send, not just an input guard.
-  Cheaper candidates first (Tremor); HTML-scraper alarms (NOAA_CIMSS, SO2) are
-  the most fixture-heavy (need saved scraped pages rather than waveforms).
+  `run_alarm` baseline exercises detection + send, not just an input guard. The
+  HTML-scraper alarms (NOAA_CIMSS, SO2, VAA) are the most fixture-heavy — they
+  need saved scraped pages rather than waveforms.
 - Unit-test the FDSN-backed helpers (`Dr_to_RSAM`, `eq_picks_to_dataframe`) with
   a mocked client.
 

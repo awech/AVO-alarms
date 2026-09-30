@@ -62,17 +62,17 @@ def compare_swarms(swarms):
                     test_swarms[ind_combo[0]],
                     test_swarms[ind_combo[1]],
                     how="inner",
-                    on=["id", "id"],
+                    on="event_id",
                 )
                 if len(int_df) > 0:
                     logger.info("overlap")
                     dt0 = (
-                        test_swarms[ind_combo[0]].Time.max()
-                        - test_swarms[ind_combo[0]].Time.min()
+                        test_swarms[ind_combo[0]].time.max()
+                        - test_swarms[ind_combo[0]].time.min()
                     )
                     dt1 = (
-                        test_swarms[ind_combo[1]].Time.max()
-                        - test_swarms[ind_combo[1]].Time.min()
+                        test_swarms[ind_combo[1]].time.max()
+                        - test_swarms[ind_combo[1]].time.min()
                     )
                     remove_swarm_ind.append(ind_combo[np.argmax([dt0, dt1])])
                     flag_list.append(True)

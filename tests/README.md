@@ -48,11 +48,27 @@ tests/
 │       ├── test_message.py         # unit: message.py formatting
 │       ├── test_figure.py          # unit: figure.py logic (save_file mocked)
 │       └── test_run_alarm.py       # integration: scenario -> snapshot -> baseline
-├── scripts/                        # unit tests for volc_alarms.scripts.*
-│   └── test_run_alarm_cli.py
+├── scripts/                        # unit tests for volc_alarms.scripts.* (one per CLI)
+│   ├── test_run_alarm_cli.py
+│   ├── test_dr_to_rsam_cli.py
+│   ├── test_list_alerts_cli.py
+│   ├── test_email_test_cli.py
+│   ├── test_generic_alarm_cli.py
+│   ├── test_update_metadata_cli.py
+│   └── test_notification_html_cli.py
 └── fixtures/                       # shared static data + crafted sample inputs
-    ├── configs/                    # test-only alarm configs (KENI, Pavlof, ...)
-    └── data/                       # recorded events (MiniSEED / API JSON), station.xml
+    ├── _record_*_event.py          # one-off recorders (Infrasound/RSAM/Tremor/Magnitude)
+    ├── _build_tremor_grid.py       # one-off: build the Tremor travel-time grid fixture
+    ├── configs/                    # test-only alarm configs (KENI_Infrasound, Pavlof_RSAM, Pavlof_tremor)
+    └── data/                       # recorded events + metadata, e.g.:
+        #   *.mseed        waveforms (Infrasound/RSAM/Tremor)
+        #   *.csv          FDSN catalogs (Magnitude/Swarm) + PIREP shapefile zip
+        #   *.json         API pulls (Lightning strokes, NOAA_CIMSS alerts)
+        #   *.quakeml      per-event catalog (Magnitude)
+        #   *.html / *.png NOAA_CIMSS alert page + images
+        #   *.txt          VAA advisory text product
+        #   station.xml / *_inv.xml  station metadata + responses
+        #   Pavlof_Tremor_grid.npz   enveloc travel-time grid
 ```
 
 ### Baseline file naming
@@ -125,7 +141,7 @@ the network `download_*` helpers are integration-only.
 | NOAA_CIMSS | ✅ | 🔄 | ✅ | 🟢 full send + ⚪ no-new/ignored/already-processed + 🟡 API/webpage error (all branches) |
 | Pilot_Report | ✅ | 🔄 | ✅ | 🟢 full send (urgent + non-urgent) + ⚪ no-reports/already-processed + 🟡 API error (all branches) |
 | RSAM | ✅ | ✅ | ✅ (shared builder) | 🟢 full send + ⚪ normal OK + 🟡 data-missing (all branches) |
-| SO2 | ✅ (offline path) | ❌ | ❌ | 🟡 early-exit only |
+| SO2 | ✅ (offline path) | ❌ | ❌ | 🟡 early-exit only — *excluded from coverage* (see note) |
 | Swarm | ✅ | 🔄 | ✅ | 🟢 full send (single + multi-param + simultaneous) + ⚪ continuation-WARNING/no-swarm/not-near + 🟡 FDSN error (all branches) |
 | Tremor | ✅ | 🔄 | ✅ (shared builder) | 🟢 full send + ⚪ normal OK + 🟡 data-missing (all branches) |
 | VAA | ✅ | ✅ | ✅ | 🟢 full send + ⚪ no-advisories/already-processed + 🟡 webpage error (all branches) |
@@ -207,15 +223,19 @@ does not reveal it:
 - 🟡 **early-exit only** — the scenario feeds no usable input, so the alarm bails
   at an input guard (missing data / not-enough-channels / API or webpage error)
   **before its detection logic runs**. These baselines verify the plumbing and
-  the guard, **not** the science. Alarms with *only* this depth: **SO2**.
+  the guard, **not** the science. Alarm with *only* this depth: **SO2** (which is
+  also excluded from the coverage total — see the note below).
   (Note: **Infrasound**, **RSAM**, **Tremor**, **Lightning**, **Magnitude**,
   **NOAA_CIMSS**, **Pilot_Report**, **VAA**, and **Swarm** also have early-exit /
   API-error / FDSN-error / webpage-error / data-missing scenarios, but are not
   limited to that depth — they cover every branch.)
 
 For the 🟡 alarm (**SO2**), the detection science is instead covered by the
-`detection` unit tests (the SO2 parser). The remaining gap is that no
-*end-to-end* baseline drives it through a real detection + send.
+`detection` unit tests (the SO2 parser). It has no end-to-end baseline and is
+**excluded from the coverage total** (`[tool.coverage.run] omit` in
+`pyproject.toml`): real SO2 detections are rare and ephemeral — the source
+webpage only shows the current alert — so there is no historical page to record
+as a fixture. Revisit when a live SO2 alert can be captured.
 
 ##### Record/replay pattern (how Infrasound and RSAM reach full coverage)
 
@@ -411,12 +431,13 @@ which fakes the per-event hypocenter-XML download to an empty catalog).
 
 #### Extending coverage (known follow-ups)
 
-- Apply the record/replay pattern above to **SO2** (the last 🟡 alarm) so its
-  `run_alarm` baseline exercises detection + send, not just an input guard. SO2
-  is a scraped/HTML alarm and needs a saved scraped page (NOAA_CIMSS and VAA now
-  follow this pattern).
+- **SO2** (blocked): apply the record/replay pattern once a live SO2 alert page
+  can be captured. It's a scraped/HTML alarm like NOAA_CIMSS/VAA, but its source
+  only serves the current alert, so there's no historical fixture to record yet.
+  Excluded from the coverage total until then.
 - Unit-test the remaining FDSN-backed helper `Dr_to_RSAM` with a mocked client
   (`eq_picks_to_dataframe` is now exercised by the Magnitude figure test).
+- Raise `utils` coverage (the largest remaining gap) — see below.
 
 ### scripts
 

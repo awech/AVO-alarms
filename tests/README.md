@@ -128,7 +128,7 @@ the network `download_*` helpers are integration-only.
 | SO2 | ✅ (offline path) | ❌ | ❌ | 🟡 early-exit only |
 | Swarm | ✅ | ❌ | ❌ | ⚪ no-op OK only |
 | Tremor | ✅ | 🔄 | ✅ (shared builder) | 🟢 full send + ⚪ normal OK + 🟡 data-missing (all branches) |
-| VAA | ✅ | ✅ | ✅ | 🟡 early-exit only |
+| VAA | ✅ | ✅ | ✅ | 🟢 full send + ⚪ no-advisories/already-processed + 🟡 webpage error (all branches) |
 
 The `detection`/`message`/`figure` columns describe how each alarm's
 `<Alarm>/{detection,message,figure}.py` is tested (unit tests live in
@@ -179,14 +179,14 @@ does not reveal it:
   detection and the complete send sequence (figure → Mattermost → email → DB
   record → cleanup → Icinga). This is the strongest regression guard. Alarms:
   **RSAM**, **Lightning**, **Magnitude**, **NOAA_CIMSS**, **Pilot_Report**,
-  **Infrasound**, **Tremor** (all have a `critical` scenario). **Pilot_Report**
-  additionally has a `non_urgent` send (same report, urgency flipped) that sends
-  as a WARNING without the CRITICAL-only email.
+  **VAA**, **Infrasound**, **Tremor** (all have a `critical` scenario).
+  **Pilot_Report** additionally has a `non_urgent` send (same report, urgency
+  flipped) that sends as a WARNING without the CRITICAL-only email.
 - ⚪ **no-detect / no-op OK / sub-threshold** — the decision logic fully runs but
   reaches a non-CRITICAL result: a "nothing to report" no-op the alarm is
   designed to produce (empty catalog / no new reports — **Swarm**, **Magnitude**
-  representative, **Pilot_Report** `no_reports`/`already_processed`); a real
-  signal the detection logic
+  representative, **Pilot_Report** `no_reports`/`already_processed`, **VAA**
+  `no_advisories`/`already_processed`); a real signal the detection logic
   evaluates and rejects (**Infrasound** `wrong_backazimuth`: a coherent airwave
   no target accepts; **Lightning** `distal`: a real storm whose strokes are all
   outside the inner ring, `ignored_volcano`: real proximal strokes at a volcano
@@ -202,15 +202,15 @@ does not reveal it:
 - 🟡 **early-exit only** — the scenario feeds no usable input, so the alarm bails
   at an input guard (missing data / not-enough-channels / API or webpage error)
   **before its detection logic runs**. These baselines verify the plumbing and
-  the guard, **not** the science. Alarms with *only* this depth: **SO2**, **VAA**.
+  the guard, **not** the science. Alarms with *only* this depth: **SO2**.
   (Note: **Infrasound**, **RSAM**, **Tremor**, **Lightning**, **Magnitude**,
-  **NOAA_CIMSS**, and **Pilot_Report** also have early-exit / API-error /
+  **NOAA_CIMSS**, **Pilot_Report**, and **VAA** also have early-exit / API-error /
   FDSN-error / webpage-error / data-missing scenarios, but are not limited to
   that depth — they cover every branch.)
 
-For the 🟡 alarms, the detection science is instead covered by the `detection`
-unit tests (e.g. VAA `process_polygons`, the SO2 parser). The remaining gap is
-that no *end-to-end* baseline drives those alarms through a real detection + send.
+For the 🟡 alarm (**SO2**), the detection science is instead covered by the
+`detection` unit tests (the SO2 parser). The remaining gap is that no
+*end-to-end* baseline drives it through a real detection + send.
 
 ##### Record/replay pattern (how Infrasound and RSAM reach full coverage)
 
@@ -344,12 +344,35 @@ Iowa State mesonet archive, then parses and filters it:
   report's event id into the real `sent_events` table; `api_error` returns
   `("WARNING", None)`, `no_reports` returns `("OK", None)`.
 
+##### Record/replay for a text-product alarm (VAA)
+
+VAA downloads a list of advisory links, then fetches and parses each advisory's
+NWS text product:
+
+- One fixture under `tests/fixtures/data/`:
+  `vaa_Sheveluch_20260928T1753.txt` — a real Anchorage-VAAC Sheveluch eruption
+  advisory (2026-09-28 17:53 UTC).
+- The `critical` / `already_processed` scenarios return the advisory's text_link
+  from the `download_mesonet_vaa_list` double and fake `fetch_vaa_page` to serve
+  the recorded advisory text, so the real `process_vaa_id` (parse_vaa_fields,
+  text_to_latlon, parse_vaa_dtg) + find_nearest_volcano + create_message all run.
+  `make_map` is stubbed; the render is covered by the (pre-existing) test_figure.py.
+- `already_processed` seeds the advisory id into the real `sent_events` table;
+  `webpage_error` returns None (list download failed); `no_advisories` returns an
+  empty text_link list. VOLCANO_LIST is pinned to `volcano_list_avo.csv` for
+  determinism.
+
+> Unlike the other alarms, VAA's unit layer (detection/message/figure) was
+> already thorough — it was the original template for that split. The work here
+> was the missing `run_alarm` record/replay layer, which lifted run_alarm from
+> ~39% (webpage-error path only) to ~95%.
+
 #### Extending coverage (known follow-ups)
 
-- Apply the record/replay pattern above to the remaining 🟡 alarms so their
-  `run_alarm` baseline exercises detection + send, not just an input guard. The
-  remaining scraped/HTML alarms (**SO2**, **VAA**) need saved scraped pages
-  rather than waveforms (NOAA_CIMSS now follows this pattern).
+- Apply the record/replay pattern above to **SO2** (the last 🟡 alarm) so its
+  `run_alarm` baseline exercises detection + send, not just an input guard. SO2
+  is a scraped/HTML alarm and needs a saved scraped page (NOAA_CIMSS and VAA now
+  follow this pattern).
 - Unit-test the remaining FDSN-backed helper `Dr_to_RSAM` with a mocked client
   (`eq_picks_to_dataframe` is now exercised by the Magnitude figure test).
 

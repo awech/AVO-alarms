@@ -13,10 +13,10 @@ Covered:
 * next_send_after        — earliest re-allow time once saturated
 * check_new_event_ids    — (new_count, existing_count) accounting
 * record_swarm_event_ids — swarm-table INSERT OR IGNORE de-dup
-
-TODO: list_all_alarm_ids / filtered_list / list_alarm_entries / remove_alarm_ids
-are operator CLI helpers (mostly print/formatting) — covered lightly or left for
-a later pass.
+* list_all_alarm_ids      — distinct alarm_ids present in the table
+* filtered_list          — WHERE-clause assembly from a query dict (alarm/volcano/time/id)
+* remove_alarm_ids       — deletes sent_events rows in an alarm + time range
+* remove_catalog_entries — deletes tremor/swarm catalog rows in a time range; validates table
 """
 
 from __future__ import annotations
@@ -209,3 +209,126 @@ def test_record_swarm_event_ids_dedupes_on_event_id(temp_db):
         ["s1", "s2"], test=True, table="swarm"
     )
     assert (new_count, existing_count) == (0, 2)
+
+
+# ---------------------------------------------------------------------------
+# list_all_alarm_ids
+# ---------------------------------------------------------------------------
+def test_list_all_alarm_ids_returns_distinct_sorted_ids(temp_db):
+    """list_all_alarm_ids returns the distinct alarm_ids present, sorted ascending."""
+    T0 = UTCDateTime("2025-01-01T00:00:00")
+    alarming.record_send(_config("RSAM"), T0, event_id="a", test=True)
+    alarming.record_send(_config("Lightning"), T0, event_id="b", test=True)
+    alarming.record_send(_config("RSAM"), T0, event_id="c", test=True)  # duplicate alarm_id
+
+    ids = alarming.list_all_alarm_ids(test=True)
+    assert ids == ["Lightning", "RSAM"]
+
+
+def test_list_all_alarm_ids_empty_when_no_rows(temp_db):
+    """list_all_alarm_ids returns [] for an empty table."""
+    assert alarming.list_all_alarm_ids(test=True) == []
+
+
+# ---------------------------------------------------------------------------
+# filtered_list
+# ---------------------------------------------------------------------------
+def _seed_filtered_rows():
+    """Seed a few sends across alarms/volcanoes/times for filtered_list tests."""
+    alarming.record_send(_config("RSAM"), UTCDateTime("2025-01-01T00:00:00"),
+                         volcano="Pavlof", event_id="p1", test=True)
+    alarming.record_send(_config("RSAM"), UTCDateTime("2025-01-02T00:00:00"),
+                         volcano="Pavlof", event_id="p2", test=True)
+    alarming.record_send(_config("Lightning"), UTCDateTime("2025-01-01T12:00:00"),
+                         volcano="Shishaldin", event_id="s1", test=True)
+
+
+def test_filtered_list_by_alarm_id(temp_db):
+    """filtered_list returns only rows matching the requested alarm_id."""
+    _seed_filtered_rows()
+    rows = alarming.filtered_list({"alarm_id": "Lightning"}, test=True)
+    assert len(rows) == 1
+    assert "Lightning" in rows[0]
+
+
+def test_filtered_list_by_volcano(temp_db):
+    """filtered_list filters on volcano."""
+    _seed_filtered_rows()
+    rows = alarming.filtered_list({"volcano": "Pavlof"}, test=True)
+    assert len(rows) == 2
+    assert all("Pavlof" in r for r in rows)
+
+
+def test_filtered_list_by_time_range(temp_db):
+    """filtered_list filters on a process_time window (t1/t2)."""
+    _seed_filtered_rows()
+    rows = alarming.filtered_list(
+        {"t1": "2025-01-01T06:00:00", "t2": "2025-01-01T18:00:00"}, test=True
+    )
+    # Only the Lightning/Shishaldin send at 12:00 falls in [06:00, 18:00].
+    assert len(rows) == 1
+    assert "Shishaldin" in rows[0]
+
+
+def test_filtered_list_combines_alarm_and_volcano(temp_db):
+    """filtered_list ANDs multiple filters together."""
+    _seed_filtered_rows()
+    rows = alarming.filtered_list({"alarm_id": "RSAM", "volcano": "Pavlof"}, test=True)
+    assert len(rows) == 2
+
+
+def test_filtered_list_returns_ordered_by_process_time_desc(temp_db):
+    """filtered_list orders results by process_time descending."""
+    _seed_filtered_rows()
+    rows = alarming.filtered_list({"alarm_id": "RSAM"}, test=True)
+    # process_time is column index 2 in the SELECT header order.
+    times = [r[2] for r in rows]
+    assert times == sorted(times, reverse=True)
+
+
+# ---------------------------------------------------------------------------
+# remove_alarm_ids
+# ---------------------------------------------------------------------------
+def test_remove_alarm_ids_deletes_only_matching_alarm_and_window(temp_db):
+    """remove_alarm_ids deletes rows for one alarm within a time range, sparing others."""
+    _seed_filtered_rows()  # RSAM p1@01-01, p2@01-02; Lightning s1@01-01 12:00
+
+    # Remove RSAM sends on 2025-01-01 only.
+    alarming.remove_alarm_ids("RSAM", "2025-01-01T00:00:00", "2025-01-01T23:59:59", test=True)
+
+    rsam_left = alarming.filtered_list({"alarm_id": "RSAM"}, test=True)
+    assert len(rsam_left) == 1  # p2 (01-02) survives
+    # The Lightning send is untouched.
+    assert len(alarming.filtered_list({"alarm_id": "Lightning"}, test=True)) == 1
+
+
+# ---------------------------------------------------------------------------
+# remove_catalog_entries
+# ---------------------------------------------------------------------------
+def test_remove_catalog_entries_deletes_swarm_rows_in_window(temp_db):
+    """remove_catalog_entries removes swarm-table rows within a time range."""
+    df = pd.DataFrame(
+        {
+            "event_id": ["s1", "s2"],
+            "time": pd.to_datetime(["2025-01-01 00:00:00", "2025-01-03 00:00:00"]),
+            "latitude": [55.4, 55.5],
+            "longitude": [-161.9, -162.0],
+            "depth": [5.0, 6.0],
+            "mag": [2.1, 2.4],
+            "v_name": ["Pavlof", "Pavlof"],
+        }
+    )
+    alarming.record_swarm_event_ids(df, test=True)
+
+    # Remove only the 2025-01-01 event.
+    alarming.remove_catalog_entries("2025-01-01T00:00:00", "2025-01-02T00:00:00",
+                                    table="swarm", test=True)
+
+    new_count, existing_count = alarming.check_new_event_ids(["s1", "s2"], test=True, table="swarm")
+    assert (new_count, existing_count) == (1, 1)  # s1 removed, s2 remains
+
+
+def test_remove_catalog_entries_rejects_unknown_table(temp_db):
+    """remove_catalog_entries raises for a table other than tremor/swarm."""
+    with pytest.raises(ValueError):
+        alarming.remove_catalog_entries("2025-01-01", "2025-01-02", table="bogus", test=True)

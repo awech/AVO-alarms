@@ -339,7 +339,9 @@ def filtered_list(query_dict, test=False):
             query += f"volcano = '{v_name}' "
         need_and = True
     if "t1" in query_dict.keys():
-        t1 = pd.to_datetime(query_dict["t1"]).to_pydatetime()
+        # Time bounds are UTC (per the list-alerts CLI). Parse as UTC so a naive
+        # string isn't reinterpreted as system-local by iso_utc's astimezone().
+        t1 = pd.to_datetime(query_dict["t1"], utc=True).to_pydatetime()
         t1 = iso_utc(t1)
         if need_and:
             query += f"AND process_time >= '{t1}' "
@@ -347,7 +349,7 @@ def filtered_list(query_dict, test=False):
             query += f"process_time >= '{t1}' "
         need_and = True
     if "t2" in query_dict.keys():
-        t2 = pd.to_datetime(query_dict["t2"]).to_pydatetime()
+        t2 = pd.to_datetime(query_dict["t2"], utc=True).to_pydatetime()
         t2 = iso_utc(t2)
         if need_and:
             query += f"AND process_time <= '{t2}' "
@@ -414,14 +416,12 @@ def list_alarm_entries(alarm_id=None, test=False):
 
 
 def remove_alarm_ids(alarm_id, t_start, t_end, test=False):
+    # Time bounds are UTC; parse as UTC so a naive string isn't shifted by
+    # iso_utc's astimezone() on a non-UTC host.
     if isinstance(t_start, str):
-        t_start = pd.to_datetime(t_start)
-        t_start = t_start.to_pydatetime()
-        t_start = iso_utc(t_start)
+        t_start = iso_utc(pd.to_datetime(t_start, utc=True).to_pydatetime())
     if isinstance(t_end, str):
-        t_end = pd.to_datetime(t_end)
-        t_end = t_end.to_pydatetime()
-        t_end = iso_utc(t_end)
+        t_end = iso_utc(pd.to_datetime(t_end, utc=True).to_pydatetime())
 
     table_name = resolve_table_name(test)
     try:
@@ -457,10 +457,11 @@ def remove_catalog_entries(t_start, t_end, table, test=False):
     if table not in ("tremor", "swarm"):
         raise ValueError(f"table must be 'tremor' or 'swarm', got '{table}'")
 
+    # Time bounds are UTC; parse as UTC (see remove_alarm_ids).
     if isinstance(t_start, str):
-        t_start = iso_utc(pd.to_datetime(t_start).to_pydatetime())
+        t_start = iso_utc(pd.to_datetime(t_start, utc=True).to_pydatetime())
     if isinstance(t_end, str):
-        t_end = iso_utc(pd.to_datetime(t_end).to_pydatetime())
+        t_end = iso_utc(pd.to_datetime(t_end, utc=True).to_pydatetime())
 
     table_name = resolve_table_name(test, table=table)
     conn = get_conn(test=test, table=table)

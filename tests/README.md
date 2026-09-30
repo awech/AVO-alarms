@@ -123,7 +123,7 @@ the network `download_*` helpers are integration-only.
 | Lightning | ✅ | ✅ | ✅ | 🟢 full send + ⚪ distal/ignored/all-seen + 🟡 API error (all branches) |
 | Magnitude | ✅ | 🔄 | ✅ | 🟢 full send + ⚪ no-op/not-near/already-processed + 🟡 FDSN error (all branches) |
 | NOAA_CIMSS | ✅ | 🔄 | ✅ | 🟢 full send + ⚪ no-new/ignored/already-processed + 🟡 API/webpage error (all branches) |
-| Pilot_Report | ✅ | ❌ | ❌ | ⚪ no-op OK only |
+| Pilot_Report | ✅ | 🔄 | ✅ | 🟢 full send (urgent + non-urgent) + ⚪ no-reports/already-processed + 🟡 API error (all branches) |
 | RSAM | ✅ | ✅ | ✅ (shared builder) | 🟢 full send + ⚪ normal OK + 🟡 data-missing (all branches) |
 | SO2 | ✅ (offline path) | ❌ | ❌ | 🟡 early-exit only |
 | Swarm | ✅ | ❌ | ❌ | ⚪ no-op OK only |
@@ -154,11 +154,12 @@ The `detection`/`message`/`figure` columns describe how each alarm's
 > output looks a certain way. See VAA `test_figure.py` (cartopy map), Lightning
 > `test_figure.py` (cartopy map + time-colored stroke scatter), Magnitude
 > `test_figure.py` (trace mosaic + response removal + map, from a recorded event),
-> Infrasound `test_figure.py` (mosaic + spectrograms), and NOAA_CIMSS
+> Infrasound `test_figure.py` (mosaic + spectrograms), NOAA_CIMSS
 > `test_figure.py` (two alert images + map, with the recorded PNGs staged into
-> TMP_DIR); all fake the data/compute boundaries (`save_file`, downloads, and —
-> for Magnitude — the Earthscope station-metadata client) and let the real
-> plotting code run.
+> TMP_DIR), and Pilot_Report `test_figure.py` (report map + flight-level caption);
+> all fake the data/compute boundaries (`save_file`, downloads, and — for
+> Magnitude — the Earthscope station-metadata client) and let the real plotting
+> code run.
 
 > **Coverage gotcha (cartopy + the default tracer).** Measuring figure coverage
 > with coverage.py's default C tracer *understates* it: when cartopy's C
@@ -177,12 +178,15 @@ does not reveal it:
 - 🟢 **full send** — the scenario feeds fixtures that trigger a real CRITICAL
   detection and the complete send sequence (figure → Mattermost → email → DB
   record → cleanup → Icinga). This is the strongest regression guard. Alarms:
-  **RSAM**, **Lightning**, **Magnitude**, **NOAA_CIMSS**, **Infrasound**,
-  **Tremor** (all have a `critical` scenario).
+  **RSAM**, **Lightning**, **Magnitude**, **NOAA_CIMSS**, **Pilot_Report**,
+  **Infrasound**, **Tremor** (all have a `critical` scenario). **Pilot_Report**
+  additionally has a `non_urgent` send (same report, urgency flipped) that sends
+  as a WARNING without the CRITICAL-only email.
 - ⚪ **no-detect / no-op OK / sub-threshold** — the decision logic fully runs but
   reaches a non-CRITICAL result: a "nothing to report" no-op the alarm is
-  designed to produce (empty catalog / no new reports — **Pilot_Report**,
-  **Swarm**, **Magnitude** representative); a real signal the detection logic
+  designed to produce (empty catalog / no new reports — **Swarm**, **Magnitude**
+  representative, **Pilot_Report** `no_reports`/`already_processed`); a real
+  signal the detection logic
   evaluates and rejects (**Infrasound** `wrong_backazimuth`: a coherent airwave
   no target accepts; **Lightning** `distal`: a real storm whose strokes are all
   outside the inner ring, `ignored_volcano`: real proximal strokes at a volcano
@@ -199,10 +203,10 @@ does not reveal it:
   at an input guard (missing data / not-enough-channels / API or webpage error)
   **before its detection logic runs**. These baselines verify the plumbing and
   the guard, **not** the science. Alarms with *only* this depth: **SO2**, **VAA**.
-  (Note: **Infrasound**, **RSAM**, **Tremor**, **Lightning**, **Magnitude**, and
-  **NOAA_CIMSS** also have early-exit / API-error / FDSN-error / webpage-error /
-  data-missing scenarios, but are not limited to that depth — they cover every
-  branch.)
+  (Note: **Infrasound**, **RSAM**, **Tremor**, **Lightning**, **Magnitude**,
+  **NOAA_CIMSS**, and **Pilot_Report** also have early-exit / API-error /
+  FDSN-error / webpage-error / data-missing scenarios, but are not limited to
+  that depth — they cover every branch.)
 
 For the 🟡 alarms, the detection science is instead covered by the `detection`
 unit tests (e.g. VAA `process_polygons`, the SO2 parser). The remaining gap is
@@ -316,6 +320,29 @@ detail page (behind a login) and downloads its images. All three are recorded:
   the explicit proof the NOAA opt-out column works. `already_processed` seeds the
   alert id into the real `sent_events` table; `api_error` / `no_new_alerts` use
   crafted download returns.
+
+##### Record/replay for a shapefile alarm (Pilot_Report)
+
+Pilot_Report downloads a zipped ESRI **shapefile** of pilot reports from the
+Iowa State mesonet archive, then parses and filters it:
+
+- One fixture under `tests/fixtures/data/`:
+  `pilot_report_Shishaldin_20260911T0039.zip` — a real PIREP shapefile ZIP for a
+  Shishaldin volcanic-ash report (2026-09-11 00:39 UTC), pulled with the same
+  URL `download_pilot_reports` builds.
+- The `critical` / `non_urgent` / `already_processed` scenarios return
+  `("OK", <real ZipFile>)` from the `download_pilot_reports` double, so the real
+  `pirep_archive_to_dataframe` (shapefile read), `find_nearest_volcano`
+  (`filter_col="PIREP"`), and `check_volcano_mention` (the `VA SHISHALDIN`
+  trigger) all run. `plot_fig` is stubbed; the render is covered by
+  `test_figure.py`.
+- `critical` keeps the report's real `URGENT='T'` → CRITICAL + email; `non_urgent`
+  wraps `pirep_archive_to_dataframe` to set `URGENT='F'` on the parsed rows → the
+  same report sends as a WARNING with no email, exercising the non-urgent branch.
+- `VOLCANO_LIST` points at `volcano_list_avo.csv` because it carries the `PIREP`
+  opt-in column (the packaged placeholder lacks it). `already_processed` seeds the
+  report's event id into the real `sent_events` table; `api_error` returns
+  `("WARNING", None)`, `no_reports` returns `("OK", None)`.
 
 #### Extending coverage (known follow-ups)
 

@@ -126,7 +126,7 @@ the network `download_*` helpers are integration-only.
 | Pilot_Report | ✅ | 🔄 | ✅ | 🟢 full send (urgent + non-urgent) + ⚪ no-reports/already-processed + 🟡 API error (all branches) |
 | RSAM | ✅ | ✅ | ✅ (shared builder) | 🟢 full send + ⚪ normal OK + 🟡 data-missing (all branches) |
 | SO2 | ✅ (offline path) | ❌ | ❌ | 🟡 early-exit only |
-| Swarm | ✅ | ❌ | ❌ | ⚪ no-op OK only |
+| Swarm | ✅ | 🔄 | ✅ | 🟢 full send (single + multi-param + simultaneous) + ⚪ continuation-WARNING/no-swarm/not-near + 🟡 FDSN error (all branches) |
 | Tremor | ✅ | 🔄 | ✅ (shared builder) | 🟢 full send + ⚪ normal OK + 🟡 data-missing (all branches) |
 | VAA | ✅ | ✅ | ✅ | 🟢 full send + ⚪ no-advisories/already-processed + 🟡 webpage error (all branches) |
 
@@ -179,14 +179,19 @@ does not reveal it:
   detection and the complete send sequence (figure → Mattermost → email → DB
   record → cleanup → Icinga). This is the strongest regression guard. Alarms:
   **RSAM**, **Lightning**, **Magnitude**, **NOAA_CIMSS**, **Pilot_Report**,
-  **VAA**, **Infrasound**, **Tremor** (all have a `critical` scenario).
+  **VAA**, **Swarm**, **Infrasound**, **Tremor** (all have a `critical` scenario).
   **Pilot_Report** additionally has a `non_urgent` send (same report, urgency
-  flipped) that sends as a WARNING without the CRITICAL-only email.
+  flipped) that sends as a WARNING without the CRITICAL-only email. **Swarm** adds
+  a `multi_param` send (one sequence caught by both DBSCAN parameter sets, deduped
+  to a single alert) and a `simultaneous_swarms` send (two clusters at different
+  volcanoes -> two alerts).
 - ⚪ **no-detect / no-op OK / sub-threshold** — the decision logic fully runs but
   reaches a non-CRITICAL result: a "nothing to report" no-op the alarm is
   designed to produce (empty catalog / no new reports — **Swarm**, **Magnitude**
   representative, **Pilot_Report** `no_reports`/`already_processed`, **VAA**
-  `no_advisories`/`already_processed`); a real signal the detection logic
+  `no_advisories`/`already_processed`, **Swarm** `no_swarm`/`not_near_volcano`
+  and `continuation` — the last a WARNING where new events extend a prior swarm
+  from the DB without forming a fresh one); a real signal the detection logic
   evaluates and rejects (**Infrasound** `wrong_backazimuth`: a coherent airwave
   no target accepts; **Lightning** `distal`: a real storm whose strokes are all
   outside the inner ring, `ignored_volcano`: real proximal strokes at a volcano
@@ -204,9 +209,9 @@ does not reveal it:
   **before its detection logic runs**. These baselines verify the plumbing and
   the guard, **not** the science. Alarms with *only* this depth: **SO2**.
   (Note: **Infrasound**, **RSAM**, **Tremor**, **Lightning**, **Magnitude**,
-  **NOAA_CIMSS**, **Pilot_Report**, and **VAA** also have early-exit / API-error /
-  FDSN-error / webpage-error / data-missing scenarios, but are not limited to
-  that depth — they cover every branch.)
+  **NOAA_CIMSS**, **Pilot_Report**, **VAA**, and **Swarm** also have early-exit /
+  API-error / FDSN-error / webpage-error / data-missing scenarios, but are not
+  limited to that depth — they cover every branch.)
 
 For the 🟡 alarm (**SO2**), the detection science is instead covered by the
 `detection` unit tests (the SO2 parser). The remaining gap is that no
@@ -366,6 +371,43 @@ NWS text product:
 > already thorough — it was the original template for that split. The work here
 > was the missing `run_alarm` record/replay layer, which lifted run_alarm from
 > ~39% (webpage-error path only) to ~95%.
+
+##### Record/replay for a clustering alarm (Swarm)
+
+Swarm clusters an FDSN earthquake catalog (DBSCAN over space + time, with two
+parameter sets — a 1 h "short" and a 24 h "long") and has the richest branch set:
+a CRITICAL per detected swarm, a WARNING when new events merely *continue* a prior
+swarm held in the `swarm_table` DB, plus the no-swarm / not-near / error paths.
+It mixes one real fixture with two synthetic ones:
+
+- `swarm_Makushin_20260923.csv` — a real Makushin swarm (pared to the
+  near-volcano events), which clusters via the long params -> `critical`.
+- `swarm_multi_param_synthetic.csv` — a crafted sequence that satisfies BOTH
+  parameter sets; `get_swarms` returns a detection from each and `compare_swarms`
+  collapses the overlapping pair to one alert (`multi_param`).
+- `swarm_simultaneous_synthetic.csv` — two spatially separate crafted clusters
+  (near Spurr and Redoubt), each its own swarm -> two CRITICAL sends
+  (`simultaneous_swarms`). Real catalogs rarely contain two simultaneous swarms,
+  so this path needed synthetic data.
+- `continuation` seeds a near-complete prior swarm into `swarm_table` (via the
+  real `record_swarm_event_ids`) and feeds a couple of new events that extend it;
+  `check_swarm_continue` merges old+new and reports the ongoing-swarm WARNING.
+
+The scenarios feed the CSV to the `download_hypocenters_csv` double **shaped the
+way the real downloader returns it** — `id` renamed to `event_id` and times made
+tz-naive via `UTCDateTime(...).strftime()` + `pd.to_datetime` — because
+`get_swarms` compares the `time` column against a naive string; a plain tz-aware
+`pd.to_datetime` would raise. `make_figure` is stubbed (render in `test_figure.py`,
+which fakes the per-event hypocenter-XML download to an empty catalog).
+
+> **Bug found + fixed by the simultaneous_swarms scenario.** `compare_swarms`
+> (which dedups overlapping/duplicate swarms when 2+ are detected) merged on a
+> non-existent `id` column (`on=["id","id"]`) and read a non-existent `.Time` —
+> real `run_alarm` data carries `event_id`/`time`. Any run detecting 2+
+> overlapping swarms would have raised; single-swarm runs skip that merge, and the
+> old unit test crafted DataFrames with `id`/`Time` columns that masked it. Fixed
+> to `on="event_id"` and `.time`; the unit test now uses the real column names and
+> `simultaneous_swarms` guards it end to end.
 
 #### Extending coverage (known follow-ups)
 

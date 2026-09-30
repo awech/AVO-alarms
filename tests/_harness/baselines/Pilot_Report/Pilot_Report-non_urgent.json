@@ -1,0 +1,48 @@
+{
+  "call_order": [
+    "download_pilot_reports",
+    "can_send",
+    "plot_fig",
+    "post_mattermost",
+    "record_send",
+    "os.remove",
+    "icinga",
+    "icinga"
+  ],
+  "detection_state": "WARNING",
+  "icinga": [
+    {
+      "send": true,
+      "state": "WARNING",
+      "state_message": "2026-09-11 00:39 UTC\n2026-09-10 16:39 AKDT\nFlight level: 38,000 feet asl\nPilot Remark: Va shishaldin to 20mi e. light grey tops est 150. no smell of sulfur\nLatitude: 54.589\nLongitude: -163.755\nNearest volcanoes: Shishaldin (23 km), Roundtop (26 km), Fisher (40 km)\n\n--Original Report--\nCDB UUA /OV CDB224051/TM 0039/FL380/TP B748/RM VA SHISHALDIN TO 20MI E. LIGHT GREY TOPS EST 150. NO SMELL OF SULFUR /ZAN/"
+    },
+    {
+      "send": true,
+      "state": "WARNING",
+      "state_message": "2026-09-11 00:39 UTC\n2026-09-10 16:39 AKDT\nFlight level: 38,000 feet asl\nPilot Remark: Va shishaldin to 20mi e. light grey tops est 150. no smell of sulfur\nLatitude: 54.589\nLongitude: -163.755\nNearest volcanoes: Shishaldin (23 km), Roundtop (26 km), Fisher (40 km)\n\n--Original Report--\nCDB UUA /OV CDB224051/TM 0039/FL380/TP B748/RM VA SHISHALDIN TO 20MI E. LIGHT GREY TOPS EST 150. NO SMELL OF SULFUR /ZAN/"
+    }
+  ],
+  "os_remove": [
+    "<FIGURE>"
+  ],
+  "post_mattermost": [
+    {
+      "body": "2026-09-11 00:39 UTC\n2026-09-10 16:39 AKDT\nFlight level: 38,000 feet asl\nPilot Remark: Va shishaldin to 20mi e. light grey tops est 150. no smell of sulfur\nLatitude: 54.589\nLongitude: -163.755\nNearest volcanoes: Shishaldin (23 km), Roundtop (26 km), Fisher (40 km)\n\n--Original Report--\nCDB UUA /OV CDB224051/TM 0039/FL380/TP B748/RM VA SHISHALDIN TO 20MI E. LIGHT GREY TOPS EST 150. NO SMELL OF SULFUR /ZAN/",
+      "channel_ids": null,
+      "send": true,
+      "subject": "Activity possible at: Shishaldin (23 km), Roundtop (26 km), Fisher (40 km)",
+      "test": false,
+      "volcano": null
+    }
+  ],
+  "record_send": [
+    {
+      "alarm_id": "PIREP",
+      "event_id": "202609110000-KMSC-UBUS01-PIREP_20260911003900_54.5885_-163.7547",
+      "process_time": "2026-09-11T00:45:00",
+      "test": false,
+      "volcano": "Shishaldin"
+    }
+  ],
+  "send_alert": []
+}

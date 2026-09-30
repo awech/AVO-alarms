@@ -910,14 +910,112 @@ def noaa_cimss_ignored_volcano(doubles, load_config):
 
 # ---------------------------------------------------------------------------
 # Pilot_Report
+#
+# The urgent/non_urgent scenarios replay a real recorded PIREP shapefile (a
+# Shishaldin volcanic-ash report, 2026-09-11 00:39 UTC) through the real
+# detection path offline. The download double returns ("OK", <real ZipFile>) so
+# the genuine shapefile parse (pirep_archive_to_dataframe) + find_nearest_volcano
+# + check_volcano_mention (the "VA SHISHALDIN" trigger) all run. VOLCANO_LIST
+# points at volcano_list_avo.csv so the PIREP opt-in column is active. plot_fig
+# is stubbed; the render is covered by test_figure.py.
 # ---------------------------------------------------------------------------
-def pilot_report_representative(doubles, load_config):
-    """Default download returns ('OK', None) -> 'No new pilot reports' OK."""
+PIREP_T0 = UTCDateTime("2026-09-11T00:45:00")  # ~6 min after the recorded report
+PIREP_ZIP_FIXTURE = FIXTURE_DATA_DIR / "pilot_report_Shishaldin_20260911T0039.zip"
+PIREP_EVENT_ID = "202609110000-KMSC-UBUS01-PIREP_20260911003900_54.5885_-163.7547"
+
+
+def _pirep_zipfile():
+    """Fresh ZipFile handle for the recorded PIREP shapefile fixture."""
+    import zipfile
+
+    return zipfile.ZipFile(PIREP_ZIP_FIXTURE, "r")
+
+
+def pilot_report_critical(doubles, load_config):
+    """Recorded urgent Shishaldin ash PIREP -> CRITICAL + full send.
+
+    The download double returns the real shapefile ZIP, so run_alarm parses it,
+    places the report ~23 km from Shishaldin (< the 200 km config distance), and
+    check_volcano_mention triggers on 'VA SHISHALDIN'. URGENT='T' in the report
+    makes it CRITICAL and drives the full send sequence. plot_fig is stubbed.
+    """
+    _clean_test_db()
+    config = load_config("PIREP")
+    from volc_alarms import Pilot_Report
+
+    doubles.monkeypatch.setenv("VOLCANO_LIST", str(LIGHTNING_VOLCANO_LIST))
+    doubles.download_returns["download_pilot_reports"] = ("OK", _pirep_zipfile())
+    doubles.patch_figure_builder(Pilot_Report, "plot_fig")
+    Pilot_Report.run_alarm(config, PIREP_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def pilot_report_non_urgent(doubles, load_config):
+    """Same recorded report, URGENT flipped to 'F' -> WARNING + send (not CRITICAL).
+
+    Wraps the real pirep_archive_to_dataframe to set URGENT='F' on the parsed
+    rows, so the triggering report still sends but as a WARNING (is_critical is
+    False), exercising the non-urgent branch of run_alarm.
+    """
+    _clean_test_db()
+    config = load_config("PIREP")
+    from volc_alarms import Pilot_Report
+
+    doubles.monkeypatch.setenv("VOLCANO_LIST", str(LIGHTNING_VOLCANO_LIST))
+    doubles.download_returns["download_pilot_reports"] = ("OK", _pirep_zipfile())
+
+    real_parse = Pilot_Report.pirep_archive_to_dataframe
+
+    def _non_urgent_parse(T0_, cfg, archive):
+        df = real_parse(T0_, cfg, archive)
+        df["URGENT"] = "F"
+        return df
+
+    doubles.monkeypatch.setattr(Pilot_Report, "pirep_archive_to_dataframe", _non_urgent_parse)
+    doubles.patch_figure_builder(Pilot_Report, "plot_fig")
+    Pilot_Report.run_alarm(config, PIREP_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def pilot_report_api_error(doubles, load_config):
+    """download_pilot_reports returns ('WARNING', None) -> PIREP API error WARNING."""
+    config = load_config("PIREP")
+    from volc_alarms import Pilot_Report
+
+    doubles.download_returns["download_pilot_reports"] = ("WARNING", None)
+    Pilot_Report.run_alarm(config, PIREP_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def pilot_report_no_reports(doubles, load_config):
+    """download returns ('OK', None) (no shapefile) -> OK 'No new pilot reports'."""
     config = load_config("PIREP")
     from volc_alarms import Pilot_Report
 
     doubles.download_returns["download_pilot_reports"] = ("OK", None)
-    Pilot_Report.run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True)
+    Pilot_Report.run_alarm(config, PIREP_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def pilot_report_already_processed(doubles, load_config):
+    """The recorded report, but already in the DB -> OK 'No new pilot reports'."""
+    _clean_test_db()
+    config = load_config("PIREP")
+    from volc_alarms import Pilot_Report
+    from volc_alarms.utils import alarming
+
+    conn = alarming.get_conn(test=False)
+    try:
+        table = alarming.resolve_table_name(test=False)
+        conn.execute(
+            f"INSERT INTO {table} (alarm_id, event_id, volcano, process_time, send_time) "
+            f"VALUES (?, ?, ?, ?, ?)",
+            (config.alarm_name, PIREP_EVENT_ID, "Shishaldin",
+             "2026-09-11T00:39:00Z", "2026-09-11T00:45:00Z"),
+        )
+    finally:
+        conn.close()
+
+    doubles.monkeypatch.setenv("VOLCANO_LIST", str(LIGHTNING_VOLCANO_LIST))
+    doubles.download_returns["download_pilot_reports"] = ("OK", _pirep_zipfile())
+    doubles.patch_figure_builder(Pilot_Report, "plot_fig")
+    Pilot_Report.run_alarm(config, PIREP_T0, test_flag=False, mm_flag=True, icinga_flag=True)
 
 
 # ---------------------------------------------------------------------------
@@ -1115,7 +1213,11 @@ SCENARIOS = {
     "NOAA_CIMSS-webpage_error": ("NOAA_CIMSS", noaa_cimss_webpage_error),
     "NOAA_CIMSS-already_processed": ("NOAA_CIMSS", noaa_cimss_already_processed),
     "NOAA_CIMSS-ignored_volcano": ("NOAA_CIMSS", noaa_cimss_ignored_volcano),
-    "Pilot_Report-representative": ("Pilot_Report", pilot_report_representative),
+    "Pilot_Report-critical": ("Pilot_Report", pilot_report_critical),
+    "Pilot_Report-non_urgent": ("Pilot_Report", pilot_report_non_urgent),
+    "Pilot_Report-api_error": ("Pilot_Report", pilot_report_api_error),
+    "Pilot_Report-no_reports": ("Pilot_Report", pilot_report_no_reports),
+    "Pilot_Report-already_processed": ("Pilot_Report", pilot_report_already_processed),
     "SO2-representative": ("SO2", so2_representative),
     "VAA-representative": ("VAA", vaa_representative),
     "Magnitude-representative": ("Magnitude", magnitude_representative),

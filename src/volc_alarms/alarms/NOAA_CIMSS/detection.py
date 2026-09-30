@@ -223,7 +223,7 @@ def get_instrument(soup):
 
 def get_height_txt(soup):
 
-    height_txt = soup.find(text=re.compile("Maximum Height [AMSL]"))
+    height_txt = soup.find(string=re.compile("Maximum Height [AMSL]"))
     if height_txt:
         height_txt += ":  " + height_txt.find_all_next("td")[0].text
 
@@ -232,7 +232,7 @@ def get_height_txt(soup):
 
 def get_alert_status_txt(soup):
 
-    status_txt = soup.find(text=re.compile("Alert Status"))
+    status_txt = soup.find(string=re.compile("Alert Status"))
     if status_txt:
         status_txt += ":  " + status_txt.find_all_next("td")[0].text
 
@@ -241,7 +241,7 @@ def get_alert_status_txt(soup):
 
 def get_type_txt(soup):
 
-    type_txt = soup.find(text=re.compile("Type of Volcanic Event"))
+    type_txt = soup.find(string=re.compile("Type of Volcanic Event"))
     if type_txt:
         type_txt += ":  " + type_txt.find_all_next("td")[0].text
 
@@ -250,7 +250,7 @@ def get_type_txt(soup):
 
 def get_timestamp(soup):
 
-    time_txt = soup.find(text=re.compile("Date/Time"))
+    time_txt = soup.find(string=re.compile("Date/Time"))
     if time_txt:
         time_txt = time_txt.find_all_next("td")[0].text.split("UTC")[0]
 
@@ -259,7 +259,7 @@ def get_timestamp(soup):
 
 def get_latitude(soup):
 
-    lat_txt = soup.find(text=re.compile("Radiative Center"))
+    lat_txt = soup.find(string=re.compile("Radiative Center"))
     lat = None
     lon = None
     if lat_txt:

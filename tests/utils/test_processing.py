@@ -12,18 +12,23 @@ Covered:
 * add_metadata        — attaches coordinates + inventory from the station XML
 * remove_gain         — divides out instrument sensitivity using that inventory
 * addPhaseHint        — copies arrival phase onto the matching pick
+* Dr_to_RSAM          — reduced-displacement -> per-station RSAM levels, with the
+                        FDSN client served from the in-repo test station XML
 
-TODO: Dr_to_RSAM and eq_picks_to_dataframe both call live FDSN clients for
-station responses; they are exercised indirectly by the RSAM integration path
-and are candidates for a mocked-client unit test in a later pass.
+TODO: eq_picks_to_dataframe also calls a live FDSN client for station responses;
+it is exercised indirectly by the Magnitude figure test and is a candidate for a
+mocked-client unit test in a later pass.
 """
 
 from __future__ import annotations
 
+import os
+from types import SimpleNamespace
+
 import numpy as np
 import pandas as pd
 import pytest
-from obspy import Stream, Trace, UTCDateTime
+from obspy import Stream, Trace, UTCDateTime, read_inventory
 
 from volc_alarms.utils import processing
 
@@ -186,3 +191,78 @@ def test_add_phase_hint_copies_arrival_phase_onto_matching_pick():
     out = processing.addPhaseHint(Catalog(events=[event]))
 
     assert out[0].picks[0].phase_hint == "P"
+
+
+# ---------------------------------------------------------------------------
+# Dr_to_RSAM (FDSN client served from the test station XML)
+# ---------------------------------------------------------------------------
+class _LocalInventoryClient:
+    """Offline FDSN-client stand-in: get_stations served from a StationXML."""
+
+    def __init__(self, inv):
+        self._inv = inv
+
+    def get_stations(self, network=None, station=None, location=None,
+                     channel=None, starttime=None, endtime=None, level=None, **_):
+        return self._inv.select(
+            network=network, station=station,
+            location=location if location not in (None, "") else "*",
+            channel=channel,
+        )
+
+
+@pytest.fixture
+def local_fdsn_client(monkeypatch):
+    """Point Dr_to_RSAM's FDSN_Client at the in-repo test station XML (no network)."""
+    inv = read_inventory(os.environ["STATION_XML"])
+    monkeypatch.setattr(processing, "FDSN_Client", lambda *a, **k: _LocalInventoryClient(inv))
+    return inv
+
+
+def _pavlof_rsam_config():
+    """Minimal Pavlof RSAM config: the stations present in the test station XML."""
+    return SimpleNamespace(
+        volcano_name="Pavlof",
+        rsam_stations=[
+            {"nslc": "AV.PS4A..BHZ", "value": 400},
+            {"nslc": "AV.PVV..BHZ", "value": 400},
+            {"nslc": "AV.PN7A..BHZ", "value": 450},
+        ],
+        arrestor={"nslc": "AV.BLDW..BHZ", "value": 200},
+    )
+
+
+def test_dr_to_rsam_returns_per_station_levels(local_fdsn_client):
+    """Dr_to_RSAM returns a level per station with real distances + computed RSAM."""
+    config = _pavlof_rsam_config()
+    table = processing.Dr_to_RSAM(100, config=config)
+
+    # One row per source station + the arrestor.
+    assert list(table["Station"]) == [
+        "AV.PS4A..BHZ", "AV.PVV..BHZ", "AV.PN7A..BHZ", "AV.BLDW..BHZ"
+    ]
+    assert (table["Volcano"] == "Pavlof").all()
+    assert (table["DR Level"] == 100).all()
+    # All computed levels are positive and finite.
+    assert (table["RSAM Level"] > 0).all()
+    # The arrestor (BLDW, ~62 km) is much farther than the near-summit stations.
+    dist = dict(zip(table["Station"], table["Distance (km)"]))
+    assert dist["AV.PN7A..BHZ"] < dist["AV.BLDW..BHZ"]
+
+
+def test_dr_to_rsam_level_decreases_with_distance(local_fdsn_client):
+    """For a fixed DR, the modeled RSAM level is higher at closer stations."""
+    config = _pavlof_rsam_config()
+    table = processing.Dr_to_RSAM(100, config=config).set_index("Station")
+
+    # PN7A (~6.8 km) is closer than BLDW (~62 km), so its level is higher.
+    assert table.loc["AV.PN7A..BHZ", "RSAM Level"] > table.loc["AV.BLDW..BHZ", "RSAM Level"]
+
+
+def test_dr_to_rsam_scales_with_reduced_displacement(local_fdsn_client):
+    """A larger reduced displacement yields larger RSAM levels at every station."""
+    config = _pavlof_rsam_config()
+    low = processing.Dr_to_RSAM(50, config=config).set_index("Station")["RSAM Level"]
+    high = processing.Dr_to_RSAM(200, config=config).set_index("Station")["RSAM Level"]
+    assert (high >= low).all()
+    assert (high > low).any()

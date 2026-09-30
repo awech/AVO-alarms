@@ -14,7 +14,7 @@ stages:
 # Main test + coverage (runs on the primary Python version)
 # ---------------------------------------------------------------------------
 test:
-  image: python:3.13
+  image: python:3.14
   stage: test
   before_script:
     - pip install --upgrade pip
@@ -31,7 +31,7 @@ test-compat:
   stage: test
   parallel:
     matrix:
-      - PYTHON_VERSION: ["3.10", "3.11", "3.12"]
+      - PYTHON_VERSION: ["3.11", "3.12", "3.13"]
   image: python:${PYTHON_VERSION}
   before_script:
     - pip install --upgrade pip

@@ -76,3 +76,15 @@ markers = [
     "unit: fast, isolated tests of a single function with local mocking only (no network, DB, email, or matplotlib rendering).",
     "integration: end-to-end tests that drive an alarm's run_alarm() through the shared fakes harness and compare against a frozen baseline.",
 ]
+
+[tool.coverage.run]
+source = ["volc_alarms"]
+# sys.monitoring tracer: the default C tracer understates cartopy/figure coverage.
+core = "sysmon"
+omit = [
+    "*/alarms/SO2/*",   # no recordable fixture: real SO2 alerts are rare + ephemeral
+    "*/lts_array/*",    # vendored third-party code
+]
+
+[tool.coverage.report]
+show_missing = true

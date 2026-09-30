@@ -760,6 +760,10 @@ def _install_real_cimss_download(doubles, json_fixture):
     mp.setenv("NOAA_CIMSS_URL", "https://example.test/vv-api/noaa_cimss")
     mp.setenv("API_USERNAME", "test")
     mp.setenv("API_PASSWORD", "test")
+    # Pin the volcano list so find_nearest_volcano / create_message resolve the
+    # same nearest-volcano set regardless of test order (the NOAA opt-out column
+    # also lives here). Keeps the baseline deterministic.
+    mp.setenv("VOLCANO_LIST", str(LIGHTNING_VOLCANO_LIST))
 
 
 def _install_cimss_scrape_soup(doubles):

@@ -1032,14 +1032,99 @@ def so2_representative(doubles, load_config):
 
 # ---------------------------------------------------------------------------
 # VAA
+#
+# The critical scenario replays a real recorded Volcanic Ash Advisory (a
+# Sheveluch eruption advisory, 2026-09-28 17:53 UTC) through the real detection
+# path offline: the download_mesonet_vaa_list double returns the advisory's
+# text_link, and fetch_vaa_page is faked to serve the recorded advisory text, so
+# the real process_vaa_id (parse_vaa_fields, text_to_latlon, parse_vaa_dtg) +
+# find_nearest_volcano + create_message all run. make_map is stubbed -- the
+# figure render is covered by the pre-existing test_figure.py.
 # ---------------------------------------------------------------------------
-def vaa_representative(doubles, load_config):
-    """Default download returns None -> webpage error WARNING."""
+VAA_T0 = UTCDateTime("2026-09-28T18:00:00")  # ~7 min after the recorded advisory
+VAA_TEXT_FIXTURE = FIXTURE_DATA_DIR / "vaa_Sheveluch_20260928T1753.txt"
+VAA_EVENT_ID = "20260928/1753Z-SHEVELUCH"
+
+
+def _vaa_link_df():
+    """The one-row text_link DataFrame download_mesonet_vaa_list returns."""
+    return pd.DataFrame({"text_link": ["https://example.test/nwstext/202609281753"]})
+
+
+def _install_vaa_page(doubles):
+    """Fake fetch_vaa_page to serve the recorded advisory text (real parse runs)."""
+    from volc_alarms.alarms.VAA import detection as vaa_detection
+
+    text = VAA_TEXT_FIXTURE.read_text(encoding="utf-8")
+
+    class _Resp:
+        def __init__(self, t):
+            self.text = t
+
+    doubles.monkeypatch.setattr(vaa_detection, "fetch_vaa_page", lambda url, **k: _Resp(text))
+
+
+def vaa_critical(doubles, load_config):
+    """Recorded Sheveluch VAA -> CRITICAL detection + full send.
+
+    download_mesonet_vaa_list returns the advisory's text_link and fetch_vaa_page
+    serves the recorded advisory text, so run_alarm runs the real process_vaa_id
+    parse + find_nearest_volcano + create_message and the full send sequence.
+    make_map is stubbed (render covered by test_figure.py).
+    """
+    _clean_test_db()
+    config = load_config("VAA")
+    from volc_alarms import VAA
+
+    doubles.monkeypatch.setenv("VOLCANO_LIST", str(LIGHTNING_VOLCANO_LIST))
+    doubles.download_returns["download_mesonet_vaa_list"] = _vaa_link_df()
+    _install_vaa_page(doubles)
+    doubles.patch_figure_builder(VAA, "make_map")
+    VAA.run_alarm(config, VAA_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def vaa_webpage_error(doubles, load_config):
+    """download_mesonet_vaa_list returns None -> webpage error WARNING."""
     config = load_config("VAA")
     from volc_alarms import VAA
 
     doubles.download_returns["download_mesonet_vaa_list"] = None
-    VAA.run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True)
+    VAA.run_alarm(config, VAA_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def vaa_no_advisories(doubles, load_config):
+    """Empty advisory list -> OK 'No new Volcanic Ash Advisories'."""
+    config = load_config("VAA")
+    from volc_alarms import VAA
+
+    doubles.download_returns["download_mesonet_vaa_list"] = pd.DataFrame({"text_link": []})
+    VAA.run_alarm(config, VAA_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def vaa_already_processed(doubles, load_config):
+    """The recorded VAA, but already in the DB -> OK 'No Volcanic Ash Advisories.'"""
+    _clean_test_db()
+    config = load_config("VAA")
+    from volc_alarms import VAA
+    from volc_alarms.utils import alarming
+
+    conn = alarming.get_conn(test=False)
+    try:
+        table = alarming.resolve_table_name(test=False)
+        conn.execute(
+            f"INSERT INTO {table} (alarm_id, event_id, volcano, process_time, send_time) "
+            f"VALUES (?, ?, ?, ?, ?)",
+            (config.alarm_name, VAA_EVENT_ID, "Sheveluch",
+             "2026-09-28T17:53:00Z", "2026-09-28T18:00:00Z"),
+        )
+    finally:
+        conn.close()
+
+    doubles.monkeypatch.setenv("VOLCANO_LIST", str(LIGHTNING_VOLCANO_LIST))
+    doubles.download_returns["download_mesonet_vaa_list"] = _vaa_link_df()
+    _install_vaa_page(doubles)
+    doubles.patch_figure_builder(VAA, "make_map")
+    VAA.run_alarm(config, VAA_T0, test_flag=False, mm_flag=True, icinga_flag=True)
 
 
 # ---------------------------------------------------------------------------
@@ -1219,7 +1304,10 @@ SCENARIOS = {
     "Pilot_Report-no_reports": ("Pilot_Report", pilot_report_no_reports),
     "Pilot_Report-already_processed": ("Pilot_Report", pilot_report_already_processed),
     "SO2-representative": ("SO2", so2_representative),
-    "VAA-representative": ("VAA", vaa_representative),
+    "VAA-critical": ("VAA", vaa_critical),
+    "VAA-webpage_error": ("VAA", vaa_webpage_error),
+    "VAA-no_advisories": ("VAA", vaa_no_advisories),
+    "VAA-already_processed": ("VAA", vaa_already_processed),
     "Magnitude-representative": ("Magnitude", magnitude_representative),
     "Magnitude-critical": ("Magnitude", magnitude_critical),
     "Magnitude-fdsn_error": ("Magnitude", magnitude_fdsn_error),

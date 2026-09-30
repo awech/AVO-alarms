@@ -1251,14 +1251,219 @@ def magnitude_already_processed(doubles, load_config):
 
 # ---------------------------------------------------------------------------
 # Swarm
+#
+# Swarm clusters an FDSN earthquake catalog (DBSCAN in space+time, two parameter
+# sets) and branches on whether new events form a swarm, continue a prior swarm
+# (from the swarm_table DB), or neither. Scenarios feed a recorded/crafted CSV to
+# the download_hypocenters_csv double (as the real downloader returns it, id ->
+# event_id) so the real get_swarms / compare_swarms / check_swarm_continue run;
+# make_figure is stubbed. VOLCANO_LIST is pinned to the avo list for determinism.
+#
+# Fixtures:
+#   - swarm_Makushin_20260923.csv        real Makushin swarm (long-param CRITICAL)
+#   - swarm_multi_param_synthetic.csv    one sequence caught by BOTH params
+#   - swarm_simultaneous_synthetic.csv   two clusters at different volcanoes
 # ---------------------------------------------------------------------------
-def swarm_representative(doubles, load_config):
-    """Default empty FDSN catalog -> 'No new swarm activity' OK."""
+SWARM_T0 = UTCDateTime("2026-09-23T21:30:00")  # just after the recorded Makushin swarm
+SWARM_MAKUSHIN_CSV = FIXTURE_DATA_DIR / "swarm_Makushin_20260923.csv"
+SWARM_MULTI_PARAM_CSV = FIXTURE_DATA_DIR / "swarm_multi_param_synthetic.csv"
+SWARM_SIMULTANEOUS_CSV = FIXTURE_DATA_DIR / "swarm_simultaneous_synthetic.csv"
+
+
+def _load_swarm_csv(path):
+    """Load a swarm CSV as download_hypocenters_csv returns it (id -> event_id)."""
+    return _load_swarm_csv_from_df(pd.read_csv(path))
+
+
+def _load_swarm_csv_from_df(df):
+    """Shape a crafted df exactly like download_hypocenters_csv does.
+
+    The real downloader round-trips each time through UTCDateTime(...).strftime()
+    then pd.to_datetime, yielding tz-NAIVE timestamps, and renames id -> event_id.
+    Matching that (rather than a plain tz-aware pd.to_datetime) keeps the
+    get_swarms time comparison (Series > naive-string) valid.
+    """
+    df = df.rename(columns={"id": "event_id"})
+    df["time"] = df["time"].apply(lambda t: UTCDateTime(t).strftime("%Y-%m-%d %H:%M:%S.%f"))
+    df["time"] = pd.to_datetime(df["time"])
+    return df
+
+
+def _seed_swarm_events(config, events):
+    """Seed prior swarm events into the real swarm_table via record_swarm_event_ids.
+
+    ``events`` is a DataFrame with event_id/time/latitude/longitude/depth/mag/
+    v_name columns (the schema record_swarm_event_ids writes).
+    """
+    from volc_alarms.utils import alarming
+
+    alarming.record_swarm_event_ids(events, test=False)
+
+
+def swarm_critical(doubles, load_config):
+    """Recorded Makushin swarm -> CRITICAL detection + full send.
+
+    The real Makushin catalog clusters (via the 24h 'long' params) into one
+    swarm, so run_alarm reaches CRITICAL and the full figure -> Mattermost ->
+    DB record -> Icinga sequence. make_figure is stubbed (render in test_figure.py).
+    """
     _clean_test_db()
     config = load_config("Swarm")
     from volc_alarms import Swarm
 
-    Swarm.run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True)
+    doubles.monkeypatch.setenv("VOLCANO_LIST", str(LIGHTNING_VOLCANO_LIST))
+    doubles.hypocenter_csv = _load_swarm_csv(SWARM_MAKUSHIN_CSV)
+    doubles.patch_figure_builder(Swarm, "make_figure")
+    Swarm.run_alarm(config, SWARM_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def swarm_multi_param(doubles, load_config):
+    """One sequence caught by BOTH parameter sets -> a single deduped CRITICAL.
+
+    The synthetic burst satisfies the short (>=6 in 1h) params and, with a
+    trailing trickle, also the long (>=12 in 24h) params. get_swarms returns a
+    detection from each, and compare_swarms collapses the overlapping pair to the
+    single shorter-duration swarm -> one CRITICAL send.
+    """
+    _clean_test_db()
+    config = load_config("Swarm")
+    from volc_alarms import Swarm
+
+    doubles.monkeypatch.setenv("VOLCANO_LIST", str(LIGHTNING_VOLCANO_LIST))
+    doubles.hypocenter_csv = _load_swarm_csv(SWARM_MULTI_PARAM_CSV)
+    doubles.patch_figure_builder(Swarm, "make_figure")
+    Swarm.run_alarm(config, SWARM_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def swarm_simultaneous_swarms(doubles, load_config):
+    """Two clusters at different volcanoes -> two CRITICAL sends.
+
+    Synthetic events form two spatially separate swarms (near Spurr and Redoubt),
+    each satisfying the short params. compare_swarms keeps both (disjoint event
+    sets), so run_alarm sends one CRITICAL per swarm. Exercises the previously
+    untested multi-swarm path (compare_swarms merges on event_id/time).
+    """
+    _clean_test_db()
+    config = load_config("Swarm")
+    from volc_alarms import Swarm
+
+    doubles.monkeypatch.setenv("VOLCANO_LIST", str(LIGHTNING_VOLCANO_LIST))
+    doubles.hypocenter_csv = _load_swarm_csv(SWARM_SIMULTANEOUS_CSV)
+    doubles.patch_figure_builder(Swarm, "make_figure")
+    Swarm.run_alarm(config, SWARM_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def swarm_continuation(doubles, load_config):
+    """New events extend a prior swarm (from the DB) -> WARNING, not a new swarm.
+
+    Seeds a near-complete prior swarm into swarm_table, then feeds a couple of new
+    events that (alone) don't form a swarm but, merged with the seeded events via
+    check_swarm_continue, extend the existing cluster -> the 'Ongoing swarm
+    activity' WARNING branch (no CRITICAL send).
+    """
+    _clean_test_db()
+    config = load_config("Swarm")
+    from volc_alarms import Swarm
+
+    doubles.monkeypatch.setenv("VOLCANO_LIST", str(LIGHTNING_VOLCANO_LIST))
+
+    # Seed 11 prior events tightly clustered near Spurr over the last ~2 h.
+    spurr_lat, spurr_lon = 61.2989, -152.2539
+    seed_times = [pd.Timestamp("2026-09-23 19:30:00", tz="UTC") + pd.Timedelta(minutes=6 * i)
+                  for i in range(11)]
+    seeded = pd.DataFrame(
+        {
+            "event_id": [f"cont_seed_{i}" for i in range(11)],
+            "time": seed_times,
+            "latitude": [spurr_lat + 0.002 * (i % 3) for i in range(11)],
+            "longitude": [spurr_lon + 0.002 * (i % 2) for i in range(11)],
+            "depth": [4.0] * 11,
+            "mag": [0.5] * 11,
+            "v_name": ["Spurr"] * 11,
+        }
+    )
+    _seed_swarm_events(config, seeded)
+
+    # Two NEW events extending the cluster (too few to be a swarm on their own).
+    new_times = [pd.Timestamp("2026-09-23 21:10:00") + pd.Timedelta(minutes=8 * i) for i in range(2)]
+    new_df = pd.DataFrame(
+        {
+            "time": [t.strftime("%Y-%m-%dT%H:%M:%S.000Z") for t in new_times],
+            "latitude": [spurr_lat + 0.001, spurr_lat + 0.002],
+            "longitude": [spurr_lon + 0.001, spurr_lon - 0.001],
+            "depth": [4.0, 4.5],
+            "mag": [0.6, 0.7],
+            "id": ["cont_new_0", "cont_new_1"],
+        }
+    )
+    doubles.hypocenter_csv = _load_swarm_csv_from_df(new_df)
+    doubles.patch_figure_builder(Swarm, "make_figure")
+    Swarm.run_alarm(config, SWARM_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def swarm_no_swarm(doubles, load_config):
+    """Events near a volcano but too few/scattered to cluster -> OK.
+
+    Three events near Spurr, below the min_num_evt threshold, so get_swarms finds
+    no cluster and there is no prior swarm to continue -> 'No new swarm activity'.
+    """
+    _clean_test_db()
+    config = load_config("Swarm")
+    from volc_alarms import Swarm
+
+    doubles.monkeypatch.setenv("VOLCANO_LIST", str(LIGHTNING_VOLCANO_LIST))
+    spurr_lat, spurr_lon = 61.2989, -152.2539
+    times = [pd.Timestamp("2026-09-23 21:00:00") + pd.Timedelta(minutes=10 * i) for i in range(3)]
+    df = pd.DataFrame(
+        {
+            "time": [t.strftime("%Y-%m-%dT%H:%M:%S.000Z") for t in times],
+            "latitude": [spurr_lat, spurr_lat + 0.001, spurr_lat - 0.001],
+            "longitude": [spurr_lon, spurr_lon + 0.001, spurr_lon - 0.001],
+            "depth": [4.0, 4.2, 4.1],
+            "mag": [0.5, 0.6, 0.4],
+            "id": ["ns0", "ns1", "ns2"],
+        }
+    )
+    doubles.hypocenter_csv = _load_swarm_csv_from_df(df)
+    doubles.patch_figure_builder(Swarm, "make_figure")
+    Swarm.run_alarm(config, SWARM_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def swarm_not_near_volcano(doubles, load_config):
+    """Events far from any volcano -> OK 'No new swarm activity'.
+
+    A cluster in the open Gulf of Alaska, beyond volcano_distance from every
+    volcano, so the distance filter drops them all before clustering.
+    """
+    _clean_test_db()
+    config = load_config("Swarm")
+    from volc_alarms import Swarm
+
+    doubles.monkeypatch.setenv("VOLCANO_LIST", str(LIGHTNING_VOLCANO_LIST))
+    times = [pd.Timestamp("2026-09-23 21:00:00") + pd.Timedelta(minutes=5 * i) for i in range(8)]
+    df = pd.DataFrame(
+        {
+            "time": [t.strftime("%Y-%m-%dT%H:%M:%S.000Z") for t in times],
+            "latitude": [56.0 + 0.001 * i for i in range(8)],
+            "longitude": [-150.0 + 0.001 * i for i in range(8)],  # open ocean
+            "depth": [10.0] * 8,
+            "mag": [1.0] * 8,
+            "id": [f"far{i}" for i in range(8)],
+        }
+    )
+    doubles.hypocenter_csv = _load_swarm_csv_from_df(df)
+    doubles.patch_figure_builder(Swarm, "make_figure")
+    Swarm.run_alarm(config, SWARM_T0, test_flag=False, mm_flag=True, icinga_flag=True)
+
+
+def swarm_fdsn_error(doubles, load_config):
+    """download_hypocenters_csv returns None -> FDSN connection error WARNING."""
+    _clean_test_db()
+    config = load_config("Swarm")
+    from volc_alarms import Swarm
+
+    doubles.hypocenter_csv_error = True
+    Swarm.run_alarm(config, SWARM_T0, test_flag=False, mm_flag=True, icinga_flag=True)
 
 
 # ---------------------------------------------------------------------------
@@ -1313,5 +1518,11 @@ SCENARIOS = {
     "Magnitude-fdsn_error": ("Magnitude", magnitude_fdsn_error),
     "Magnitude-not_near_volcano": ("Magnitude", magnitude_not_near_volcano),
     "Magnitude-already_processed": ("Magnitude", magnitude_already_processed),
-    "Swarm-representative": ("Swarm", swarm_representative),
+    "Swarm-critical": ("Swarm", swarm_critical),
+    "Swarm-multi_param": ("Swarm", swarm_multi_param),
+    "Swarm-simultaneous_swarms": ("Swarm", swarm_simultaneous_swarms),
+    "Swarm-continuation": ("Swarm", swarm_continuation),
+    "Swarm-no_swarm": ("Swarm", swarm_no_swarm),
+    "Swarm-not_near_volcano": ("Swarm", swarm_not_near_volcano),
+    "Swarm-fdsn_error": ("Swarm", swarm_fdsn_error),
 }

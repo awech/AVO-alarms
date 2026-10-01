@@ -85,6 +85,7 @@ source = ["volc_alarms"]
 # sys.monitoring tracer: the default C tracer understates cartopy/figure coverage.
 core = "sysmon"
 omit = [
+    "tests/*",
     "*/alarms/SO2/*",   # no recordable fixture: real SO2 alerts are rare + ephemeral
     "*/lts_array/*",    # vendored third-party code
 ]

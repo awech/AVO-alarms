@@ -337,6 +337,7 @@ def test_download_vaa_from_nws_api_returns_none_after_failures(monkeypatch):
 def test_extract_nslc_from_rsam_config():
     """_extract_nslc_from_config pulls stations, infrasound, and arrestor NSLC for RSAM."""
     config = {
+        "alarm_type": "RSAM",
         "rsam_stations": [
             {"nslc": "AV.SSLW..BHZ", "value": 300},
             {"nslc": "AV.SSLS..BHZ", "value": 300},
@@ -348,17 +349,34 @@ def test_extract_nslc_from_rsam_config():
     assert nslc == ["AV.SSLW..BHZ", "AV.SSLS..BHZ", "AV.SSLW..BDF", "AV.SPCP..BHZ"]
 
 
-def test_extract_nslc_from_tremor_config():
-    """_extract_nslc_from_config returns the top-level nslc list for Tremor/Infrasound."""
-    config = {"nslc": ["AV.SDPI.01.HDF", "AV.SDPI.02.HDF"]}
+def test_extract_nslc_from_infrasound_config():
+    """_extract_nslc_from_config returns the top-level nslc list for Infrasound."""
+    config = {"alarm_type": "Infrasound", "nslc": ["AV.SDPI.01.HDF", "AV.SDPI.02.HDF"]}
     nslc = downloading._extract_nslc_from_config(config)
     assert nslc == ["AV.SDPI.01.HDF", "AV.SDPI.02.HDF"]
 
 
+def test_extract_nslc_from_tremor_config():
+    """_extract_nslc_from_config returns the top-level nslc list for Tremor."""
+    config = {"alarm_type": "Tremor", "nslc": ["AV.PVV..BHZ", "AV.PS4A..BHZ"]}
+    nslc = downloading._extract_nslc_from_config(config)
+    assert nslc == ["AV.PVV..BHZ", "AV.PS4A..BHZ"]
+
+
 def test_extract_nslc_from_rsam_config_without_arrestor():
     """_extract_nslc_from_config tolerates a missing arrestor key."""
-    config = {"rsam_stations": [{"nslc": "AV.SSLW..BHZ", "value": 300}]}
+    config = {"alarm_type": "RSAM", "rsam_stations": [{"nslc": "AV.SSLW..BHZ", "value": 300}]}
     assert downloading._extract_nslc_from_config(config) == ["AV.SSLW..BHZ"]
+
+
+def test_extract_nslc_from_non_seismic_config_returns_empty():
+    """_extract_nslc_from_config returns [] for a non-seismic alarm type."""
+    assert downloading._extract_nslc_from_config({"alarm_type": "Lightning"}) == []
+
+
+def test_extract_nslc_from_config_missing_alarm_type_returns_empty():
+    """_extract_nslc_from_config returns [] (no KeyError) when alarm_type is absent."""
+    assert downloading._extract_nslc_from_config({"some": "mapping"}) == []
 
 
 # ---------------------------------------------------------------------------
@@ -367,17 +385,49 @@ def test_extract_nslc_from_rsam_config_without_arrestor():
 def test_collect_station_nslc_unions_and_dedupes(tmp_path):
     """_collect_station_nslc globs seismic configs and returns a sorted unique union."""
     (tmp_path / "Semisopochnoi_RSAM.yml").write_text(
+        "alarm_type: RSAM\n"
         "rsam_stations:\n"
-        "  - nslc: AV.CERB..BHZ\n    value: 300\n"
-        "arrestor:\n  nslc: AV.CESW..BHZ\n  value: 100\n"
+        "  - nslc: AV.CERB..BHZ\n"
+        "    value: 300\n"
+        "arrestor:\n"
+        "   nslc: AV.CESW..BHZ\n"
+        "   value: 100\n"
     )
     (tmp_path / "Cleveland_Tremor.yml").write_text(
-        "nslc:\n  - AV.CLCO..BHZ\n  - AV.CERB..BHZ\n"  # CERB duplicates RSAM
+        "alarm_type: Tremor\n"
+        "nslc:\n"
+        "   - AV.CLCO..BHZ\n"
+        "   - AV.CERB..BHZ\n"  # CERB duplicates RSAM
     )
 
     nslc = downloading._collect_station_nslc(tmp_path)
 
     assert list(nslc) == ["AV.CERB..BHZ", "AV.CESW..BHZ", "AV.CLCO..BHZ"]
+
+
+def test_collect_station_nslc_skips_non_alarm_and_empty_yml(tmp_path):
+    """_collect_station_nslc ignores *.yml files that are not alarm configs.
+
+    The config dir also holds distribution.yml / phonebook.yml (no alarm_type)
+    and may hold empty docs; these must be skipped, not raise.
+    """
+    (tmp_path / "RSAM.yml").write_text(
+        "alarm_type: RSAM\n"
+        "rsam_stations:\n"
+        "  - nslc: AV.CERB..BHZ\n"
+        "    value: 300\n"
+    )
+    # No alarm_type -> skipped (previously raised KeyError).
+    (tmp_path / "distribution.yml").write_text("All Alarms:\n  - alice\n")
+    (tmp_path / "phonebook.yml").write_text("alice: alice@example.com\n")
+    # Empty doc -> yaml.safe_load returns None -> skipped (not a TypeError).
+    (tmp_path / "empty.yml").write_text("")
+    # A non-seismic alarm config -> recognized as a config but yields no NSLC.
+    (tmp_path / "Lightning.yml").write_text("alarm_type: Lightning\n")
+
+    nslc = downloading._collect_station_nslc(tmp_path)
+
+    assert list(nslc) == ["AV.CERB..BHZ"]
 
 
 # ---------------------------------------------------------------------------
@@ -393,7 +443,10 @@ def test_download_station_xml_writes_atomically(monkeypatch, tmp_path):
     out_file = tmp_path / "stations.xml"
     monkeypatch.setenv("STATION_XML", str(out_file))
     (tmp_path / "X_RSAM.yml").write_text(
-        "rsam_stations:\n  - nslc: AV.SSLW..BHZ\n    value: 300\n"
+        "alarm_type: RSAM\n"
+        "rsam_stations:\n"
+        "  - nslc: AV.SSLW..BHZ\n"
+        "    value: 300\n"
     )
 
     class _FakeInv:
@@ -433,7 +486,10 @@ def test_download_station_xml_falls_back_to_all_epochs(monkeypatch, tmp_path):
     out_file = tmp_path / "stations.xml"
     monkeypatch.setenv("STATION_XML", str(out_file))
     (tmp_path / "X_RSAM.yml").write_text(
-        "rsam_stations:\n  - nslc: AV.SSLW..BHZ\n    value: 300\n"
+        "alarm_type: RSAM\n"
+        "rsam_stations:\n"
+        "  - nslc: AV.SSLW..BHZ\n"
+        "    value: 300\n"
     )
 
     class _FakeInv:

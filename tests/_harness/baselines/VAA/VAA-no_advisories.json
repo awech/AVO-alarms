@@ -1,0 +1,19 @@
+{
+  "call_order": [
+    "download_mesonet_vaa_list",
+    "download_mesonet_vaa_list",
+    "icinga"
+  ],
+  "detection_state": "OK",
+  "icinga": [
+    {
+      "send": true,
+      "state": "OK",
+      "state_message": "2026-09-28 18:00 (UTC) No new Volcanic Ash Advisories"
+    }
+  ],
+  "os_remove": [],
+  "post_mattermost": [],
+  "record_send": [],
+  "send_alert": []
+}

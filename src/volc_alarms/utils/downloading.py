@@ -240,8 +240,12 @@ def _extract_nslc_from_config(config):
     """
     nslc = []
 
+    # Read once with .get() so a config missing alarm_type (or a non-seismic
+    # alarm) falls through to the empty list instead of raising.
+    alarm_type = config.get("alarm_type")
+
     # RSAM-shaped config
-    if "rsam_stations" in config:
+    if alarm_type == "RSAM":
         for station in config.get("rsam_stations", []):
             nslc.append(station["nslc"])
         # infrasound channels are plain NSLC strings (plot-only)
@@ -253,8 +257,8 @@ def _extract_nslc_from_config(config):
             nslc.append(arrestor["nslc"])
 
     # Tremor / Infrasound: top-level `nslc` is a list of plain strings
-    elif "nslc" in config:
-        for entry in config["nslc"]:
+    elif alarm_type in ("Infrasound", "Tremor"):
+        for entry in config.get("nslc", []):
             nslc.append(entry)
 
     return nslc
@@ -274,14 +278,15 @@ def _collect_station_nslc(configs_dir):
         The sorted, de-duplicated union of NSLC across the seismic alarm configs.
     """
     configs_dir = Path(configs_dir)
-    files = list(configs_dir.glob("*RSAM*.yml", case_sensitive=False))
-    files += list(configs_dir.glob("*Tremor*.yml", case_sensitive=False))
-    files += list(configs_dir.glob("*Infrasound*.yml", case_sensitive=False))
+    files = list(configs_dir.glob("*.yml"))
 
     NSLC = []
     for file_path in files:
         with open(file_path, "r") as f:
             config = yaml.safe_load(f)
+        # Skip files that don't represent a valid alarm config.
+        if not isinstance(config, dict) or "alarm_type" not in config:
+            continue
         logger.info(file_path)
         NSLC.extend(_extract_nslc_from_config(config))
 

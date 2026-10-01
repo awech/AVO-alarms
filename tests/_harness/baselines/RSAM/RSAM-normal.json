@@ -1,0 +1,19 @@
+{
+  "call_order": [
+    "download_waveforms",
+    "download_waveforms",
+    "icinga"
+  ],
+  "detection_state": "OK",
+  "icinga": [
+    {
+      "send": true,
+      "state": "OK",
+      "state_message": "2026-09-28 20:40 (UTC) RSAM normal. PS4A: 319/4000 (RD = 2.4), PVV: 426/4000 (RD = 3.1), PS1A: 579/3750 (RD = 4.7), HAG: 216/3000 (RD = 2.1), PN7A: 647/4500 (RD = 4.2), PV6A: 1066/3250 (RD = 9.8), Arrestor (BLDW): 50/2000[3 station minimum,1 -- 5 Hz]"
+    }
+  ],
+  "os_remove": [],
+  "post_mattermost": [],
+  "record_send": [],
+  "send_alert": []
+}

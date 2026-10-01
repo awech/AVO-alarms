@@ -1,0 +1,19 @@
+{
+  "call_order": [
+    "download_waveforms",
+    "download_waveforms",
+    "icinga"
+  ],
+  "detection_state": "WARNING",
+  "icinga": [
+    {
+      "send": true,
+      "state": "WARNING",
+      "state_message": "2026-09-28 20:40 (UTC) RSAM elevated! PS4A: 319/800 (RD = 2.4), PVV: 426/800 (RD = 3.1), PS1A: 579/750 (RD = 4.7), HAG: 216/600 (RD = 2.1), PN7A: 647/900 (RD = 4.2), PV6A: 1066/650 (RD = 9.8), Arrestor (BLDW): 50/400[3 station minimum,1 -- 5 Hz]"
+    }
+  ],
+  "os_remove": [],
+  "post_mattermost": [],
+  "record_send": [],
+  "send_alert": []
+}

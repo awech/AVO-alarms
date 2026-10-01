@@ -1,0 +1,18 @@
+{
+  "call_order": [
+    "download_cimss_vv_api",
+    "icinga"
+  ],
+  "detection_state": "WARNING",
+  "icinga": [
+    {
+      "send": true,
+      "state": "WARNING",
+      "state_message": "2026-09-29 23:00 (UTC) Error getting data from Volcview-API"
+    }
+  ],
+  "os_remove": [],
+  "post_mattermost": [],
+  "record_send": [],
+  "send_alert": []
+}

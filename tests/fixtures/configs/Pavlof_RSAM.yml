@@ -1,0 +1,41 @@
+alarm_type: RSAM             # designates which alarm module will be imported and executed
+alarm_name: Pavlof RSAM      # alarm name sent to icinga and in message alerts
+
+# Stations list
+rsam_stations:
+  - nslc: AV.PS4A..BHZ
+    value: 400
+  - nslc: AV.PVV..BHZ
+    value: 400
+  - nslc: AV.PS1A..BHZ
+    value: 375
+  - nslc: AV.HAG..BHZ
+    value: 300
+  - nslc: AV.PN7A..BHZ
+    value: 450
+  - nslc: AV.PV6A..BHZ
+    value: 325
+
+# Arrestor station
+arrestor:
+  nslc: AV.BLDW..BHZ
+  value: 200
+
+# Processing parameters
+duration: 300          # duration value in seconds (5 * 60)
+min_sta: 3             # minimum number of stations for detection
+f1: 1.0                # minimum frequency for bandpass filter
+f2: 5.0                # maximum frequency for bandpass filter
+
+# Alerting parameters
+alert_memory: 3600     # lookback window (seconds)
+max_alerts: 3          # max alerts within that window
+
+# Plotting parameters
+plot_duration: 1800
+infrasound:
+  - AV.PN7A..BDF
+  - AV.PS4A..BDF
+
+# Volcano for calculating reduced displacement
+volcano_name: Pavlof

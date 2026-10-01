@@ -1,0 +1,19 @@
+{
+  "call_order": [
+    "download_waveforms",
+    "download_waveforms",
+    "icinga"
+  ],
+  "detection_state": "WARNING",
+  "icinga": [
+    {
+      "send": true,
+      "state": "WARNING",
+      "state_message": "2026-09-28 20:40 (UTC) RSAM data missing! PS4A: 319/400 (RD = 2.4), PVV: 426/400 (RD = 3.1), PS1A: 0/375 (RD = 0.0), HAG: 0/300 (RD = 0.0), PN7A: 0/450 (RD = 0.0), PV6A: 0/325 (RD = 0.0), Arrestor (BLDW): 50/200[3 station minimum,1 -- 5 Hz]"
+    }
+  ],
+  "os_remove": [],
+  "post_mattermost": [],
+  "record_send": [],
+  "send_alert": []
+}

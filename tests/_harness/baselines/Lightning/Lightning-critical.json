@@ -1,0 +1,169 @@
+{
+  "call_order": [
+    "filter_dataframe",
+    "filter_dataframe",
+    "can_send",
+    "plot_fig",
+    "post_mattermost",
+    "send_alert",
+    "record_send",
+    "os.remove",
+    "icinga",
+    "icinga"
+  ],
+  "detection_state": "CRITICAL",
+  "icinga": [
+    {
+      "send": true,
+      "state": "CRITICAL",
+      "state_message": "2026-08-31 20:59 (UTC) Edgecumbe Lightning Detection! 17 new strokes! 11 strokes < 20 km (20 km < 6 < 100 km) in past 60 minutes."
+    },
+    {
+      "send": true,
+      "state": "CRITICAL",
+      "state_message": "2026-08-31 20:59 (UTC) Edgecumbe Lightning Detection! 17 new strokes! 11 strokes < 20 km (20 km < 6 < 100 km) in past 60 minutes."
+    }
+  ],
+  "os_remove": [
+    "<FIGURE>"
+  ],
+  "post_mattermost": [
+    {
+      "body": "\n17 new strokes! (17 total)\n\n-- Most recent --\n2026-08-31 20:16:26 UTC\n2026-08-31 12:16:26 AKDT\n35 km ESE of Edgecumbe,\n\nData source: Earth Networks, WWLLN",
+      "channel_ids": null,
+      "send": true,
+      "subject": "--- Edgecumbe Lightning ---",
+      "test": false,
+      "volcano": null
+    }
+  ],
+  "record_send": [
+    {
+      "alarm_id": "Lightning",
+      "event_id": 24823920,
+      "process_time": "2026-08-31T20:59:00",
+      "test": false,
+      "volcano": "Edgecumbe"
+    },
+    {
+      "alarm_id": "Lightning",
+      "event_id": 24823976,
+      "process_time": "2026-08-31T20:59:00",
+      "test": false,
+      "volcano": "Edgecumbe"
+    },
+    {
+      "alarm_id": "Lightning",
+      "event_id": 24824073,
+      "process_time": "2026-08-31T20:59:00",
+      "test": false,
+      "volcano": "Edgecumbe"
+    },
+    {
+      "alarm_id": "Lightning",
+      "event_id": 24824074,
+      "process_time": "2026-08-31T20:59:00",
+      "test": false,
+      "volcano": "Edgecumbe"
+    },
+    {
+      "alarm_id": "Lightning",
+      "event_id": 24824163,
+      "process_time": "2026-08-31T20:59:00",
+      "test": false,
+      "volcano": "Edgecumbe"
+    },
+    {
+      "alarm_id": "Lightning",
+      "event_id": 24824165,
+      "process_time": "2026-08-31T20:59:00",
+      "test": false,
+      "volcano": "Edgecumbe"
+    },
+    {
+      "alarm_id": "Lightning",
+      "event_id": 24824239,
+      "process_time": "2026-08-31T20:59:00",
+      "test": false,
+      "volcano": "Edgecumbe"
+    },
+    {
+      "alarm_id": "Lightning",
+      "event_id": 24824240,
+      "process_time": "2026-08-31T20:59:00",
+      "test": false,
+      "volcano": "Edgecumbe"
+    },
+    {
+      "alarm_id": "Lightning",
+      "event_id": 24824261,
+      "process_time": "2026-08-31T20:59:00",
+      "test": false,
+      "volcano": "Edgecumbe"
+    },
+    {
+      "alarm_id": "Lightning",
+      "event_id": 24824309,
+      "process_time": "2026-08-31T20:59:00",
+      "test": false,
+      "volcano": "Edgecumbe"
+    },
+    {
+      "alarm_id": "Lightning",
+      "event_id": 24824310,
+      "process_time": "2026-08-31T20:59:00",
+      "test": false,
+      "volcano": "Edgecumbe"
+    },
+    {
+      "alarm_id": "Lightning",
+      "event_id": 24824353,
+      "process_time": "2026-08-31T20:59:00",
+      "test": false,
+      "volcano": "Edgecumbe"
+    },
+    {
+      "alarm_id": "Lightning",
+      "event_id": 24824325,
+      "process_time": "2026-08-31T20:59:00",
+      "test": false,
+      "volcano": "Edgecumbe"
+    },
+    {
+      "alarm_id": "Lightning",
+      "event_id": 24824327,
+      "process_time": "2026-08-31T20:59:00",
+      "test": false,
+      "volcano": "Edgecumbe"
+    },
+    {
+      "alarm_id": "Lightning",
+      "event_id": 24824334,
+      "process_time": "2026-08-31T20:59:00",
+      "test": false,
+      "volcano": "Edgecumbe"
+    },
+    {
+      "alarm_id": "Lightning",
+      "event_id": 24824352,
+      "process_time": "2026-08-31T20:59:00",
+      "test": false,
+      "volcano": "Edgecumbe"
+    },
+    {
+      "alarm_id": "Lightning",
+      "event_id": 24824346,
+      "process_time": "2026-08-31T20:59:00",
+      "test": false,
+      "volcano": "Edgecumbe"
+    }
+  ],
+  "send_alert": [
+    {
+      "alarm_name": "Lightning",
+      "body": "\n17 new strokes! (17 total)\n\n-- Most recent --\n2026-08-31 20:16:26 UTC\n2026-08-31 12:16:26 AKDT\n35 km ESE of Edgecumbe,\n\nData source: Earth Networks, WWLLN\n\nmattermost://test-server/post-id",
+      "subject": "--- Edgecumbe Lightning ---",
+      "test": false
+    }
+  ]
+}

@@ -114,7 +114,6 @@ def make_map(vaa, config, test=False):
     ax.set_title(
         f"{volcano_name} VAA\n{levels}\n{vaa_time}", fontsize=10
     )
-    plt.tight_layout()
 
     logger.info("Saving figure...")
     jpg_file = plotting.save_file(fig, config, dpi=300, test=test)

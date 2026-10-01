@@ -1,4 +1,5 @@
 # Tests
+# Tests
 
 This suite is organized so an unfamiliar reviewer can quickly see **what is
 tested, where, and how**. It is split by *target* (which part of the package)
@@ -8,7 +9,7 @@ and then by *type* (unit vs integration).
 
 | Type | Marker | What it does | How it mocks |
 |------|--------|--------------|--------------|
-| **Unit** | `@pytest.mark.unit` | Exercises a single function with crafted inputs and asserts its output/behavior. Fast and isolated. | Local mocking only — it mocks *just* the one external call the function under test makes (a download, `save_file`, etc.). Never touches the real network, database, email, or renders a real figure. |
+| **Unit** | `@pytest.mark.unit` | Exercises a single function with crafted inputs and asserts its output/behavior. Fast and isolated. | Local mocking only — it mocks *just* the external calls the function under test makes (a download, SMTP/Mattermost client, FDSN client, `save_file`, etc.). Never touches the real network, database, or email. Matplotlib renders only headless (Agg), to a temp file where a function's job is to produce one. |
 | **Integration** | `@pytest.mark.integration` | Drives a whole alarm's `run_alarm()` end to end and compares its observable behavior (Icinga state, Mattermost/email sends, DB writes, file cleanup, call order) to a frozen JSON baseline. | The shared **fakes harness** (`tests/_harness/`) replaces *every* external service at once. |
 
 Run a slice:
@@ -115,21 +116,22 @@ This maps each part of `volc_alarms` to the test(s) that exercise it. Legend:
 Every `run_alarm` pipeline has an integration baseline, but the baselines differ
 in **how deep into the pipeline they reach** — see "Integration baseline depth"
 below before relying on the alarms table. Unit tests focus on the pure logic
-(parsing, math, thresholds, message formatting). Network/DB/email/matplotlib
-boundaries are deliberately left to the integration layer, so `figure.py` and
-the network `download_*` helpers are integration-only.
+(parsing, math, thresholds, message formatting). The shared `utils/*` network,
+messaging, and client boundaries are additionally unit-tested with local fakes
+(see the utils table). Alarm-level `figure.py` rendering is still exercised via
+the per-alarm figure smoke tests + integration rather than as isolated units.
 
 ### utils
 
 | Module | Unit tests | Notes |
 |--------|-----------|-------|
 | `alarming` | ✅ `utils/test_alarming.py` | DB/rate-limit logic against a temp sqlite; operator CLI list/remove helpers left as TODO |
-| `processing` | ✅ `utils/test_processing.py` | geodesy, volcano lookup, stream preprocessing; FDSN-backed `Dr_to_RSAM`/`eq_picks_to_dataframe` are integration-only |
-| `messaging` | ✅ `utils/test_messaging.py` | pure formatting + `send=False` short-circuits; live SMTP/Mattermost send paths are integration-only |
-| `setup_utils` | ✅ `utils/test_setup_utils.py` | config parse, math-expr eval, path/tz detection, volcano-list loading |
-| `plotting` | ✅ `utils/test_plotting.py` | pure geometry/tick math; cartopy/spectrogram rendering is integration-only |
-| `downloading` | ✅ `utils/test_downloading.py` | trace QC + HTTP retry wrappers (mocked `requests`); FDSN/Winston waveform fetch is integration-only |
-| `alarm_flow` | ✅ `utils/test_alarm_flow.py` | cron-latency backup + the shared CRITICAL send sequence |
+| `processing` | ✅ `utils/test_processing.py` | geodesy, volcano lookup, stream preprocessing; `Dr_to_RSAM` and `eq_picks_to_dataframe` are unit-tested with the FDSN/Earthscope client served offline from the test/Magnitude StationXML |
+| `messaging` | ✅ `utils/test_messaging.py` | pure formatting + `send=False` short-circuits; the live send paths (`icinga`, `send_alert`, `connect_mattermost`, `upload_mm_attachments`, `post_mattermost`) are unit-tested with local `requests`/`smtplib`/Mattermost-driver fakes (no sockets) |
+| `setup_utils` | ✅ `utils/test_setup_utils.py` | config parse, math-expr eval, path/tz detection, volcano-list loading, `load_environment`, `setup_root_logger`/`get_logger`, and `LockFile` |
+| `plotting` | ✅ `utils/test_plotting.py` | pure geometry/tick math + the no-render helpers (`save_file`, `add_watermark`, `default_colormap`, `default_grid_params`, `time_ticks`, tile URL); cartopy GeoAxes rendering (`make_map`/spectrogram builders) is integration-only |
+| `downloading` | ✅ `utils/test_downloading.py` | trace QC + HTTP retry wrappers (mocked `requests`); `download_waveforms`, `Earthscope_client`, and `download_station_xml` are unit-tested with faked FDSN/Winston clients + the NSLC-config helpers |
+| `alarm_flow` | ✅ `utils/test_alarm_flow.py` | cron-latency backup + the shared CRITICAL send sequence (rate-limit skip, figure/post exception handling, send_email + kwargs forwarding) |
 
 ### alarms
 
@@ -435,9 +437,13 @@ which fakes the per-event hypocenter-XML download to an empty catalog).
   can be captured. It's a scraped/HTML alarm like NOAA_CIMSS/VAA, but its source
   only serves the current alert, so there's no historical fixture to record yet.
   Excluded from the coverage total until then.
-- Unit-test the remaining FDSN-backed helper `Dr_to_RSAM` with a mocked client
-  (`eq_picks_to_dataframe` is now exercised by the Magnitude figure test).
-- Raise `utils` coverage (the largest remaining gap) — see below.
+- The FDSN/Winston-backed `utils` helpers (`Dr_to_RSAM`, `eq_picks_to_dataframe`,
+  `download_waveforms`, `download_station_xml`) and the live messaging senders now
+  have dedicated unit tests with local client/HTTP fakes.
+- `utils/plotting.py` cartopy GeoAxes renderers (`make_map`, `add_volcanoes_to_map`,
+  the `map_ticks` gridliner, the spectrogram builders) remain render-only, covered
+  by the per-alarm figure tests; a mocked-tile unit test for `make_map` is a
+  possible follow-up if `tests/utils`-scoped coverage of them is wanted.
 
 ### scripts
 

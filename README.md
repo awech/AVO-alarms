@@ -119,3 +119,14 @@ Send a test email to the "Error" distribution list to verify that the email rela
 ```bash
 email-test
 ```
+
+### `get-rsam-levels`
+Compute the RSAM count levels for stations for a given reduced displacement value
+```bash
+# use a config file (with volcano key set)
+get-rsam-levels 2.0 --config Pavlof_RSAM
+
+# use --nslc to manually set a list of stations (separated by single space) 
+# use --volcano to manually set volcano (must be in VOLCANO_LIST environment variable file)
+get-rsam-levels 5.0 --nslc AV.PN7A..BHZ AV.PS4A..BHZ AV.BLDW..BHZ --volcano Pavlof
+```

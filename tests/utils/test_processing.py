@@ -12,12 +12,13 @@ Covered:
 * add_metadata        — attaches coordinates + inventory from the station XML
 * remove_gain         — divides out instrument sensitivity using that inventory
 * addPhaseHint        — copies arrival phase onto the matching pick
-* Dr_to_RSAM          — reduced-displacement -> per-station RSAM levels, with the
-                        FDSN client served from the in-repo test station XML
-
-TODO: eq_picks_to_dataframe also calls a live FDSN client for station responses;
-it is exercised indirectly by the Magnitude figure test and is a candidate for a
-mocked-client unit test in a later pass.
+* Dr_to_RSAM          — reduced-displacement -> per-station RSAM levels (FDSN
+                        client served from the in-repo test station XML), plus
+                        the volcano/arg error branches and the nslc_list path
+* eq_picks_to_dataframe — per-station table from a real recorded event: dedup,
+                        coordinate resolution, distance sort, Event vs Catalog
+                        (Earthscope client served from the Magnitude StationXML)
+* find_nearest_volcano / add_metadata — filter_col opt-out, missing-XML return
 """
 
 from __future__ import annotations
@@ -266,3 +267,143 @@ def test_dr_to_rsam_scales_with_reduced_displacement(local_fdsn_client):
     high = processing.Dr_to_RSAM(200, config=config).set_index("Station")["RSAM Level"]
     assert (high >= low).all()
     assert (high > low).any()
+
+
+
+# ---------------------------------------------------------------------------
+# find_nearest_volcano — filter_col opt-out branch
+# ---------------------------------------------------------------------------
+def test_find_nearest_volcano_filter_col_excludes_opted_out():
+    """find_nearest_volcano honors filter_col, never labeling an opted-out volcano."""
+    # A point sitting on Shishaldin, which is opted out ('N') for PIREP.
+    df = pd.DataFrame({"longitude": [-163.970], "latitude": [54.756]})
+    out = processing.find_nearest_volcano(df, filter_col="PIREP", volc_df=_volc_df())
+    # Shishaldin is excluded, so the nearest *eligible* volcano is returned instead.
+    assert out.iloc[0]["v_name"] != "Shishaldin"
+
+
+# ---------------------------------------------------------------------------
+# add_metadata — missing station XML
+# ---------------------------------------------------------------------------
+def test_add_metadata_returns_none_when_xml_missing(monkeypatch, tmp_path):
+    """add_metadata logs an error and returns None when STATION_XML is absent."""
+    monkeypatch.setenv("STATION_XML", str(tmp_path / "nope.xml"))
+    t0 = UTCDateTime("2025-01-01T00:00:00")
+    st = Stream([_trace("AV.PS4A..BHZ", t0, npts=100)])
+    assert processing.add_metadata(st) is None
+
+
+# ---------------------------------------------------------------------------
+# Dr_to_RSAM — volcano/arg error branches + nslc_list path
+# ---------------------------------------------------------------------------
+def test_dr_to_rsam_errors_without_volcano_name(local_fdsn_client):
+    """Dr_to_RSAM returns None when no volcano is given and config lacks volcano_name."""
+    config = SimpleNamespace(
+        rsam_stations=[{"nslc": "AV.PS4A..BHZ", "value": 400}],
+        arrestor={"nslc": "AV.BLDW..BHZ", "value": 200},
+    )
+    # No volcano arg + no config.volcano_name -> AttributeError path -> None.
+    assert processing.Dr_to_RSAM(100, config=config) is None
+
+
+def test_dr_to_rsam_errors_without_config_or_nslc_list(local_fdsn_client):
+    """Dr_to_RSAM returns None when neither config nor nslc_list is provided."""
+    assert processing.Dr_to_RSAM(100, volcano="Pavlof") is None
+
+
+def test_dr_to_rsam_accepts_nslc_list(local_fdsn_client):
+    """Dr_to_RSAM computes levels from an explicit nslc_list (no config)."""
+    table = processing.Dr_to_RSAM(
+        100, nslc_list=["AV.PS4A..BHZ", "AV.PN7A..BHZ"], volcano="Pavlof"
+    )
+    assert list(table["Station"]) == ["AV.PS4A..BHZ", "AV.PN7A..BHZ"]
+    assert (table["RSAM Level"] > 0).all()
+
+
+def test_dr_to_rsam_accepts_single_nslc_string(local_fdsn_client):
+    """Dr_to_RSAM wraps a single NSLC string into a one-row table."""
+    table = processing.Dr_to_RSAM(100, nslc_list="AV.PS4A..BHZ", volcano="Pavlof")
+    assert list(table["Station"]) == ["AV.PS4A..BHZ"]
+
+
+# ---------------------------------------------------------------------------
+# eq_picks_to_dataframe
+#
+# Reuses the committed Magnitude fixtures: a real recorded M3.25 event near
+# Denison (2026-01-04). The QuakeML carries 68 picks across 41 network.station
+# codes; the StationXML has coordinates for all of them. The Earthscope client
+# is served from that StationXML so no network is touched (same fixtures as
+# tests/alarms/Magnitude/test_figure.py).
+#
+# NOTE: test_figure.py already *executes* this function via plot_event, but as a
+# smoke test it only asserts a path is returned. These tests pin the actual
+# behavior (dedup, coordinate resolution, distance sort, Event vs Catalog) so a
+# regression in that logic is caught rather than silently passing the smoke test.
+# ---------------------------------------------------------------------------
+MAG_STEM = "tests/fixtures/data/magnitude_Denison_20260104T2016"
+MAG_QUAKEML = f"{MAG_STEM}.quakeml"
+MAG_INV = f"{MAG_STEM}_inv.xml"
+
+
+@pytest.fixture
+def earthscope_from_mag_inv(monkeypatch):
+    """Serve eq_picks_to_dataframe's Earthscope client from the Magnitude StationXML."""
+    inv = read_inventory(MAG_INV)
+    monkeypatch.setattr(
+        processing, "Earthscope_client", lambda: _LocalInventoryClient(inv)
+    )
+    return inv
+
+
+def _denison_event():
+    from obspy import read_events
+
+    return read_events(MAG_QUAKEML)[0]
+
+
+def _denison_unique_ns(eq):
+    return {".".join(p.waveform_id.id.split(".")[:2]) for p in eq.picks}
+
+
+def test_eq_picks_to_dataframe_builds_station_table_from_event(earthscope_from_mag_inv):
+    """eq_picks_to_dataframe returns one row per unique station, coords resolved, sorted."""
+    eq = _denison_event()
+    expected_ns = _denison_unique_ns(eq)
+
+    stas = processing.eq_picks_to_dataframe(eq)
+
+    assert set(stas["NS"]) == expected_ns
+    # Station coordinates were resolved from the inventory for every row.
+    assert stas["Latitude"].notna().all()
+    assert stas["Longitude"].notna().all()
+    # Distances are computed (km) and the table is sorted ascending.
+    assert (stas["Distance"] > 0).all()
+    assert list(stas["Distance"]) == sorted(stas["Distance"])
+
+
+def test_eq_picks_to_dataframe_deduplicates_repeated_stations(earthscope_from_mag_inv):
+    """eq_picks_to_dataframe collapses repeated picks to one row per network.station.
+
+    The Denison event has 68 picks but only 41 unique network.station codes.
+    """
+    eq = _denison_event()
+    n_picks = len(eq.picks)
+    n_unique = len(_denison_unique_ns(eq))
+    assert n_picks > n_unique  # guard: the fixture really does repeat stations
+
+    stas = processing.eq_picks_to_dataframe(eq)
+
+    assert len(stas) == n_unique
+    assert stas["NS"].is_unique
+
+
+def test_eq_picks_to_dataframe_accepts_catalog(earthscope_from_mag_inv):
+    """eq_picks_to_dataframe accepts a Catalog, not just a bare Event."""
+    from obspy import Catalog
+
+    eq = _denison_event()
+    expected_ns = _denison_unique_ns(eq)
+
+    stas = processing.eq_picks_to_dataframe(Catalog(events=[eq]))
+
+    assert set(stas["NS"]) == expected_ns

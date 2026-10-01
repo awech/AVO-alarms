@@ -84,7 +84,7 @@ def plot_station_traces(ax, st, plot_chans):
             if np.log10(peak_num) < -6:
                 tmp_str = f"{peak_num*1e9:.1f}\n$nm/s$"
             elif np.log10(peak_num) < -3:
-                tmp_str = f"{peak_num*1e6:.1f}\n$\mu$$m/s$"
+                tmp_str = f"{peak_num*1e6:.1f}\n$\\mu m/s$"
             elif np.log10(peak_num) < 0:
                 tmp_str = f"{peak_num*1e3:.2f}\n$mm/s$"
                 label_color = "firebrick"

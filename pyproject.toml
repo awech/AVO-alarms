@@ -13,6 +13,7 @@ license = {file = "LICENSE"}
 dependencies = [
     "obspy",
     "pandas",
+    "pydantic>=2",
     "pyyaml",
     "jinja2",
     "cartopy",
@@ -64,6 +65,7 @@ generic-alarm = "volc_alarms.scripts.generic_alarm:main"
 update-metadata = "volc_alarms.scripts.update_metadata:main"
 update-html = "volc_alarms.scripts.notification_html:main"
 list-alerts = "volc_alarms.scripts.list_alerts:main"
+validate-configs = "volc_alarms.scripts.validate_configs:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/volc_alarms", "src/lts_array"]

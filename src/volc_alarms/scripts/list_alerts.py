@@ -1,3 +1,11 @@
+"""Command-line entry point for listing recorded alarm sends.
+
+Queries the sent-events database and prints matching entries, filtered by
+alarm name, volcano, and/or a UTC time range (given as explicit start/end
+times or as a duration before present). Exposed as the ``list-alerts``
+console script.
+"""
+
 import argparse
 
 import pandas as pd
@@ -8,13 +16,33 @@ from volc_alarms.utils.setup_utils import load_environment
 
 
 def parse_args():
-    """
-    Parse command-line arguments for the script.
-    
-    Returns:
-        argparse.Namespace: Parsed arguments.
-    """
+    """Parse command-line arguments for the alert lister.
 
+    Returns
+    -------
+    argparse.Namespace
+        Parsed arguments with the following attributes:
+
+        alarm : str or None
+            Alarm name to filter by, with ``_`` standing in for spaces.
+        volcano : str or None
+            Volcano name to filter by, with ``_`` standing in for spaces.
+        test : bool
+            If True, query the ``test_sent_events`` table instead of the
+            production table.
+        starttime : str or None
+            Window start in UTC, formatted ``YYYYMMDDHHMM``.
+        endtime : str or None
+            Window end in UTC, formatted ``YYYYMMDDHHMM``.
+        duration : str or None
+            Window length before present as a number plus unit: ``h`` (hours),
+            ``d`` (days), or ``m`` (minutes), e.g. ``"3h"``. Combined with
+            ``starttime`` or ``endtime``, or used alone relative to now.
+        env_file : str or None
+            Path to a ``.env`` file; if omitted, the directory tree is
+            searched upward.
+    """
+    
     parser = argparse.ArgumentParser(
         prog="list-alerts",
         epilog="e.g.: list-alerts -a Pavlof_RSAM or list-alerts -s  201701020205 -e 201701020205 -v Pavlof"
@@ -72,10 +100,24 @@ def parse_args():
 
 
 def main():
-    """
-    Main entry point for the back population script.
-    """
+    """Query and print recorded alarm sends from the command line.
 
+    Resolves the time window from the ``starttime``/``endtime``/``duration``
+    arguments (validating that they are mutually consistent), builds a filter
+    from the alarm name and volcano, and prints the matching sent-events rows
+    via :func:`volc_alarms.utils.alarming.filtered_list`.
+
+    Notes
+    -----
+    Intended to be invoked via the ``list-alerts`` console script. Reads
+    arguments from the command line and takes no parameters.
+
+    Raises
+    ------
+    ValueError
+        If the start time is after the end time, or if a duration is given
+        together with both a start and end time.
+    """
     args = parse_args()  # Parse command-line arguments
 
     load_environment(args.env_file)
@@ -124,8 +166,6 @@ def main():
     print("\n")
     alarming.filtered_list(query_dict, test=args.test)
     print("\n")
-
-    return
 
 
 if __name__ == "__main__":

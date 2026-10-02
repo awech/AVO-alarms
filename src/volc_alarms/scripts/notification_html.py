@@ -1,3 +1,11 @@
+"""Command-line entry point for generating the notification matrix HTML.
+
+Reads the distribution list and renders an alarm-by-recipient table as a
+styled, centered HTML page written to ``WWW_FILE``. Each cell is marked where
+a recipient is subscribed to an alarm. Exposed as the ``update-html`` console
+script.
+"""
+
 import argparse
 import os
 from pathlib import Path
@@ -15,6 +23,17 @@ from volc_alarms.utils.setup_utils import (
 
 
 def parse_args():
+    """Parse command-line arguments for the notification HTML tool.
+
+    Returns
+    -------
+    argparse.Namespace
+        Parsed arguments with the following attributes:
+
+        env_file : str or None
+            Path to a ``.env`` file; if omitted, the directory tree is
+            searched upward.
+    """
     parser = argparse.ArgumentParser(prog="update-html")
     parser.add_argument(
         "--env-file",
@@ -26,6 +45,19 @@ def parse_args():
 
 
 def main():
+    """Build the alarm/recipient notification table and write it to HTML.
+
+    Loads the environment, configures logging, and acquires a single-instance
+    lock. Reads the distribution list, builds an alarm-by-recipient matrix
+    marking each subscription, styles it, wraps it in a centered HTML page,
+    and writes the result to ``WWW_FILE``. The lock is always released on
+    exit.
+
+    Notes
+    -----
+    Intended to be invoked via the ``update-html`` console script. Reads
+    arguments from the command line and takes no parameters.
+    """
     args = parse_args()
     load_environment(args.env_file)
 
@@ -59,6 +91,19 @@ def main():
             A.loc[alarm, distribution[alarm]] = "x"
 
         def highlight_vals(val):
+            """Return CSS styling for a single table cell.
+
+            Parameters
+            ----------
+            val : str
+                The cell value; ``"x"`` marks an active subscription.
+
+            Returns
+            -------
+            str
+                A CSS style string; subscription cells get a green,
+                rounded, centered style.
+            """
             string = "font-family: Helvetica; "
             if val == "x":
                 string += "background-color: #8CDD81; text-align: center; color: #3B5323; font-weight: bold; border-radius: 5px;"

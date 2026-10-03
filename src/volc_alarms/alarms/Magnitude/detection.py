@@ -1,3 +1,11 @@
+"""
+Event processing for the Magnitude alarm.
+
+Downloads a single event's hypocenter QuakeML, adds phase hints, finds the
+nearby volcanoes, generates the event figure (renamed to encode time,
+magnitude, and event id), and builds the alert message.
+"""
+
 import traceback
 
 from volc_alarms.utils import downloading, processing
@@ -10,6 +18,35 @@ logger = get_logger(__name__)
 
 
 def process_event(evt_url, config, test=False):
+    """Download, locate, and summarize a single earthquake.
+
+    Fetches the event's hypocenter QuakeML, adds phase hints, computes
+    distances to the volcano list, generates and renames the event figure, and
+    builds the alert subject and message.
+
+    Parameters
+    ----------
+    evt_url : str
+        FDSN event URL for the earthquake to process.
+    config : object
+        Magnitude alarm configuration, passed through to the figure builder.
+    test : bool, optional
+        Save the figure with the test watermark/path when True, by default
+        False.
+
+    Returns
+    -------
+    subject : str
+        Alert subject line.
+    message : str
+        Alert message body.
+    filename : pathlib.Path or list
+        Path to the renamed event figure, or an empty list if plotting failed.
+    eq : obspy.core.event.Event
+        The processed event.
+    volcs : pandas.DataFrame
+        Volcano list annotated with distances to the event.
+    """
 
     cat = downloading.download_hypocenter_xml(evt_url)
     try:

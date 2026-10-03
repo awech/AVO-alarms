@@ -1,3 +1,19 @@
+"""
+Tremor alarm.
+
+Downloads waveform data for a set of stations, builds band-passed and
+high-passed envelopes, and locates tremor/swarm sources via ``enveloc``
+cross-correlation. New locations are merged with recent events from the
+database and the total seismicity duration over the lookback window is
+computed. Duration (and an optional RSAM amplitude gate) classify the result:
+a sustained detection with new events escalates to CRITICAL and sends an alert
+with a spectrogram figure and message, while lesser conditions map to
+elevated, low-amplitude, missing-data, or normal states.
+
+The package exposes :func:`run_alarm`, the entry point invoked by
+``run-alarm`` for configs whose ``alarm_type`` is ``Tremor``.
+"""
+
 import numpy as np
 import pandas as pd
 
@@ -11,6 +27,40 @@ logger = get_logger(__name__)
 
 
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force_flag=False):
+    """Run the Tremor alarm for one time window.
+
+    Downloads and preprocesses station data for the window, QC-checks station
+    coverage, optionally applies an RSAM amplitude gate, and locates
+    tremor/swarm sources with ``enveloc``. New locations are merged with recent
+    events from the database, the total seismicity duration over the lookback
+    window is computed, and the result is classified. A sustained detection
+    with new events sends a CRITICAL alert; otherwise an Icinga heartbeat
+    reports the elevated/low-amplitude/missing/normal state.
+
+    Parameters
+    ----------
+    config : object
+        Tremor alarm configuration (``nslc``, ``window_length``, ``taper``,
+        ``lookback_window``, ``threshold``, ``min_sta``, grid settings, and
+        optional ``rsam_station``/``rsam_threshold``).
+    T0 : obspy.UTCDateTime
+        End time of the processing window.
+    test_flag : bool, optional
+        Run in test mode (test tables/channels, TEST watermark), by default
+        False.
+    mm_flag : bool, optional
+        Whether to post to Mattermost, by default True.
+    icinga_flag : bool, optional
+        Whether to send the Icinga heartbeat, by default True.
+    force_flag : bool, optional
+        Reserved for forcing behavior during testing, by default False.
+
+    Returns
+    -------
+    None
+        Returns after sending the alert (on a CRITICAL detection) or after the
+        Icinga heartbeat otherwise.
+    """
 
     T0_str = T0.strftime("%Y-%m-%d %H:%M")
     state_message = f"{T0_str} (UTC)"

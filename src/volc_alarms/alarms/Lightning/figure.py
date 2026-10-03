@@ -1,3 +1,11 @@
+"""
+Figure generation for the Lightning alarm.
+
+Builds a map of recent lightning strokes around the target volcano, colored
+by stroke time, with a high-resolution basemap, nearby volcano markers, a
+scale bar, and an orthographic inset for regional context.
+"""
+
 import cartopy.crs as ccrs
 import matplotlib.pyplot as plt
 from matplotlib.dates import date2num
@@ -10,7 +18,30 @@ logger = get_logger(__name__)
 
 
 def plot_fig(df, config, T0, test=False):
+    """Build and save the Lightning detection map figure.
 
+    Plots the strokes in ``df`` on a high-resolution basemap centered on the
+    volcano, colored by time over the trailing ``config.duration`` window,
+    with a time colorbar and a regional orthographic inset. The figure is
+    saved to the temporary figure directory.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Strokes to plot, with ``latitude``, ``longitude``, ``time``, and the
+        API volcano fields (``api_vlat``, ``api_vlon``, ``v_name``).
+    config : object
+        Lightning alarm configuration (``dist2``, ``duration``, etc.).
+    T0 : obspy.UTCDateTime
+        End time of the plotted window.
+    test : bool, optional
+        If True, stamp the figure with a TEST watermark, by default False.
+
+    Returns
+    -------
+    pathlib.Path
+        Path to the saved JPG figure file.
+    """
     fig, ax = plt.subplots(figsize=(3.4, 3.15))
 
     lat0 = df.iloc[0].api_vlat

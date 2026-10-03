@@ -1,3 +1,11 @@
+"""
+Message construction for the Lightning alarm.
+
+Formats the subject line and body text for a lightning-detection alert,
+including new and total stroke counts, the most recent stroke time, its
+distance and compass direction from the volcano, and the data source.
+"""
+
 from obspy import UTCDateTime as utc
 from obspy.geodetics.base import gps2dist_azimuth
 
@@ -10,6 +18,23 @@ logger = get_logger(__name__)
 
 
 def create_message(df_new, df_recent):
+    """Build the Lightning detection subject and message body.
+
+    Parameters
+    ----------
+    df_new : pandas.DataFrame
+        Newly detected strokes, with ``dataSource`` and location columns.
+    df_recent : pandas.DataFrame
+        All recent strokes for the volcano (new plus previously seen), with
+        ``v_name``, ``v_distance``, ``time``, and location/API columns.
+
+    Returns
+    -------
+    subject : str
+        The alert subject line.
+    message : str
+        The formatted alert body.
+    """
 
     v_last = df_recent.iloc[-1]
     v_name = v_last.v_name

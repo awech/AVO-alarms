@@ -1,3 +1,11 @@
+"""
+Figure generation for the Pilot Report (PIREP) alarm.
+
+Builds a location map centered on the pilot report, marks the report position,
+overlays nearby volcanoes, and annotates the flight level (title) and pilot
+remark (caption), with an orthographic inset for regional context.
+"""
+
 from textwrap import wrap
 
 import cartopy.crs as ccrs
@@ -12,7 +20,27 @@ logger = get_logger(__name__)
 
 
 def plot_fig(pirep_row, config, test=False):
+    """Build the PIREP location figure.
 
+    Draws a map centered on the report with the report marker, nearby
+    volcanoes, a scale bar, and an orthographic inset, titled with the report
+    time and flight level and captioned with the pilot remark.
+
+    Parameters
+    ----------
+    pirep_row : pandas.Series
+        A single PIREP report row exposing ``lat``, ``lon``, ``time``, ``FL``,
+        and ``REPORT``.
+    config : object
+        PIREP alarm configuration (map distances, volcano overlay, output).
+    test : bool, optional
+        Save with the test watermark/path when True, by default False.
+
+    Returns
+    -------
+    pathlib.Path
+        Path to the saved figure.
+    """
     fig, ax = plt.subplots(figsize=(3.4, 3.15))
 
     X_DIST = getattr(config, "map_xdist", 300)
@@ -46,7 +74,7 @@ def plot_fig(pirep_row, config, test=False):
         transform=ax.transAxes, fontsize=6)
 
     ax_inset = fig.add_axes([0.75, 0.75, 0.2, 0.2])
-    ax_inset, inset_extent = plotting.make_map(
+    ax_inset, _inset_extent = plotting.make_map(
         ax_inset,
         pirep_row.lat,
         pirep_row.lon,

@@ -1,3 +1,16 @@
+"""
+Pilot Report (PIREP) alarm.
+
+Downloads recent pilot reports from the IEM API, keeps those near a volcano,
+and flags reports whose text mentions volcanic activity. Each new, unprocessed
+flagged report sends an alert (CRITICAL when the report is marked urgent,
+otherwise WARNING) with a location figure and message. No-report and
+already-processed cases report an Icinga heartbeat.
+
+The package exposes :func:`run_alarm`, the entry point invoked by
+``run-alarm`` for configs whose ``alarm_type`` is ``Pilot_Report``.
+"""
+
 from volc_alarms.utils import alarming, messaging, processing
 from volc_alarms.utils.alarm_flow import run_send_sequence
 from volc_alarms.utils.setup_utils import get_logger
@@ -14,6 +27,37 @@ logger = get_logger(__name__)
 
 
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force_flag=False):
+    """Run the Pilot Report alarm for one time window.
+
+    Downloads PIREPs for the ``config.duration`` window, keeps those within
+    ``config.max_distance`` of a volcano, and (unless forced) filters to
+    reports mentioning volcanic activity. Each new, unprocessed report sends an
+    alert; otherwise an Icinga heartbeat is sent.
+
+    Parameters
+    ----------
+    config : object
+        PIREP alarm configuration (``duration``, ``max_distance``, and routing
+        settings).
+    T0 : obspy.UTCDateTime
+        End time of the processing window.
+    test_flag : bool, optional
+        Run in test mode (test tables/channels, TEST watermark), by default
+        False.
+    mm_flag : bool, optional
+        Whether to post to Mattermost, by default True.
+    icinga_flag : bool, optional
+        Whether to send the Icinga heartbeat, by default True.
+    force_flag : bool, optional
+        Force a detection on the first report, bypassing the volcano-mention
+        filter, by default False.
+
+    Returns
+    -------
+    None
+        Returns early (after an Icinga heartbeat) on download error; otherwise
+        returns after looping over reports.
+    """
 
     T0_str = T0.strftime("%Y-%m-%d %H:%M")
 

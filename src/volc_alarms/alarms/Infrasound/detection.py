@@ -1,3 +1,13 @@
+"""
+Detection routines for the Infrasound alarm.
+
+Provides the quality-control, array-geometry, and least-trimmed-squares (LTS)
+processing steps that turn a conditioned infrasound stream into a table of
+per-window back-azimuth, trace velocity, cross-correlation (MCCM), and peak
+pressure estimates, plus the per-target filtering that identifies airwave
+detections.
+"""
+
 import numpy as np
 import pandas as pd
 from matplotlib import dates
@@ -11,6 +21,26 @@ logger = get_logger(__name__)
 
 
 def QC_data(st, config):
+    """Quality-control an infrasound stream before array processing.
+
+    Drops blank (all-zero) traces and traces whose gap fraction exceeds
+    ``config.max_gap_fraction``, and reports whether enough channels remain
+    (at least ``config.min_chan``).
+
+    Parameters
+    ----------
+    st : obspy.Stream
+        Conditioned infrasound stream to check.
+    config : object
+        Configuration exposing ``min_chan`` and ``max_gap_fraction``.
+
+    Returns
+    -------
+    good_data : bool
+        True if enough usable channels remain, False otherwise.
+    skip_chans : list of str
+        Trace ids that were flagged for exclusion (blank or too gappy).
+    """
 
     #### Check for enough data ####
     check_st = st.copy()
@@ -45,6 +75,26 @@ def QC_data(st, config):
 
 
 def get_target_backazimuth(st, config):
+    """Compute and cache each target's back-azimuth from the array center.
+
+    For every target lacking a ``back_azimuth``, computes it from the mean
+    array coordinates to the target's ``lat``/``lon`` and stores it on the
+    target dict.
+
+    Parameters
+    ----------
+    st : obspy.Stream
+        Stream whose traces carry ``stats.coordinates`` (latitude/longitude).
+    config : object
+        Configuration exposing ``targets`` as a list of dicts with
+        ``lat``/``lon``.
+
+    Returns
+    -------
+    object
+        The same ``config`` with each target's ``back_azimuth`` populated.
+    """
+
     lon0 = np.mean([tr.stats.coordinates.longitude for tr in st])
     lat0 = np.mean([tr.stats.coordinates.latitude for tr in st])
     for target in config.targets:
@@ -54,8 +104,37 @@ def get_target_backazimuth(st, config):
     return config
 
 
-def do_LTS(st, config, skip_chans=[]):
+def do_LTS(st, config, skip_chans=None):
+    """Run least-trimmed-squares array processing on an infrasound stream.
 
+    Calls :func:`lts_array.ltsva` with the configured window length, overlap,
+    alpha, and sample count, then assembles the per-window results into a
+    DataFrame. ``alpha`` is forced to 1.0 when three or fewer channels remain
+    after excluding ``skip_chans``.
+
+    Parameters
+    ----------
+    st : obspy.Stream
+        Conditioned stream whose traces carry ``stats.coordinates``.
+    config : object
+        Configuration exposing ``lts_overlap``, ``lts_window_length``,
+        ``lts_alpha``, and ``lts_n_samples``.
+    skip_chans : list of str or None, optional
+        Trace ids to exclude from the inversion. ``None`` (the default) is
+        treated as an empty list.
+
+    Returns
+    -------
+    df : pandas.DataFrame
+        Per-window results with columns ``Time``, ``Azimuth``, ``Velocity``
+        (m/s), ``MCCM``, ``Pressure``, ``Sigma_tau``, ``Vel_err`` (m/s), and
+        ``Baz_err``.
+    lts_dict : dict
+        The raw LTS diagnostic dictionary returned by ``ltsva``.
+    """
+
+    if skip_chans is None:
+        skip_chans = []
     overlap_fraction = config.lts_overlap / config.lts_window_length
     ALPHA = config.lts_alpha if len(st) > 3 else 1.0
     if len(st) - len(skip_chans) < 4:
@@ -85,15 +164,25 @@ def do_LTS(st, config, skip_chans=[]):
 
 
 def get_pressures(st, t, config):
-    """Extract pressure data from the seismic stream.
+    """Compute the median peak pressure in each LTS window.
 
-    Args:
-        st (obspy.Stream): Stream containing seismic traces.
-        t (np.ndarray): Array of time values (matplotlib dates) from ltsva.
-        array_params (dict): Array parameters including window length.
+    For each time in ``t``, slices the stream to a window of width
+    ``config.lts_window_length`` centered on that time, takes each trace's
+    peak absolute amplitude, and returns the median across traces.
 
-    Returns:
-        np.ndarray: Array of pressure values.
+    Parameters
+    ----------
+    st : obspy.Stream
+        Stream containing the infrasound traces.
+    t : numpy.ndarray
+        Window center times as matplotlib date numbers, from ``ltsva``.
+    config : object
+        Configuration exposing ``lts_window_length`` (seconds).
+
+    Returns
+    -------
+    numpy.ndarray
+        Median peak pressure for each window, in the same order as ``t``.
     """
 
     pressure = []
@@ -108,6 +197,25 @@ def get_pressures(st, t, config):
 
 
 def filter_lts_results(DF, target):
+    """Filter LTS windows to those consistent with a target airwave.
+
+    Keeps only windows whose cross-correlation, pressure, trace velocity, and
+    back-azimuth all fall within the target's acceptance criteria.
+
+    Parameters
+    ----------
+    DF : pandas.DataFrame
+        Per-window LTS results, as produced by :func:`do_LTS`.
+    target : dict
+        Target acceptance criteria: ``cmin``, ``min_pa``, ``vmin``, ``vmax``,
+        ``back_azimuth``, and ``az_tolerance``.
+
+    Returns
+    -------
+    pandas.DataFrame
+        The subset of ``DF`` whose windows satisfy every target criterion.
+    """
+
     # Cross-correlation
     df = DF.copy()
     df = df[df["MCCM"] > target["cmin"]]

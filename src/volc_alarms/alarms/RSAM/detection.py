@@ -1,3 +1,10 @@
+"""
+Detection calculations for the RSAM alarm.
+
+Provides the conversion from RSAM (counts) to reduced displacement (cm^2),
+accounting for source-to-station distance, instrument gain, and attenuation.
+"""
+
 import os
 from pathlib import Path
 

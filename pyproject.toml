@@ -92,4 +92,4 @@ omit = [
 show_missing = true
 
 [tool.ruff.lint]
-ignore = ["SIM114"]
+ignore = ["SIM114", "SIM102"]

@@ -1,3 +1,11 @@
+"""
+Figure generation for the Swarm alarm.
+
+Builds a two-panel figure: a hillshade map of the swarm hypocenters (colored
+by time, with picking stations and a regional inset) above a stem plot of
+event magnitude versus time.
+"""
+
 import os
 
 import cartopy
@@ -14,6 +22,30 @@ logger = get_logger(__name__)
 
 
 def make_figure(swarm, T0, config, test=False):
+    """Build and save the Swarm detection figure.
+
+    Renders a hillshade map of the swarm's hypocenters colored by time (with
+    picking-station markers and a regional orthographic inset) above a stem
+    plot of magnitude versus time, then saves it to the temporary figure
+    directory.
+
+    Parameters
+    ----------
+    swarm : pandas.DataFrame
+        Events in the swarm, with ``latitude``, ``longitude``, ``time``,
+        ``mag``, ``depth``, ``event_id``, ``v_name``, and ``param_duration``.
+    T0 : obspy.UTCDateTime
+        End time of the plotted window.
+    config : object
+        Swarm alarm configuration (``map_distance``, ``DURATION``, etc.).
+    test : bool, optional
+        If True, stamp the figure with a TEST watermark, by default False.
+
+    Returns
+    -------
+    pathlib.Path
+        Path to the saved figure file.
+    """
 
     fig, ax = plt.subplot_mosaic(
         [["map"], ["stem"]],
@@ -58,7 +90,7 @@ def make_figure(swarm, T0, config, test=False):
             mew=0.6,
             transform=cartopy.crs.PlateCarree(),
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.warning("Problem downloading station info")
         logger.error(e)
         logger.warning("Skip plotting stations on map.")
@@ -67,7 +99,7 @@ def make_figure(swarm, T0, config, test=False):
     ################### Add inset map ###################
     logger.info('Plotting inset map...')
     ax_inset = fig.add_axes([0.75, 0.75, 0.2, 0.2])
-    ax_inset, inset_extent = plotting.make_map(ax_inset, lat0, lon0,
+    ax_inset, _inset_extent = plotting.make_map(ax_inset, lat0, lon0,
                                     xdist=400,
                                     ydist=300,
                                     basemap="land",
@@ -96,7 +128,7 @@ def make_figure(swarm, T0, config, test=False):
 
     mag_swarm = swarm[~swarm["mag"].isnull()]
     time = date2num(mag_swarm.time)
-    markerline, stemlines, baseline = ax["stem"].stem(
+    _markerline, stemlines, _baseline = ax["stem"].stem(
         mag_swarm.time,
         mag_swarm.mag,
         linefmt="k-",

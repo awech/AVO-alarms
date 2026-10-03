@@ -1,3 +1,12 @@
+"""
+Message construction for the Swarm alarm.
+
+Formats the subject line and body text for a swarm-detection alert, including
+the event count and duration, first/last event times in both UTC and local
+time, and the magnitude and depth ranges (noting events with unassigned
+values).
+"""
+
 import os
 
 import numpy as np
@@ -9,7 +18,21 @@ logger = get_logger(__name__)
 
 
 def create_message(swarm):
+    """Build the Swarm detection subject and message body.
 
+    Parameters
+    ----------
+    swarm : pandas.DataFrame
+        Events in the swarm, with ``time``, ``mag``, ``depth``, and
+        ``v_name`` columns.
+
+    Returns
+    -------
+    subject : str
+        The alert subject line.
+    message : str
+        The formatted alert body (Mattermost markdown).
+    """
     tmin = pd.Timestamp(swarm.time.min(), tz="UTC")
     tmax = pd.Timestamp(swarm.time.max(), tz="UTC")
     dt = tmax - tmin

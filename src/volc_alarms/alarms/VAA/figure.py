@@ -1,3 +1,12 @@
+"""
+Figure generation for the VAA alarm.
+
+Builds an orthographic map of the observed and forecast (+6/+12/+18 hr)
+ash-cloud polygons for a Volcanic Ash Advisory, marks the volcano location
+when its reported position is usable, and annotates the observed flight
+levels in the title.
+"""
+
 import matplotlib.pyplot as plt
 import numpy as np
 from cartopy import crs as ccrs
@@ -12,6 +21,30 @@ logger = get_logger(__name__)
 
 
 def make_map(vaa, config, test=False):
+    """Plot the observed/forecast ash-cloud polygons for a VAA.
+
+    Parses the observed and forecast cloud fields into polygon rings, computes
+    a map extent framing them, and renders each field with its own style. The
+    volcano position is used as the map center and marker only when it parses
+    and is in range; otherwise the map centers on the polygon centroid and the
+    marker is skipped.
+
+    Parameters
+    ----------
+    vaa : dict
+        Parsed advisory record (see :func:`.detection.process_vaa_id`),
+        exposing the cloud fields, ``PSN``, ``VOLCANO``, and ``time``.
+    config : object
+        VAA alarm configuration, passed through to the figure-saving helper.
+    test : bool, optional
+        Save with the test watermark/path when True, by default False.
+
+    Returns
+    -------
+    pathlib.Path or list
+        Path to the saved figure, or an empty list if there were no polygons
+        to plot.
+    """
 
     # process_polygons now returns a LIST of (lons, lats, level_txt) rings per
     # field (possibly empty). Each field gets its own plot style, and each ring

@@ -1,3 +1,12 @@
+"""
+Message construction and channel routing for the NOAA/CIMSS alarm.
+
+Formats the subject line and body text for a satellite-alert notification
+(instrument, height, status, event type, location, method, and nearest
+volcanoes), and determines any extra Mattermost channels an alert should also
+be posted to.
+"""
+
 from obspy import UTCDateTime as utc
 
 from volc_alarms.utils import messaging
@@ -7,7 +16,28 @@ logger = get_logger(__name__)
 
 
 def create_message(alert, volcs, output_text):
+    """Build the NOAA/CIMSS alert subject and message body.
 
+    Parameters
+    ----------
+    alert : pandas.Series
+        Alert row exposing ``object_date_time``, ``alert_header``,
+        ``lat_rc``/``lon_rc``, ``method``, ``alert_url``, ``NOAA_id``, and
+        ``aid``.
+    volcs : pandas.DataFrame
+        Volcano table with a ``distance`` column, used for the nearest-volcano
+        summary and to pick the subject's volcano.
+    output_text : dict
+        Scraped detail fields: ``instrument``, ``height_txt``, ``status_txt``,
+        and ``type_txt``.
+
+    Returns
+    -------
+    subject : str
+        The alert subject line.
+    message : str
+        The formatted alert body (Mattermost markdown).
+    """
     t = utc(alert.object_date_time)
     instrument = output_text["instrument"]
     height_txt = output_text["height_txt"]
@@ -45,8 +75,25 @@ def create_message(alert, volcs, output_text):
 def cimss_extra_channels(alert, config):
     """Return the list of additional Mattermost channel ids for an alert.
 
-    Routing decisions (thermal alerts, elevated-volcano alerts) live here in the
-    alarm; the actual posting is handled by ``post_mattermost(channel_ids=...)``.
+    Routing decisions (thermal alerts, elevated-volcano alerts) live here in
+    the alarm; the actual posting is handled by
+    ``post_mattermost(channel_ids=...)``.
+
+    Parameters
+    ----------
+    alert : pandas.Series
+        Alert row exposing ``alert_type``, ``alert_header``, ``v_distance``,
+        and ``v_name``.
+    config : object
+        Configuration exposing the channel ids and distance thresholds
+        (``thermal_alert_dist``, ``thermal_alerts_mm``,
+        ``elevated_volcano_dist``, ``elevated_volcano_list``,
+        ``elevated_volcano_mm``).
+
+    Returns
+    -------
+    list of str
+        Extra Mattermost channel ids to also post to (possibly empty).
     """
     channels = []
 

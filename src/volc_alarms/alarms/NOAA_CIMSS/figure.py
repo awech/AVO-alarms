@@ -1,3 +1,11 @@
+"""
+Figure generation for the NOAA/CIMSS alarm.
+
+Assembles the alert figure from the two images scraped from the CIMSS page
+plus a high-resolution basemap centered on the alert's radiative center, with
+nearby volcano markers, a scale bar, and a regional inset.
+"""
+
 import os
 from pathlib import Path
 
@@ -11,7 +19,27 @@ logger = get_logger(__name__)
 
 
 def plot_fig(alert, config, test=False):
+    """Build and save the NOAA/CIMSS alert figure.
 
+    Stacks the two scraped CIMSS images above a high-resolution map centered on
+    the alert's radiative center (with nearby volcanoes, a scale bar, and a
+    regional inset), saves the figure, and removes the temporary image files.
+
+    Parameters
+    ----------
+    alert : pandas.Series
+        Alert row exposing ``object_date_time``, ``alert_header``, ``method``,
+        and ``lat_rc``/``lon_rc``.
+    config : object
+        NOAA_CIMSS alarm configuration (``map_xdist``, ``map_ydist``, etc.).
+    test : bool, optional
+        If True, stamp the figure with a TEST watermark, by default False.
+
+    Returns
+    -------
+    pathlib.Path
+        Path to the saved JPG figure file.
+    """
     fig, ax = plt.subplot_mosaic(
         [["img1"], ["img2"], ["map"]],
         figsize=(3, 6.6),
@@ -19,7 +47,7 @@ def plot_fig(alert, config, test=False):
     )
 
     title_str = (
-        f"{str(alert.object_date_time)} UTC\n"
+        f"{alert.object_date_time!s} UTC\n"
         f"{alert.alert_header.capitalize()}\n"
         f"Method: {alert.method}"
     )
@@ -58,7 +86,7 @@ def plot_fig(alert, config, test=False):
 
     # draw rectangle on inset map
     ax_inset = fig.add_axes([0.66, 0.25, 0.15, 0.15])
-    ax_inset, inset_extent = plotting.make_map(ax_inset, alert.lat_rc, alert.lon_rc,
+    ax_inset, _inset_extent = plotting.make_map(ax_inset, alert.lat_rc, alert.lon_rc,
                                     xdist=400,
                                     ydist=300,
                                     basemap="land",

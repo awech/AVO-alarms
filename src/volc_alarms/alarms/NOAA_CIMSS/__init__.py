@@ -1,3 +1,16 @@
+"""
+NOAA/CIMSS satellite volcanic-alert alarm.
+
+Pulls recent NOAA/CIMSS alerts (ash, thermal, ice) from the Volcview API,
+associates each with the nearest volcano, and suppresses alert types opted out
+per volcano. For each new, unprocessed alert, it scrapes the CIMSS alert page
+for details and imagery, then issues a CRITICAL alert with a figure and
+message (routing thermal and elevated-volcano alerts to extra channels).
+
+The package exposes :func:`run_alarm`, the entry point invoked by
+``run-alarm`` for configs whose ``alarm_type`` is ``NOAA_CIMSS``.
+"""
+
 import warnings
 
 from volc_alarms.utils import alarming, messaging, processing
@@ -20,6 +33,37 @@ warnings.filterwarnings("ignore")
 
 
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force_flag=False):
+    """Run the NOAA/CIMSS satellite-alert alarm for one time window.
+
+    Downloads recent CIMSS alerts, associates each with the nearest volcano,
+    drops distant and opted-out alerts, and processes any that have not been
+    seen before. For each new alert, scrapes the CIMSS page for details and
+    imagery and sends a CRITICAL alert. An Icinga heartbeat is always sent.
+
+    Parameters
+    ----------
+    config : object
+        NOAA_CIMSS alarm configuration (``max_distance``, thermal/elevated
+        channel routing, etc.).
+    T0 : obspy.UTCDateTime
+        End time of the processing window.
+    test_flag : bool, optional
+        Run in test mode (test tables/channels, TEST watermark), by default
+        False.
+    mm_flag : bool, optional
+        Whether to post to Mattermost, by default True.
+    icinga_flag : bool, optional
+        Whether to send the Icinga heartbeat, by default True.
+    force_flag : bool, optional
+        Force processing of the most recent alert even if already processed,
+        by default False.
+
+    Returns
+    -------
+    None
+        Returns early (after an Icinga heartbeat) on download error;
+        otherwise returns after looping over all alerts.
+    """
 
     T0_str = T0.strftime("%Y-%m-%d %H:%M")
     max_distance = getattr(config, "max_distance", 25)

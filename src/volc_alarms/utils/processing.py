@@ -1,3 +1,18 @@
+"""
+Seismic processing and geospatial helpers for the alarms package.
+
+Groups the routines that transform waveform and catalog data on the way to a
+detection or message: associating earthquakes with the nearest volcano,
+computing station-to-volcano distances, flattening obspy catalog picks into
+DataFrames, converting between reduced displacement and RSAM levels, and
+standard waveform conditioning (metadata attachment, gain removal, filtering,
+and trimming).
+
+Station metadata is read from the ``STATION_XML`` file and the volcano table
+is loaded via :func:`volc_alarms.utils.setup_utils.load_volcano_list` using
+``VOLCANO_LIST`` environment variable
+"""
+
 import os
 from pathlib import Path
 
@@ -16,7 +31,32 @@ logger = get_logger(__name__)
 
 
 def find_nearest_volcano(df, lon_col="longitude", lat_col="latitude", filter_col=None, volc_df=None):
+    """Annotate each row with its nearest volcano and distance.
 
+    For every row in ``df`` the nearest volcano (by great-circle distance) is
+    found and written back as new ``v_distance`` and ``v_name`` columns.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Points of interest (e.g. earthquakes, PIREP). Must contain the longitude 
+        and latitude columns named by ``lon_col`` and ``lat_col``.
+    lon_col : str, optional
+        Name of the longitude column, by default ``"longitude"``.
+    lat_col : str, optional
+        Name of the latitude column, by default ``"latitude"``.
+    filter_col : str, optional
+        Per-alarm opt-in column in ``volc_df``; rows whose value is ``"N"`` are
+        excluded from candidates. Ignored if the column is absent.
+    volc_df : pandas.DataFrame, optional
+        Volcano table to match against. If ``None``, loaded via
+        :func:`volc_alarms.utils.setup_utils.load_volcano_list`.
+
+    Returns
+    -------
+    pandas.DataFrame
+        The input ``df`` with added ``v_distance`` (km) and ``v_name`` columns.
+    """
     if volc_df is None:
         volc_df = load_volcano_list()
     V_DIST = []
@@ -66,7 +106,7 @@ def volcano_distance(lon0, lat0, volcs, filter_col=None):
 
     DIST = np.array([])
     for lat, lon in zip(volcs.Latitude.values, volcs.Longitude.values):
-        dist, azimuth, az2 = gps2dist_azimuth(lat, lon, lat0, lon0)
+        dist, *_ = gps2dist_azimuth(lat, lon, lat0, lon0)
         DIST = np.append(DIST, dist / 1000.0)
     volcs.loc[:, "distance"] = DIST
 
@@ -76,6 +116,21 @@ def volcano_distance(lon0, lat0, volcs, filter_col=None):
 
 
 def addPhaseHint(cat):
+    """Copy phase labels from arrivals onto their matching picks.
+
+    For each event, matches every pick to the arrival that references it (by
+    resource id) and sets the pick's ``phase_hint`` to the arrival's phase.
+
+    Parameters
+    ----------
+    cat : obspy.Catalog
+        Catalog whose events' picks should be annotated. Modified in place.
+
+    Returns
+    -------
+    obspy.Catalog
+        The same catalog, with ``phase_hint`` populated on matched picks.
+    """
     for eq in cat: # Loop over catalog
         for pick in eq.picks: # Loop over picks
             nowPickID = pick.resource_id # Go get phase hint
@@ -87,7 +142,25 @@ def addPhaseHint(cat):
 
 
 def eq_picks_to_dataframe(cat):
+    """Build a per-station DataFrame of pick metadata for an obspy `Catalog` 
+    or obspy `Event`.
 
+    Collects the unique stations that recorded picks, looks up each station's
+    coordinates from EarthScope, and computes its distance to the event
+    origin. ``P`` and ``S`` pick times are also attached per station.
+
+    Parameters
+    ----------
+    cat : obspy.Catalog or obspy.core.event.Event
+        Catalog or single Event whose picks should be summarized.
+
+    Returns
+    -------
+    pandas.DataFrame
+        One row per station with columns ``NS``, ``NSLC``, ``Latitude``,
+        ``Longitude``, and ``Distance`` (km), sorted by distance. For a single
+        event, ``P`` and ``S`` pick-time columns are included.
+    """
     client = Earthscope_client()
 
     NS = []
@@ -105,7 +178,7 @@ def eq_picks_to_dataframe(cat):
         for p in eq.picks:
             wid = p.waveform_id
             net, sta, loc, chan = wid.id.split(".")
-            ns = ".".join([net, sta])
+            ns = f"{net}.{sta}"
             if ns not in NS:
                 logger.info(f"Getting lat/lon info for {wid.id}")
                 inventory = client.get_stations(
@@ -153,20 +226,37 @@ def eq_picks_to_dataframe(cat):
 
 
 def Dr_to_RSAM(DR, config=None, nslc_list=None, volcano=None, base=25):
-    """_summary_
+    """Convert a reduced-displacement target into per-station RSAM levels.
+
+    For a desired reduced displacement, computes the equivalent RSAM (counts)
+    threshold at each station, accounting for station-to-volcano distance,
+    instrument gain, and attenuation. The resulting levels are rounded to the
+    nearest multiple of ``base`` and printed as a table.
+
+    Exactly one of ``config`` or ``nslc_list`` provides the station set.
 
     Parameters
     ----------
-    config : _type_
-        _description_
-    DR : _type_
-        _description_
+    DR : float
+        Target reduced displacement in cm^2.
+    config : object, optional
+        Alarm configuration exposing ``rsam_stations``, ``arrestor``, and
+        ``volcano_name``. Used to build the ordered station list.
+    nslc_list : str or list of str, optional
+        Explicit NSLC channel(s) to use instead of ``config``.
     volcano : str, optional
-        _description_
+        Target volcano name. Falls back to ``config.volcano_name`` when not
+        given.
     base : int, optional
-        _description_, by default 25
-    """
+        Rounding base for the output RSAM levels, by default 25.
 
+    Returns
+    -------
+    pandas.DataFrame or None
+        Table with columns ``Station``, ``Volcano``, ``Distance (km)``,
+        ``DR Level``, and ``RSAM Level``. Returns ``None`` if neither a volcano
+        nor a station source could be resolved.
+    """
     client = FDSN_Client("earthscope")
 
     VELOCITY = 1.5  # km/s
@@ -267,17 +357,23 @@ def Dr_to_RSAM(DR, config=None, nslc_list=None, volcano=None, base=25):
 
 
 def add_metadata(st):
+    """Attach station coordinates and inventory to each trace in a stream.
+
+    Reads the StationXML file from environment variable ``STATION_XML`` and, 
+    for every trace, selects the matching inventory and stores both the 
+    coordinates and the inventory on ``tr.stats``.
+
+    Parameters
+    ----------
+    st : obspy.Stream
+        Stream whose traces should be annotated. Modified in place.
+
+    Returns
+    -------
+    obspy.Stream or None
+        The stream with ``tr.stats.coordinates`` and ``tr.stats.inventory``
+        populated for each trace, or ``None`` if the StationXML file is missing.
     """
-    Add metadata to traces in a stream.
-
-    Args:
-        st (Stream): ObsPy Stream object.
-        config (dict): Configuration dictionary.
-
-    Returns:
-        Stream: Stream with updated metadata.
-    """
-
     xml_file = Path(os.environ["STATION_XML"])
     if not xml_file.exists():
         logger.error("Station XML file missing")
@@ -303,6 +399,30 @@ def add_metadata(st):
 
 
 def preprocess_stream(st, t1, t2, config):
+    """Demean, taper, bandpass filter, merge, and trim a stream.
+
+    Applies the standard conditioning chain used before detection: remove the
+    mean, taper, zero-phase bandpass filter between ``config.f1`` and
+    ``config.f2``, merge (filling gaps with zeros), and trim to the requested
+    window with zero padding. Any gaps or overlaps are logged.
+
+    Parameters
+    ----------
+    st : obspy.Stream
+        Raw stream to process. Modified in place.
+    t1 : obspy.UTCDateTime
+        Start of the output window.
+    t2 : obspy.UTCDateTime
+        End of the output window.
+    config : object
+        Configuration exposing ``taper`` (seconds), ``f1`` and ``f2`` (filter
+        corner frequencies in Hz).
+
+    Returns
+    -------
+    obspy.Stream
+        The processed, trimmed stream.
+    """
     st.detrend("demean")
     st.taper(max_percentage=None, max_length=config.taper)
     st.filter("bandpass", freqmin=config.f1, freqmax=config.f2, corners=2, zerophase=True)
@@ -324,19 +444,24 @@ def preprocess_stream(st, t1, t2, config):
 
 
 def remove_gain(st):
-    """
-    Remove instrument gain/sensitivity from traces in a stream.
+    """Remove instrument gain/sensitivity from traces in a stream.
 
     Note: inventory is stashed on ``tr.stats.inventory`` (not a bare
     ``tr.inventory`` attribute) since ``Trace.stats`` is deep-copied by
     ``Stream.merge()`` and ``Trace.copy()``, while arbitrary attributes
     set directly on a ``Trace`` object are not preserved by either.
 
-    Args:
-        st (Stream): ObsPy Stream object.
+    Parameters
+    ----------
+    st : obspy.Stream
+        Stream whose traces have an inventory attached via
+        :func:`add_metadata`. Modified in place.
 
-    Returns:
-        Stream: Stream with gain removed.
+    Returns
+    -------
+    obspy.Stream
+        The stream with instrument sensitivity removed. Traces lacking an
+        attached inventory are left unchanged.
     """
     for tr in st:
         if "inventory" in tr.stats and tr.stats.inventory is not None:

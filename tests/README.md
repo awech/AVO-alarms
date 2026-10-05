@@ -459,6 +459,3 @@ which fakes the per-event hypocenter-XML download to an empty catalog).
 
 All script tests mock the lock, logging, env loading, and the network/messaging
 boundary, so no real lock file, email, Icinga call, or download occurs.
-
-> Note: `tests/make_map.py` is a pre-existing standalone plotting example, not a
-> pytest test (no `test_` prefix, not collected).

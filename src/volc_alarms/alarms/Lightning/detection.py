@@ -1,3 +1,11 @@
+"""
+Detection helpers for the Lightning alarm.
+
+Provides routines to download recent lightning strokes from the Volcview API,
+partition strokes into inner/outer distance rings, compose the Icinga state
+message, and convert an azimuth to a compass direction.
+"""
+
 import json
 import os
 import time
@@ -11,6 +19,24 @@ logger = get_logger(__name__)
 
 
 def download_lightning(force=False):
+    """Download recent lightning strokes from the Volcview API.
+
+    Retries up to three times. On success, renames the API columns to the
+    canonical schema and parses the stroke times.
+
+    Parameters
+    ----------
+    force : bool, optional
+        If True, point at the global (non-AVO) data source to force data for
+        testing, by default False.
+
+    Returns
+    -------
+    pandas.DataFrame or None
+        Strokes with columns such as ``latitude``, ``longitude``, ``time``,
+        ``id``, ``dataSource``, and the API's volcano association fields.
+        Returns ``None`` if all download attempts fail.
+    """
 
     logger.info("Reading in alerts from volcview api .json file")
     attempt = 1
@@ -48,7 +74,7 @@ def download_lightning(force=False):
                 strokes_df["time"] = pd.to_datetime(strokes_df["time"])
                 strokes_df = strokes_df[column_rename.values()]
             break
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(f"Error getting data from Volcview-API on attempt {attempt:g}")
             logger.warning(e)
             time.sleep(2)
@@ -59,6 +85,22 @@ def download_lightning(force=False):
 
 
 def inner_outer(df, config):
+    """Count strokes in the inner and outer distance rings.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Strokes with a ``v_distance`` column (km to the volcano).
+    config : object
+        Configuration exposing ``dist1`` (inner ring radius, km).
+
+    Returns
+    -------
+    n_ring1 : int
+        Number of strokes within ``dist1`` of the volcano.
+    n_ring2 : int
+        Number of remaining strokes (beyond ``dist1``).
+    """
 
     n_ring1 = len(df[df["v_distance"] < config.dist1])
     n_ring2 = len(df) - n_ring1
@@ -67,6 +109,30 @@ def inner_outer(df, config):
 
 
 def get_state_message(state, T0_str, v_name, n_ring1, n_ring2, config):
+    """Compose the Icinga state message for a lightning detection.
+
+    Parameters
+    ----------
+    state : {'WARNING', 'CRITICAL'}
+        Detection state, which selects the message wording.
+    T0_str : str
+        Formatted window end time (UTC).
+    v_name : str
+        Volcano name.
+    n_ring1 : int
+        Number of strokes within the inner ring.
+    n_ring2 : int
+        Number of strokes in the outer ring.
+    config : object
+        Configuration exposing ``dist1``, ``dist2``, and ``duration``.
+
+    Returns
+    -------
+    str
+        The formatted state message, including stroke counts per ring and the
+        lookback window.
+    """
+
     match state:
         case "WARNING":
             if n_ring1 + n_ring2 == 0:
@@ -86,6 +152,19 @@ def get_state_message(state, T0_str, v_name, n_ring1, n_ring2, config):
 
 
 def get_direction(azimuth):
+    """Convert an azimuth to a 16-point compass direction.
+
+    Parameters
+    ----------
+    azimuth : float
+        Azimuth in degrees clockwise from north.
+
+    Returns
+    -------
+    str
+        The nearest 16-point compass label (e.g. ``"NNE"``, ``"SW"``).
+    """
+
     dirs = [
         "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW",
     ]

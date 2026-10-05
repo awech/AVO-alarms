@@ -1,3 +1,16 @@
+"""
+Volcanic Ash Advisory (VAA) alarm.
+
+Downloads the recent VAA advisory list from the Mesonet API, parses each text
+advisory, associates it with the nearest volcano, and issues a CRITICAL alert
+for any new advisory within the lookback window. Each alert includes a map of
+the observed/forecast ash cloud polygons and a message reproducing the
+advisory.
+
+The package exposes :func:`run_alarm`, the entry point invoked by
+``run-alarm`` for configs whose ``alarm_type`` is ``VAA``.
+"""
+
 import pandas as pd
 from obspy import UTCDateTime
 
@@ -13,7 +26,37 @@ logger = get_logger(__name__)
 
 
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force_flag=False):
+    """Run the Volcanic Ash Advisory alarm for one time window.
 
+    Downloads the VAA advisory lists for the current and prior calendar day,
+    parses each advisory, trims to the trailing ``config.duration`` window,
+    de-duplicates, and associates each with the nearest volcano. For each new,
+    unprocessed advisory, sends a CRITICAL alert. An Icinga heartbeat is sent
+    for the no-advisory and already-processed cases.
+
+    Parameters
+    ----------
+    config : object
+        VAA alarm configuration (``duration`` and routing/figure settings).
+    T0 : obspy.UTCDateTime
+        End time of the processing window.
+    test_flag : bool, optional
+        Run in test mode (test tables/channels, TEST watermark), by default
+        False.
+    mm_flag : bool, optional
+        Whether to post to Mattermost, by default True.
+    icinga_flag : bool, optional
+        Whether to send the Icinga heartbeat, by default True.
+    force_flag : bool, optional
+        Force processing against a fixed historical timestamp for testing, by
+        default False.
+
+    Returns
+    -------
+    None
+        Returns early (after an Icinga heartbeat) on download error or when no
+        advisories are found; otherwise returns after looping over advisories.
+    """
     logger.info(T0)
     T0_str = T0.strftime("%Y-%m-%d %H:%M")
 

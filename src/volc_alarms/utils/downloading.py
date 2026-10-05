@@ -1,3 +1,17 @@
+"""
+Data-acquisition helpers for the alarms package.
+
+Collects the routines that reach out to external services: FDSN/Earthworm
+waveform retrieval, earthquake hypocenter catalogs (CSV and QuakeML), Volcanic
+Ash Advisory feeds, and station metadata (StationXML) downloads. Network calls
+retry a few times and degrade gracefully (returning ``None`` or zero-filled
+traces) rather than raising, so an upstream outage does not crash an alarm run.
+
+Connection details (hosts, ports, timeouts, URLs) are read from environment
+variables such as ``WINSTON_HOST``, ``FDSN_TIMEOUT``, ``VAA_URL``,
+``CONFIGS_DIR``, and ``STATION_XML``.
+"""
+
 import io
 import os
 import socket
@@ -12,7 +26,7 @@ import yaml
 from obspy import Catalog, Stream, Trace, UTCDateTime
 from obspy.clients.earthworm import Client as EW_Client
 from obspy.clients.fdsn import Client as FDSN_Client
-from obspy.clients.fdsn.header import FDSNNoDataException
+from obspy.clients.fdsn.header import FDSNException, FDSNNoDataException
 from obspy.core.inventory.inventory import Inventory
 from obspy.io.quakeml.core import Unpickler
 
@@ -24,19 +38,27 @@ urllib3.disable_warnings()
 socket.setdefaulttimeout(15)
 
 # Timeout (in seconds) for obspy FDSN client HTTP operations.
-FDSN_TIMEOUT = int(os.environ.get("FDSN_TIMEOUT", 60))
+FDSN_TIMEOUT = int(os.environ.get("FDSN_TIMEOUT", "60"))
 
 logger = get_logger(__name__)
 
 
 def Earthscope_client():
+    """Create an FDSN client for the EarthScope data center.
 
+    Retries up to three times, waiting two seconds between attempts.
+
+    Returns
+    -------
+    obspy.clients.fdsn.Client or None
+        A connected EarthScope FDSN client, or ``None`` if all attempts fail.
+    """
     attempt = 1
     while attempt <= 3:
         try:
             client = FDSN_Client("earthscope", timeout=FDSN_TIMEOUT)
             break
-        except Exception as e:
+        except (FDSNException, requests.exceptions.RequestException, OSError) as e:
             logger.warning(f"Earthscope client connection attempt {attempt} failed: {e}")
             time.sleep(2)
             attempt += 1
@@ -45,6 +67,21 @@ def Earthscope_client():
 
 
 def download_hypocenters_csv(URL):
+    """Download an earthquake hypocenter catalog from a CSV endpoint.
+
+    Retries up to three times. On success the ``time`` column is parsed to
+    pandas datetimes and the ``id`` column is renamed to ``event_id``.
+
+    Parameters
+    ----------
+    URL : str
+        URL of the CSV catalog endpoint.
+
+    Returns
+    -------
+    pandas.DataFrame or None
+        The parsed catalog, or ``None`` if all download attempts fail.
+    """
     attempt = 1
     success = False
     max_attempts = 3
@@ -59,7 +96,7 @@ def download_hypocenters_csv(URL):
             success = True
             catalog_df = catalog_df.rename(columns={"id": "event_id"})
             break
-        except Exception as e:
+        except (requests.RequestException, OSError, ValueError, KeyError, UnicodeDecodeError) as e:
             logger.warning(f"Error downloading earthquake data on attempt {attempt}: {e}")
             time.sleep(2)
             attempt+=1
@@ -71,12 +108,22 @@ def download_hypocenters_csv(URL):
 
 
 def download_hypocenter_xml(URL):
-    """_summary_
+    """Download an earthquake catalog from a QuakeML endpoint.
+
+    Retries the HTTP request up to three times. The response body is parsed
+    with ObsPy's QuakeML unpickler; if parsing fails, an empty catalog is
+    returned.
+
+    Parameters
+    ----------
+    URL : str
+        URL of the QuakeML catalog endpoint.
 
     Returns
     -------
-    _type_
-        _description_
+    obspy.Catalog or None
+        The parsed catalog (possibly empty), or ``None`` if the request fails
+        to return a body.
     """
 
     urllib3.disable_warnings()
@@ -87,7 +134,7 @@ def download_hypocenter_xml(URL):
             res = requests.get(URL, verify=True, timeout=10)
             body = res.content
             break
-        except Exception as e:
+        except requests.exceptions.RequestException as e:
             logger.warning(f"Attempt {attempt} failed: {e}")
             time.sleep(2)
             attempt += 1
@@ -98,7 +145,7 @@ def download_hypocenter_xml(URL):
 
     try:
         CAT = Unpickler().loads(body)
-    except Exception:
+    except Exception:  # noqa: BLE001
         CAT = Catalog()
         logger.warning("No events!")
 
@@ -106,17 +153,20 @@ def download_hypocenter_xml(URL):
 
 
 def _qc_sub_trace(sub_trace):
-    """
-    Ensure consistent data type and sampling rate for a trace.
+    """Ensure consistent data type and sampling rate for a trace.
 
     Casts trace data to int32 if not already, and rounds the sampling
     rate to the nearest integer if it is not already a whole number.
 
-    Args:
-        sub_trace (obspy.Trace): A single seismic trace to check.
+    Parameters
+    ----------
+    sub_trace : obspy.Trace
+        A single seismic trace to check.
 
-    Returns:
-        obspy.Trace: The trace with corrected data type and sampling rate.
+    Returns
+    -------
+    obspy.Trace
+        The trace with corrected data type and sampling rate.
     """
     if sub_trace.data.dtype.name != "int32":
         sub_trace.data = sub_trace.data.astype("int32")
@@ -128,7 +178,7 @@ def _qc_sub_trace(sub_trace):
 def download_waveforms(nslc_list, T1, T2):
     """Download waveform data for a list of NSLC channels.
 
-    Uses the Earthscope FDSN client if the ``USE_EARTHSCOPE`` environment
+    Uses the EarthScope FDSN client if the ``USE_EARTHSCOPE`` environment
     variable is set using the `--earthscope` flag, otherwise connects 
     to datasource listed in the .env file
 
@@ -176,7 +226,7 @@ def download_waveforms(nslc_list, T1, T2):
                     logger.info(f"{nslc}: Multiple traces returned with no gaps between. Simple merge")
                     tr.merge()
 
-        except Exception:
+        except Exception:  # noqa: BLE001
             logger.warning(f"Error grabbing data for {nslc}, filling with zeros")
             tr = Stream()
         # if no data, create a blank trace for that channel
@@ -195,6 +245,19 @@ def download_waveforms(nslc_list, T1, T2):
 
 
 def download_vaa_from_nws_api():
+    """Fetch the list of Volcanic Ash Advisories from the NWS API.
+
+    Retries up to three times. A ``User-Agent`` header is sent because
+    api.weather.gov rejects requests without one. Not currently wired into
+    the active VAA workflow (Mesonet is the preferred source), but retained
+    as backup in case of future need to switch to NWS source.
+
+    Returns
+    -------
+    list or None
+        The ``@graph`` list of VAA entries from the API response, or ``None``
+        if all attempts fail.
+    """
     ## this is currently not implemented. Testing out mesonet as preferred option
     attempt = 1
     max_tries = 3
@@ -211,9 +274,9 @@ def download_vaa_from_nws_api():
 
             vaa_id_list = data["@graph"]
             break
-        except Exception:		
+        except (requests.RequestException, OSError, ValueError, KeyError):
             logger.warning(f"Page error on attempt number {attempt:g}")
-            attempt += 1	
+            attempt += 1
             if attempt == max_tries:
                 logger.error(f"Problem connecting to VAA API after {max_tries} attempts")
                 
@@ -224,9 +287,9 @@ def _extract_nslc_from_config(config):
     """Extract NSLC identifiers from a single parsed YAML config (canonical schema).
 
     The canonical schema differs per seismic alarm:
-      - RSAM: ``rsam_stations[*].nslc`` + ``infrasound[*]`` (plain strings)
+    - RSAM: ``rsam_stations[*].nslc`` + ``infrasound[*]`` (plain strings)
         + ``arrestor.nslc``.
-      - Tremor / Infrasound: ``nslc[*]`` as plain strings.
+    - Tremor / Infrasound: ``nslc[*]`` as plain strings.
 
     Parameters
     ----------
@@ -249,8 +312,7 @@ def _extract_nslc_from_config(config):
         for station in config.get("rsam_stations", []):
             nslc.append(station["nslc"])
         # infrasound channels are plain NSLC strings (plot-only)
-        for channel in config.get("infrasound", []):
-            nslc.append(channel)
+        nslc.extend(config.get("infrasound", []))
         # arrestor is a single mapping with an nslc key
         arrestor = config.get("arrestor")
         if arrestor is not None:
@@ -258,14 +320,13 @@ def _extract_nslc_from_config(config):
 
     # Tremor / Infrasound: top-level `nslc` is a list of plain strings
     elif alarm_type in ("Infrasound", "Tremor"):
-        for entry in config.get("nslc", []):
-            nslc.append(entry)
+        nslc.extend(config.get("nslc", []))
 
     return nslc
 
 
 def _collect_station_nslc(configs_dir):
-    """Glob the RSAM/Tremor/Infrasound `.yml` configs and collect unique NSLC.
+    """Glob all `.yml` configs and collect unique NSLC.
 
     Parameters
     ----------
@@ -296,7 +357,24 @@ def _collect_station_nslc(configs_dir):
 
 
 def download_station_xml():
-    """Download and update station metadata XML file from IRIS."""
+    """Rebuild the local StationXML metadata file from Earthscope.
+
+    Gathers the unique set of NSLC channels used by the seismic alarms by
+    scanning the config directory (``CONFIGS_DIR``), then queries the
+    EarthScope FDSN service for response-level metadata for each channel. The
+    current station epoch is requested first; if none is available for a
+    channel (``FDSNNoDataException``), all epochs are fetched instead. A short
+    pause is inserted between requests to avoid hammering the service.
+
+    The combined inventory is written to a temporary file and then atomically
+    moved into place at ``STATION_XML`` via ``os.replace``, so a partially
+    written file never overwrites the existing metadata.
+
+    Notes
+    -----
+    Reads the ``CONFIGS_DIR`` and ``STATION_XML`` environment variables and
+    writes to the ``STATION_XML`` path as a side effect. Returns nothing.
+    """
 
     client = Earthscope_client()
 
@@ -327,4 +405,3 @@ def download_station_xml():
     os.replace(tmp_outfile, out_file)
 
     logger.info("^^^^^^ Finished Updating Metadata ^^^^^^")
-    return

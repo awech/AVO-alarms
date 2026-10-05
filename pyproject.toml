@@ -90,3 +90,6 @@ omit = [
 
 [tool.coverage.report]
 show_missing = true
+
+[tool.ruff.lint]
+ignore = ["SIM114", "SIM102"]

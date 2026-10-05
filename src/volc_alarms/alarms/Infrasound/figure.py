@@ -1,3 +1,13 @@
+"""
+Figure generation for the Infrasound alarm.
+
+Builds the detection summary figure: an infrasound trace panel plus
+back-azimuth and trace-velocity scatter panels colored by cross-correlation,
+and (when local channels are configured) stacked spectrogram panels. Data are
+re-downloaded and reprocessed here so the plotted window can differ from the
+detection window.
+"""
+
 import time
 
 import matplotlib.pyplot as plt
@@ -20,14 +30,22 @@ scatter_lw = 0.1
 
 
 def add_mccm_colorbar(ax1, ax2, fig, sc):
-    """
-    Add a colorbar for the MCCM (Multi-Channel Cross-Matching) results.
+    """Add a shared MCCM colorbar spanning two stacked panels.
 
-    Args:
-        ax1 (matplotlib.axes.Axes): The axes for the first subplot.
-        ax2 (matplotlib.axes.Axes): The axes for the second subplot.
-        fig (matplotlib.figure.Figure): The figure containing the axes.
-        sc (matplotlib.collections.PathCollection): The scatter plot object for MCCM results.
+    Places a vertical colorbar to the right of the figure, spanning from the
+    top of ``ax1`` to the bottom of ``ax2``, labeled with the median
+    cross-correlation maxima (MdCCM).
+
+    Parameters
+    ----------
+    ax1 : matplotlib.axes.Axes
+        Upper panel; its top edge sets the top of the colorbar.
+    ax2 : matplotlib.axes.Axes
+        Lower panel; its bottom edge sets the bottom of the colorbar.
+    fig : matplotlib.figure.Figure
+        Figure the colorbar axis is added to.
+    sc : matplotlib.collections.PathCollection
+        The scatter plot whose colors the colorbar describes.
     """
     
     ctop = ax1.get_position().y1
@@ -38,6 +56,35 @@ def add_mccm_colorbar(ax1, ax2, fig, sc):
 
 
 def make_figure(target, T0, config, mx_pressure, test=False):
+    """Build and save the Infrasound detection summary figure.
+
+    Re-downloads infrasound (and optional local seismic) data for the target's
+    plot window ending at ``T0``, reprocesses it, re-runs LTS, and renders the
+    infrasound trace plus back-azimuth and velocity panels (and local
+    spectrograms when configured). The figure is saved to the temporary
+    figure directory.
+
+    Parameters
+    ----------
+    target : dict
+        Target definition, including ``name``, ``plot_duration``,
+        ``back_azimuth``, ``az_tolerance``, ``vmin``/``vmax``, and optionally
+        ``local_nslc`` and ``array_label``.
+    T0 : obspy.UTCDateTime
+        End time of the plot window.
+    config : object
+        Infrasound alarm configuration object.
+    mx_pressure : float
+        Peak detected pressure (accepted for signature uniformity; the figure
+        recomputes its own values).
+    test : bool, optional
+        If True, stamp the figure with a TEST watermark, by default False.
+
+    Returns
+    -------
+    pathlib.Path
+        Path to the saved JPG figure file.
+    """
 
     start = time.time()
     t_win = target.get("plot_duration")
@@ -77,7 +124,7 @@ def make_figure(target, T0, config, mx_pressure, test=False):
 
     #### preprocess infrasound data ####
     infra = processing.preprocess_stream(infra, t1, t2, config)
-    good_data, skip_chans = detection.QC_data(infra, config)
+    _good_data, skip_chans = detection.QC_data(infra, config)
     # Add coordinates/inventory metadata, then remove gain
     infra = Stream([tr for tr in infra if tr.id not in skip_chans])
     if isinstance(config.nslc, dict):
@@ -93,7 +140,7 @@ def make_figure(target, T0, config, mx_pressure, test=False):
 
     #### run LTS ####
     config = detection.get_target_backazimuth(infra, config)
-    lts_df, lts_dict = detection.do_LTS(infra, config)
+    lts_df, _lts_dict = detection.do_LTS(infra, config)
 
     ################## Start Figure Making ##################
     #########################################################

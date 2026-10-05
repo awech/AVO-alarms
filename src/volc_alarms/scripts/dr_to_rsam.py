@@ -25,6 +25,37 @@ from volc_alarms.utils.setup_utils import (
 
 
 def parse_args():
+    """Parse and validate command-line arguments for the DR-to-RSAM tool.
+
+    Returns
+    -------
+    argparse.Namespace
+        Parsed arguments with the following attributes:
+
+        DR : float
+            Target reduced displacement in cm^2.
+        config : str or None
+            Name of an alarm config file supplying the volcano name and
+            station list. Mutually exclusive with ``nslc``/``volcano``.
+        nslc : list of str or None
+            One or more NSLC strings (e.g. ``AV.PN7A.--.BHZ``) separated
+            by single space. Requires ``volcano``.
+        volcano : str or None
+            Volcano name, used with ``nslc`` or to override the config
+            volcano.
+        base : int
+            Rounding base for the output RSAM levels (default 25).
+        env_file : str or None
+            Path to a ``.env`` file; if omitted, the directory tree is
+            searched upward.
+
+    Raises
+    ------
+    SystemExit
+        Via ``argparse`` if neither ``--config`` nor ``--nslc`` is given, or
+        if ``--nslc`` is given without ``--volcano``.
+    """
+
     parser = argparse.ArgumentParser(
         prog="dr-to-rsam",
         description="Convert a target reduced displacement (DR) to RSAM count "

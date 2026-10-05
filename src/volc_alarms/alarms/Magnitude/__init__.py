@@ -1,3 +1,16 @@
+"""
+Magnitude alarm.
+
+Queries an FDSN event service for recent earthquakes above a magnitude
+threshold and below a depth cap, keeps those near a volcano, and for each new
+(not already processed) event sends a CRITICAL alert with a summary figure and
+message. No-event, far-from-volcano, and already-processed cases report an
+Icinga heartbeat; FDSN connection errors report a warning.
+
+The package exposes :func:`run_alarm`, the entry point invoked by
+``run-alarm`` for configs whose ``alarm_type`` is ``Magnitude``.
+"""
+
 import os
 import warnings
 
@@ -13,6 +26,38 @@ warnings.filterwarnings("ignore")
 
 
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force_flag=False):
+    """Run the Magnitude alarm for one time window.
+
+    Downloads the FDSN event catalog for the ``config.duration`` window above
+    ``config.magmin`` and shallower than ``config.maxdep``, filters to events
+    within ``config.distance`` of a volcano, and processes each new event. New
+    unprocessed events send a CRITICAL alert; other outcomes report an Icinga
+    heartbeat.
+
+    Parameters
+    ----------
+    config : object
+        Magnitude alarm configuration (``duration``, ``magmin``, ``maxdep``,
+        ``distance``, and routing settings).
+    T0 : obspy.UTCDateTime
+        End time of the processing window.
+    test_flag : bool, optional
+        Run in test mode (test tables/channels, TEST watermark), by default
+        False.
+    mm_flag : bool, optional
+        Whether to post to Mattermost, by default True.
+    icinga_flag : bool, optional
+        Whether to send the Icinga heartbeat, by default True.
+    force_flag : bool, optional
+        Force a detection by lowering the magnitude minimum, by default False.
+
+    Returns
+    -------
+    None
+        Returns early (after an Icinga heartbeat) on connection error or when
+        no qualifying events are found; otherwise returns after looping over
+        events.
+    """
 
     T0_str = T0.strftime('%Y-%m-%d %H:%M')
     T2 = T0

@@ -1,3 +1,11 @@
+"""Command-line entry point for refreshing station metadata.
+
+Downloads up-to-date StationXML for all channels used by the seismic alarms
+and writes it to ``STATION_XML`` via
+:func:`volc_alarms.utils.downloading.download_station_xml`. Exposed as the
+``update-metadata`` console script.
+"""
+
 import argparse
 import os
 import time
@@ -13,6 +21,17 @@ from volc_alarms.utils.setup_utils import (
 
 
 def parse_args():
+    """Parse command-line arguments for the metadata update tool.
+
+    Returns
+    -------
+    argparse.Namespace
+        Parsed arguments with the following attributes:
+
+        env_file : str or None
+            Path to a ``.env`` file; if omitted, the directory tree is
+            searched upward.
+    """
     parser = argparse.ArgumentParser(prog="update-metadata")
     parser.add_argument(
         "--env-file",
@@ -24,7 +43,18 @@ def parse_args():
 
 
 def main():
+    """Refresh the local StationXML metadata from the command line.
 
+    Loads the environment, configures logging, and acquires a single-instance
+    lock, then rebuilds the StationXML file via
+    :func:`volc_alarms.utils.downloading.download_station_xml`. The lock is
+    always released on exit.
+
+    Notes
+    -----
+    Intended to be invoked via the ``update-metadata`` console script. Reads
+    arguments from the command line and takes no parameters.
+    """
     args = parse_args()
     load_environment(args.env_file)
 

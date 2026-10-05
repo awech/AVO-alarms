@@ -1,3 +1,11 @@
+"""
+Message construction for the Pilot Report (PIREP) alarm.
+
+Formats the subject line and body text for a PIREP alert, including the report
+time, flight level, pilot remark, location, nearest volcanoes, and the
+original report text. Urgent reports get an ``URGENT!`` subject prefix.
+"""
+
 from obspy import UTCDateTime as utc
 
 from volc_alarms.utils import messaging, processing
@@ -9,7 +17,26 @@ logger = get_logger(__name__)
 
 
 def create_message(pirep_row, config):
+    """Build the PIREP alert subject and message body.
 
+    Parameters
+    ----------
+    pirep_row : pandas.Series
+        A single PIREP report row exposing ``time``, ``FL``, ``REPORT``,
+        ``lat``, ``lon``, and ``URGENT``.
+    config : object
+        PIREP alarm configuration (currently unused, kept for signature
+        consistency).
+
+    Returns
+    -------
+    subject : str
+        Subject line naming the nearest volcanoes (prefixed ``URGENT!`` for
+        urgent reports).
+    message : str
+        Message body with time, flight level, pilot remark, location, nearest
+        volcanoes, and the original report.
+    """
     message = messaging.format_timestring(utc(pirep_row.time))
     message += f"\n{get_height_text(pirep_row.FL)}\nPilot Remark: {get_pilot_remark(pirep_row.REPORT)}"
     message += f"\nLatitude: {pirep_row.lat:.3f}\nLongitude: {pirep_row.lon:.3f}\n"

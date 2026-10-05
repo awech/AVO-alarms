@@ -1,3 +1,11 @@
+"""
+Message construction for the Magnitude alarm.
+
+Formats the subject line and Markdown body for an earthquake alert, including
+origin time (UTC and local), magnitude, hypocenter, event id, nearest
+volcanoes, and (when available) location-quality metrics.
+"""
+
 import os
 import traceback
 
@@ -10,6 +18,23 @@ logger = get_logger(__name__)
 
 
 def create_message(eq, volcs):
+    """Build the Magnitude alert subject and message body.
+
+    Parameters
+    ----------
+    eq : obspy.core.event.Event
+        The earthquake event, exposing preferred origin and magnitude.
+    volcs : pandas.DataFrame
+        Volcano list annotated with a ``distance`` column.
+
+    Returns
+    -------
+    subject : str
+        Subject line with the magnitude and nearest volcano.
+    message : str
+        Markdown body with origin time, hypocenter, event id, nearest
+        volcanoes, and any available location-quality metrics.
+    """
     origin = eq.preferred_origin()
     t = pd.Timestamp(origin.time.datetime, tz="UTC")
     t_local = t.tz_convert(os.getenv("TIMEZONE"))

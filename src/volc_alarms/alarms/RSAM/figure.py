@@ -1,3 +1,10 @@
+"""
+Figure generation for the RSAM alarm.
+
+Thin wrapper around the shared spectrogram-mosaic figure builder in
+:mod:`volc_alarms.utils.plotting`.
+"""
+
 from volc_alarms.utils import plotting
 
 

@@ -1,3 +1,19 @@
+"""
+Shared control-flow building blocks for alarm runs.
+
+Factors out the two pieces of logic that every alarm shares so each alarm
+module does not reimplement them:
+
+- :func:`apply_cron_latency_backup` applies the cron latency/backup policy,
+  either sleeping briefly or backing ``T0`` up to the previous minute mark.
+- :func:`run_send_sequence` runs the 8 critical send sequence tasks: rate-limit
+  check, figure creation, message creation, Mattermost post, email/SMS alert,
+  send recording, cleanup, and Icinga heartbeat.
+
+Both delegate alarm-specific behavior through factory callbacks and keyword
+pass-throughs, so the orchestration stays identical across alarm types.
+"""
+
 import math
 import os
 import time
@@ -11,18 +27,33 @@ logger = get_logger(__name__)
 
 
 def apply_cron_latency_backup(config, T0, extra_sleep=0.0):
-    """Single shared implementation of the Cron_Latency_Backup block.
+    """Apply the shared cron latency/backup policy to ``T0``.
 
-    Returns a (possibly adjusted) T0. Sleeps as a side effect when appropriate.
+    When running from cron (``FROMCRON == "yep"``):
 
-    - WHEN FROMCRON == "yep" and config.latency < 30:
-        sleep(config.latency + extra_sleep), return T0 unchanged.
-    - WHEN FROMCRON == "yep" and config.latency >= 30:
-        return T0 - ceil(config.latency / 60) * 60 (no sleep).
-    - OTHERWISE: return T0 unchanged, do not sleep.
+    - If ``config.latency < 30``: sleep ``config.latency + extra_sleep``
+      seconds and return ``T0`` unchanged.
+    - If ``config.latency >= 30``: return ``T0`` backed up to the previous
+      minute mark (``T0 - ceil(config.latency / 60) * 60``), without sleeping.
 
-    `extra_sleep` exists solely to preserve Tremor's existing behavior, which
-    sleeps `config.latency + config.taper`. Infrasound and RSAM pass 0.0.
+    Otherwise ``T0`` is returned unchanged and no sleep occurs.
+
+    Parameters
+    ----------
+    config : object
+        Alarm configuration exposing ``latency`` (seconds).
+    T0 : obspy.UTCDateTime
+        The processing time to (possibly) adjust.
+    extra_sleep : float, optional
+        Additional seconds to sleep in the low-latency branch, by default 0.0.
+        Exists solely to accomadate latent DLL data and preserve and Tremor's 
+        behavior of sleeping ``config.latency + config.taper``; 
+        Infrasound and RSAM pass 0.0.
+
+    Returns
+    -------
+    obspy.UTCDateTime
+        The (possibly adjusted) processing time.
     """
     if os.getenv("FROMCRON") == "yep":
         if config.latency < 30:
@@ -50,25 +81,57 @@ def run_send_sequence(
     icinga_flag=True,
     test_flag=False,
 ):
-    """Single shared implementation of the CRITICAL Send_Sequence (Req 8).
+    """Run the critical, shared alarm send sequence.
 
-      1. alarming.can_send rate-limit check
-      2. figure creation via figure_factory(), guarded by try/except (Req 8.5)
-      3. message creation via message_factory() -> (subject, message)
-      4. messaging.post_mattermost, guarded by try/except
-      5. messaging.send_alert (only when ``send_email`` is True)
-      6. alarming.record_send
-      7. os.remove(filename) if a file was produced
-      8. messaging.icinga heartbeat
+    Executes the following steps in order:
 
-    Alarm-specific arguments are forwarded through can_send_kwargs and
-    record_kwargs (e.g. Infrasound's volcano target name) (Req 8.6).
-    ``mm_kwargs`` forwards extra keyword arguments to ``post_mattermost``
-    (e.g. ``volcano`` for per-volcano channel routing). ``send_email``
-    controls whether the email/SMS alert is sent (some alarms only email
-    on force/urgent/test conditions).
+      1. ``alarming.can_send`` rate-limit check
+      2. figure creation via ``figure_factory()``, guarded by try/except
+      3. message creation via ``message_factory()`` -> ``(subject, message)``
+      4. ``messaging.post_mattermost``, guarded by try/except
+      5. ``messaging.send_alert`` (only when ``send_email`` is True)
+      6. ``alarming.record_send``
+      7. ``os.remove(filename)`` if a figure file was produced
+      8. ``messaging.icinga`` heartbeat
 
-    Returns the final state_message (so the caller can use it if needed).
+    Parameters
+    ----------
+    config : object
+        Alarm configuration (exposing at least ``alarm_name``).
+    T0 : obspy.UTCDateTime
+        Processing time of the alarm.
+    state : str
+        Icinga state to report (e.g. ``"OK"``, ``"CRITICAL"``).
+    state_message : str
+        Human-readable state description; may be annotated and returned.
+    figure_factory : callable
+        Zero-argument callable that produces a figure file path (or raises).
+    message_factory : callable
+        Zero-argument callable returning a ``(subject, message)`` tuple.
+    can_send_kwargs : dict, optional
+        Extra keyword arguments forwarded to ``alarming.can_send`` and
+        ``alarming.next_send_after`` (e.g. a per-volcano target name).
+    record_kwargs : dict, optional
+        Extra keyword arguments forwarded to ``alarming.record_send``.
+    mm_kwargs : dict, optional
+        Extra keyword arguments forwarded to ``messaging.post_mattermost``
+        (e.g. ``volcano`` for per-volcano channel routing).
+    send_email : bool, optional
+        Whether to send the email/SMS alert, by default True. Some alarms
+        only email on force/urgent/test conditions.
+    mm_flag : bool, optional
+        Whether to actually post to Mattermost, by default True.
+    icinga_flag : bool, optional
+        Whether to actually send the Icinga heartbeat, by default True.
+    test_flag : bool, optional
+        Run in test mode (test tables/channels, TEST watermark), by default
+        False.
+
+    Returns
+    -------
+    str
+        The final ``state_message`` (possibly annotated with rate-limit info),
+        so the caller can reuse it.
     """
     can_send_kwargs = can_send_kwargs or {}
     record_kwargs = record_kwargs or {}
@@ -92,7 +155,7 @@ def run_send_sequence(
     # 2. Make figure
     try:
         filename = figure_factory()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - figure failures must not abort the alarm flow
         logger.error("problem generating figure")
         logger.error(e)
         logger.error(traceback.format_exc())
@@ -124,7 +187,7 @@ def run_send_sequence(
             config, subject, message, attachment=filename, send=mm_flag, test=test_flag, **mm_kwargs
         )
         message = f"{message}\n\n{mm_url}"
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - mattermost failures must not abort the alarm flow
         logger.error("problem posting to mattermost")
         logger.error(e)
         logger.error(traceback.format_exc())

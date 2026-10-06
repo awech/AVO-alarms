@@ -840,7 +840,7 @@ def set_time_ticks(ax, xlim_left, xlim_right, duration):
     return tick_fmt
 
 
-def format_spec_xaxis(ax, tr, st, i, config, duration=None):
+def format_spec_xaxis(ax, tr, st, i, config):
     """Format the x-axis of one panel in a spectrogram mosaic.
 
     Adds a title on the top panel, hides tick labels on all but the bottom
@@ -858,19 +858,15 @@ def format_spec_xaxis(ax, tr, st, i, config, duration=None):
         Index of this panel within the mosaic.
     config : object
         Alarm configuration exposing ``alarm_name`` and optionally
-        ``plot_duration``.
-    duration : float, optional
-        Window duration in seconds. Falls back to ``config.plot_duration`` or
-        3600 when not provided.
+        ``plot_duration`` (falls back to 3600 when absent).
     """
-    if duration is None:
-        duration = config.plot_duration if hasattr(config, "plot_duration") else 3600
 
     if i == 0:
         ax.set_title(config.alarm_name + " Alarm", fontsize=8)
     if i < len(st) - 1:
         ax.set_xticks([])
     else:
+        duration = getattr(config, "plot_duration", 3600)
         tick_fmt = set_time_ticks(ax, 0, duration, duration)
         d_sec = ax.get_xticks()
         T = [tr.stats.starttime + dt for dt in d_sec]

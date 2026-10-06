@@ -16,9 +16,8 @@ f1: 0.5               # minimum frequency for bandpass filter
 f2: 8.0               # maximum frequency for bandpass filter
 
 # Detection parameters
-min_cc: 0.6           # min normalized correlation coefficient to accept
+cmin: 0.6             # min normalized correlation coefficient to accept
 min_chan: 3           # minimum number of channels for code to run
-cc_shift_length: 6    # maximum seconds to shift in cross-correlation
 
 # Infrasound target list:
 # Required:

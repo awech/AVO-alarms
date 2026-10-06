@@ -386,10 +386,22 @@ def test_load_volcano_list_defaults_to_env_var(monkeypatch, tmp_path):
 # ---------------------------------------------------------------------------
 # update_infrasound_config
 # ---------------------------------------------------------------------------
+def _clear_infrasound_env(monkeypatch):
+    """Remove the Infrasound tunable env vars so hard-coded defaults apply."""
+    for key in (
+        "INFRASOUND_VMIN",
+        "INFRASOUND_VMAX",
+        "INFRASOUND_CMIN",
+        "INFRASOUND_PLOT_DURATION",
+    ):
+        monkeypatch.delenv(key, raising=False)
+
+
 def test_update_infrasound_config_enriches_from_volcano_list(monkeypatch):
     """update_infrasound_config fills lat/lon from the volcano list and velocity defaults."""
     import pandas as pd
 
+    _clear_infrasound_env(monkeypatch)
     df = pd.DataFrame(
         {"Name": ["Pavlof"], "Latitude": [55.4173], "Longitude": [-161.8937]}
     )
@@ -405,10 +417,11 @@ def test_update_infrasound_config_enriches_from_volcano_list(monkeypatch):
     target = result.targets[0]
     assert target["lat"] == pytest.approx(55.4173)
     assert target["lon"] == pytest.approx(-161.8937)
+    # With no per-target, config-wide, or env override, hard-coded defaults apply.
     assert target["vmin"] == 0.28
     assert target["vmax"] == 0.45
     assert target["cmin"] == 0.6
-    # plot_duration defaults to the env fallback (3600) coerced to float.
+    # plot_duration defaults to the hard-coded fallback (3600) coerced to float.
     assert target["plot_duration"] == 3600.0
 
 
@@ -435,6 +448,160 @@ def test_update_infrasound_config_preserves_explicit_coords(monkeypatch):
     assert target["lon"] == 2.0
     # plot_duration arithmetic string is evaluated and coerced to float.
     assert target["plot_duration"] == 120.0
+
+
+def test_update_infrasound_config_per_target_overrides_everything(monkeypatch):
+    """A per-target value wins over config-wide and environment values."""
+    import pandas as pd
+
+    monkeypatch.setenv("INFRASOUND_VMIN", "0.10")
+    monkeypatch.setenv("INFRASOUND_VMAX", "0.90")
+    monkeypatch.setenv("INFRASOUND_CMIN", "0.11")
+    monkeypatch.setenv("INFRASOUND_PLOT_DURATION", "100")
+    monkeypatch.setattr(setup_utils, "load_volcano_list", lambda: pd.DataFrame())
+
+    config = SimpleNamespace(
+        alarm_type="Infrasound",
+        # config-wide values, which the per-target values should override.
+        vmin=0.2,
+        vmax=0.5,
+        cmin=0.7,
+        plot_duration="5 * 60",
+        targets=[
+            {
+                "name": "Custom",
+                "lat": 1.0,
+                "lon": 2.0,
+                "vmin": 0.33,
+                "vmax": 0.44,
+                "cmin": 0.55,
+                "plot_duration": "2 * 60",
+            }
+        ],
+    )
+
+    target = setup_utils.update_infrasound_config(config).targets[0]
+    assert target["vmin"] == 0.33
+    assert target["vmax"] == 0.44
+    assert target["cmin"] == 0.55
+    assert target["plot_duration"] == 120.0
+
+
+def test_update_infrasound_config_config_wide_overrides_env(monkeypatch):
+    """Config-wide values apply to all targets and win over env/defaults."""
+    import pandas as pd
+
+    monkeypatch.setenv("INFRASOUND_VMIN", "0.10")
+    monkeypatch.setenv("INFRASOUND_VMAX", "0.90")
+    monkeypatch.setenv("INFRASOUND_CMIN", "0.11")
+    monkeypatch.setenv("INFRASOUND_PLOT_DURATION", "100")
+    monkeypatch.setattr(setup_utils, "load_volcano_list", lambda: pd.DataFrame())
+
+    config = SimpleNamespace(
+        alarm_type="Infrasound",
+        vmin=0.2,
+        vmax=0.5,
+        cmin=0.7,
+        plot_duration="5 * 60",  # arithmetic string, evaluated and coerced
+        targets=[
+            {"name": "A", "lat": 1.0, "lon": 2.0},
+            {"name": "B", "lat": 3.0, "lon": 4.0},
+        ],
+    )
+
+    result = setup_utils.update_infrasound_config(config)
+    for target in result.targets:
+        assert target["vmin"] == 0.2
+        assert target["vmax"] == 0.5
+        assert target["cmin"] == 0.7
+        assert target["plot_duration"] == 300.0
+
+
+def test_update_infrasound_config_env_overrides_defaults(monkeypatch):
+    """Environment values apply when no config-wide or per-target value is set."""
+    import pandas as pd
+
+    monkeypatch.setenv("INFRASOUND_VMIN", "0.15")
+    monkeypatch.setenv("INFRASOUND_VMAX", "0.55")
+    monkeypatch.setenv("INFRASOUND_CMIN", "0.65")
+    monkeypatch.setenv("INFRASOUND_PLOT_DURATION", "420")
+    monkeypatch.setattr(setup_utils, "load_volcano_list", lambda: pd.DataFrame())
+
+    config = SimpleNamespace(
+        alarm_type="Infrasound",
+        targets=[{"name": "Custom", "lat": 1.0, "lon": 2.0}],
+    )
+
+    target = setup_utils.update_infrasound_config(config).targets[0]
+    assert target["vmin"] == 0.15
+    assert target["vmax"] == 0.55
+    assert target["cmin"] == 0.65
+    # The env var is a plain numeric value, coerced to float (no math in env).
+    assert target["plot_duration"] == 420.0
+
+
+def test_update_infrasound_config_config_wide_applies_unless_target_specifies(monkeypatch):
+    """Config-wide value applies to targets that omit the key; a per-target value stands."""
+    import pandas as pd
+
+    _clear_infrasound_env(monkeypatch)
+    monkeypatch.setattr(setup_utils, "load_volcano_list", lambda: pd.DataFrame())
+
+    config = SimpleNamespace(
+        alarm_type="Infrasound",
+        vmax=0.5,
+        targets=[
+            {"name": "A", "lat": 1.0, "lon": 2.0},                 # inherits config-wide vmax
+            {"name": "B", "lat": 3.0, "lon": 4.0, "vmax": 0.42},   # overrides it
+        ],
+    )
+
+    result = setup_utils.update_infrasound_config(config)
+    assert result.targets[0]["vmax"] == 0.5
+    assert result.targets[1]["vmax"] == 0.42
+    # vmin/cmin/plot_duration fall back to hard-coded defaults for both.
+    for target in result.targets:
+        assert target["vmin"] == 0.28
+        assert target["cmin"] == 0.6
+        assert target["plot_duration"] == 3600.0
+
+
+def test_update_infrasound_config_lts_window_defaults_from_env(monkeypatch):
+    """lts_window_length/lts_overlap fall back to env vars when absent from config."""
+    import pandas as pd
+
+    monkeypatch.setenv("LTS_WINDOW_LENGTH", "40")
+    monkeypatch.setenv("LTS_OVERLAP", "20")
+    monkeypatch.setattr(setup_utils, "load_volcano_list", lambda: pd.DataFrame())
+
+    config = SimpleNamespace(
+        alarm_type="Infrasound",
+        targets=[{"name": "Custom", "lat": 1.0, "lon": 2.0}],
+    )
+
+    result = setup_utils.update_infrasound_config(config)
+    assert result.lts_window_length == 40.0
+    assert result.lts_overlap == 20.0
+
+
+def test_update_infrasound_config_lts_window_respects_config(monkeypatch):
+    """A config-supplied lts_window_length/lts_overlap is preserved over env/defaults."""
+    import pandas as pd
+
+    monkeypatch.setenv("LTS_WINDOW_LENGTH", "40")
+    monkeypatch.setenv("LTS_OVERLAP", "20")
+    monkeypatch.setattr(setup_utils, "load_volcano_list", lambda: pd.DataFrame())
+
+    config = SimpleNamespace(
+        alarm_type="Infrasound",
+        lts_window_length=25,
+        lts_overlap=10,
+        targets=[{"name": "Custom", "lat": 1.0, "lon": 2.0}],
+    )
+
+    result = setup_utils.update_infrasound_config(config)
+    assert result.lts_window_length == 25
+    assert result.lts_overlap == 10
 
 
 def test_update_infrasound_config_unknown_target_raises(monkeypatch):

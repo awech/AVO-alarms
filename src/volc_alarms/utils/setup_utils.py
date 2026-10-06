@@ -394,7 +394,7 @@ def load_config(config_name):
         if not hasattr(config, "duration") or config.duration is None:
             config.duration = float(os.environ.get("INFRASOUND_DURATION", "90"))
             
-    if config.alarm_type == "RSAM":  # noqa: SIM102
+    if config.alarm_type == "RSAM":
         if not hasattr(config, "duration") or config.duration is None:
             config.duration = float(os.environ.get("RSAM_DURATION", "300"))
 
@@ -410,14 +410,28 @@ def load_config(config_name):
 
 
 def update_infrasound_config(config):
-    """Enrich Infrasound targets with location and velocity defaults.
+    """Enrich Infrasound targets with location and plotting/velocity defaults.
 
     For each entry in ``config.targets`` (the canonical lowercase key), fill
     ``lat``/``lon`` from the Volcano_List row matching the target ``name`` when
-    either is absent, and default ``vmin``/``vmax``/``cmin`` from the
-    ``INFRASOUND_VMIN``/``INFRASOUND_VMAX``/``INFRASOUND_CMIN`` environment variables 
-    (0.28/0.45/0.6) when absent either at the entire config level or by individual target.
-    Pre-existing ``lat``/``lon``/``vmin``/``vmax`` values are preserved.
+    either is absent.
+
+    The parameters ``vmin``, ``vmax``, ``cmin`` and ``plot_duration`` are
+    resolved per target using the following precedence (highest first):
+
+    1. A value set on the individual target.
+    2. A config-wide value set at the top level of the config
+       (``config.vmin``, ``config.vmax``, ``config.cmin``,
+       ``config.plot_duration``).
+    3. The corresponding environment variable
+       (``INFRASOUND_VMIN``/``INFRASOUND_VMAX``/``INFRASOUND_CMIN``/
+       ``INFRASOUND_PLOT_DURATION``).
+    4. A hard-coded default (0.28/0.45/0.6/3600).
+
+    Config-wide and per-target ``plot_duration`` values may be arithmetic
+    strings (e.g. ``"10 * 60"``); they are evaluated via
+    :func:`_evaluate_math_expr` and coerced to ``float``. Pre-existing
+    ``lat``/``lon`` values are preserved.
 
     Parameters
     ----------
@@ -436,18 +450,12 @@ def update_infrasound_config(config):
         found in the Volcano_List (Req 14.4).
     """
 
-    df = load_volcano_list()
-    VMIN = float(os.environ.get("INFRASOUND_VMIN", "0.28"))
-    VMAX = float(os.environ.get("INFRASOUND_VMAX", "0.45"))
-    CMIN = float(os.environ.get("INFRASOUND_CMIN", "0.6"))
-    PLOT_DURATION = float(os.environ.get("INFRASOUND_PLOT_DURATION", "3600"))
-
     # --- Infrasound defaults ---
     if not hasattr(config, "min_channels"):
         config.min_channels = int(os.environ.get("INFRASOUND_MIN_CHANNELS", "3"))
-    if not hasattr(config, "window_length"):
+    if not hasattr(config, "lts_window_length") or config.lts_window_length is None:
         config.lts_window_length = float(os.environ.get("LTS_WINDOW_LENGTH", "30"))
-    if not hasattr(config, "overlap"):
+    if not hasattr(config, "lts_overlap") or config.lts_overlap is None:
         config.lts_overlap = float(os.environ.get("LTS_OVERLAP", "15"))
     if not hasattr(config, "lts_alpha"):
         config.lts_alpha = float(os.environ.get("LTS_ALPHA", "0.5"))
@@ -456,15 +464,23 @@ def update_infrasound_config(config):
     if not hasattr(config, "max_gap_fraction"):
         config.max_gap_fraction = float(os.environ.get("MAX_GAP_FRACTION", "0.5"))
 
-    # TODO: fix min_cc --> cmin mixup in .yml files
-    # TODO: fix cc_shift_length mixup in .yml files
-    if hasattr(config, "cmin"):
-        CMIN = config.cmin
+    # --- defaults that can be modified target-by-target ---
+    VMIN = float(os.environ.get("INFRASOUND_VMIN", "0.28"))
+    VMAX = float(os.environ.get("INFRASOUND_VMAX", "0.45"))
+    CMIN = float(os.environ.get("INFRASOUND_CMIN", "0.6"))
+    PLOT_DURATION = float(os.environ.get("INFRASOUND_PLOT_DURATION", "3600"))
+
     if hasattr(config, "vmin"):
         VMIN = config.vmin
     if hasattr(config, "vmax"):
         VMAX = config.vmax
+    if hasattr(config, "cmin"):
+        CMIN = config.cmin
+    if hasattr(config, "plot_duration"):
+        PLOT_DURATION = _evaluate_math_expr(config.plot_duration)
 
+    # --- update configs for each target ---
+    df = load_volcano_list()
     for i, target in enumerate(config.targets):
         if "lat" not in target or "lon" not in target:
             v_name = target["name"]

@@ -1,0 +1,90 @@
+{
+  "call_order": [
+    "download_waveforms",
+    "can_send",
+    "make_figure",
+    "post_mattermost",
+    "send_alert",
+    "record_send",
+    "os.remove",
+    "icinga",
+    "can_send",
+    "make_figure",
+    "post_mattermost",
+    "send_alert",
+    "record_send",
+    "os.remove",
+    "icinga",
+    "icinga"
+  ],
+  "detection_state": "CRITICAL",
+  "icinga": [
+    {
+      "send": true,
+      "state": "CRITICAL",
+      "state_message": "2026-05-14 22:56 (UTC) KENI Infrasound - Fourpeaked detection! 0.6 Pa peak pressure"
+    },
+    {
+      "send": true,
+      "state": "CRITICAL",
+      "state_message": "2026-05-14 22:56 (UTC) KENI Infrasound - Fourpeaked detection! 0.6 Pa peak pressure - Katmai detection! 0.6 Pa peak pressure"
+    },
+    {
+      "send": true,
+      "state": "CRITICAL",
+      "state_message": "2026-05-14 22:56 (UTC) KENI Infrasound - Fourpeaked detection! 0.6 Pa peak pressure - Katmai detection! 0.6 Pa peak pressure"
+    }
+  ],
+  "os_remove": [
+    "<FIGURE>",
+    "<FIGURE>"
+  ],
+  "post_mattermost": [
+    {
+      "body": "Start: 2026-05-14 22:54:30 (UTC)\nEnd: 2026-05-14 22:56:00 (UTC)\n\nStart: 2026-05-14 14:54:30 (AKDT)\nEnd: 2026-05-14 14:56:00 (AKDT)\n\nAzimuth: +220.1 degrees\nd_Azimuth: +3.8 degrees\nVelocity: 360 m/s\nMax Pressure: 0.6 Pa\nTravel Time: 12m 44s",
+      "channel_ids": null,
+      "send": true,
+      "subject": "Fourpeaked Airwave Detection",
+      "test": false,
+      "volcano": null
+    },
+    {
+      "body": "Start: 2026-05-14 22:54:30 (UTC)\nEnd: 2026-05-14 22:56:00 (UTC)\n\nStart: 2026-05-14 14:54:30 (AKDT)\nEnd: 2026-05-14 14:56:00 (AKDT)\n\nAzimuth: +220.1 degrees\nd_Azimuth: -1.5 degrees\nVelocity: 360 m/s\nMax Pressure: 0.6 Pa\nTravel Time: 17m 9s",
+      "channel_ids": null,
+      "send": true,
+      "subject": "Katmai Airwave Detection",
+      "test": false,
+      "volcano": null
+    }
+  ],
+  "record_send": [
+    {
+      "alarm_id": "KENI Infrasound",
+      "event_id": null,
+      "process_time": "2026-05-14T22:56:00",
+      "test": false,
+      "volcano": "Fourpeaked"
+    },
+    {
+      "alarm_id": "KENI Infrasound",
+      "event_id": null,
+      "process_time": "2026-05-14T22:56:00",
+      "test": false,
+      "volcano": "Katmai"
+    }
+  ],
+  "send_alert": [
+    {
+      "alarm_name": "KENI Infrasound",
+      "body": "Start: 2026-05-14 22:54:30 (UTC)\nEnd: 2026-05-14 22:56:00 (UTC)\n\nStart: 2026-05-14 14:54:30 (AKDT)\nEnd: 2026-05-14 14:56:00 (AKDT)\n\nAzimuth: +220.1 degrees\nd_Azimuth: +3.8 degrees\nVelocity: 360 m/s\nMax Pressure: 0.6 Pa\nTravel Time: 12m 44s\n\nmattermost://test-server/post-id",
+      "subject": "Fourpeaked Airwave Detection",
+      "test": false
+    },
+    {
+      "alarm_name": "KENI Infrasound",
+      "body": "Start: 2026-05-14 22:54:30 (UTC)\nEnd: 2026-05-14 22:56:00 (UTC)\n\nStart: 2026-05-14 14:54:30 (AKDT)\nEnd: 2026-05-14 14:56:00 (AKDT)\n\nAzimuth: +220.1 degrees\nd_Azimuth: -1.5 degrees\nVelocity: 360 m/s\nMax Pressure: 0.6 Pa\nTravel Time: 17m 9s\n\nmattermost://test-server/post-id",
+      "subject": "Katmai Airwave Detection",
+      "test": false
+    }
+  ]
+}

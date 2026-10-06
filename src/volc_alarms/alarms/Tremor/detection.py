@@ -1,17 +1,41 @@
+"""
+Detection routines for the Tremor alarm.
+
+Builds the cross-correlation search grid, preprocesses waveform data into
+band-passed and high-passed envelopes, runs the ``enveloc`` cross-correlation
+locator (reusing or regenerating the travel-time grid as needed), applies QC
+and scatter filters to the resulting locations, and formats the Icinga status
+text summarizing detected seismicity.
+"""
+
 import numpy as np
 import pandas as pd
 from obspy import UTCDateTime
 from obspy.signal.filter import envelope
 
-from volc_alarms.utils.setup_utils import TMP_DIR, get_logger
+from volc_alarms.utils.setup_utils import get_logger
 
 logger = get_logger(__name__)
 
 
 def build_grid(config):
-    """Reconstruct the search-grid arrays from the scalar bounds/steps in
-    ``config.grid``. Reproduces the arrays the old ``.py`` ``grid`` definition
-    produced via ``arange(min, max + 0.001, step)`` for each dimension."""
+    """Reconstruct the search-grid arrays from scalar bounds and steps.
+
+    Reproduces the arrays the old ``.py`` ``grid`` definition produced via
+    ``arange(min, max + 0.001, step)`` for each dimension.
+
+    Parameters
+    ----------
+    config : object
+        Alarm configuration whose ``grid`` attribute holds the ``lon``,
+        ``lat``, and ``depth`` min/max/step scalars.
+
+    Returns
+    -------
+    dict
+        Grid axes with keys ``"lons"``, ``"lats"``, and ``"deps"``, each a
+        1-D :class:`numpy.ndarray`.
+    """
     g = config.grid
     return {
         "lons": np.arange(g["lon_min"], g["lon_max"] + 0.001, g["lon_step"]),
@@ -21,23 +45,54 @@ def build_grid(config):
 
 
 def test_traveltime(st, config, grid):
+    """Check whether a cached travel-time grid matches the current setup.
+
+    Compares the stored grid axes against the freshly built ones (with a
+    tolerance, since both come from ``np.arange`` and can differ by ~1e-15
+    across platforms) and confirms every trace has stored travel times.
+
+    Parameters
+    ----------
+    st : obspy.Stream
+        Stream whose trace ids must be present in the cached grid.
+    config : object
+        Alarm configuration providing ``grid_file``.
+    grid : dict
+        Freshly built grid axes (see :func:`build_grid`).
+
+    Returns
+    -------
+    bool
+        True if the cached travel-time grid can be reused, False if it is
+        missing, its axes differ, or a trace is absent (travel times must be
+        recomputed).
+    """
     if not config.grid_file.exists():
         logger.warning(f"{config.grid_file} missing")
         return False
 
     npzfile = np.load(config.grid_file)
     new_grd = grid
-    if not np.array_equal(new_grd["lats"], npzfile["lats"]):
+    # Compare grid axes with allclose (not array_equal): both the stored grid and
+    # the freshly-built one come from np.arange, which can differ by ~1e-15 across
+    # numpy/platform versions. An exact comparison would treat those identical
+    # grids as mismatched and needlessly recompute the whole travel-time grid on
+    # every run. Genuine grid-definition changes differ far above this tolerance.
+    def _axes_differ(a, b):
+        """Return True if two grid axes differ in shape or beyond tolerance."""
+        return a.shape != b.shape or not np.allclose(a, b)
+
+    if _axes_differ(new_grd["lats"], npzfile["lats"]):
         logger.warning("Latitude grid nodes do not match. Calculate new travel times")
         return False
-    elif not np.array_equal(new_grd["lons"], npzfile["lons"]):
+    elif _axes_differ(new_grd["lons"], npzfile["lons"]):
         logger.warning("Longitude grid nodes do not match. Calculate new travel times")
         return False
-    elif not np.array_equal(new_grd["deps"], npzfile["deps"]):
+    elif _axes_differ(new_grd["deps"], npzfile["deps"]):
         logger.warning("Depth grid nodes do not match. Calculate new travel times")
         return False
     for tr in st:
-        if tr.id.replace(".", "_") not in npzfile.keys():
+        if tr.id.replace(".", "_") not in npzfile:
             logger.warning(f"No travel times for {tr.id}! Calculate new travel times")
             return False
 
@@ -45,10 +100,35 @@ def test_traveltime(st, config, grid):
 
 
 def run_enveloc(st, band_env, high_env, config):
+    """Locate tremor via envelope cross-correlation.
+
+    Builds (or reuses) the travel-time grid, runs the ``enveloc`` cross-
+    correlation locator over sliding windows, then removes high-scatter and
+    high-pass-only detections.
+
+    Parameters
+    ----------
+    st : obspy.Stream
+        Raw stream, used to decide whether the cached travel-time grid applies.
+    band_env : obspy.Stream
+        Band-passed envelope stream the locator correlates.
+    high_env : obspy.Stream
+        High-passed envelope stream used as the high-pass check.
+    config : object
+        Alarm configuration (bootstrap, Cmin/Cmax, phase list, window length,
+        scatter, and grid settings).
+
+    Returns
+    -------
+    enveloc location object
+        The located events with high-scatter and high-pass-only detections
+        removed.
+    """
     from enveloc.core import XCOR
 
     grid = build_grid(config)
-    grid_file = TMP_DIR / config.grid_file
+    # Use config.grid_file directly (matches how test_traveltime locates it).
+    grid_file = config.grid_file
     if test_traveltime(st, config, grid):
         XC = XCOR(
             band_env,
@@ -87,6 +167,18 @@ def run_enveloc(st, band_env, high_env, config):
 
 
 def remove_hp_detects(loc):
+    """Drop high-pass-only detections from a location set.
+
+    Parameters
+    ----------
+    loc : enveloc location object
+        Located events, each exposing a ``highpass_loc`` flag.
+
+    Returns
+    -------
+    enveloc location object
+        A copy with the high-pass-flagged events removed.
+    """
     A = loc.copy()
     for location in A.events:
         if location.highpass_loc:
@@ -95,6 +187,33 @@ def remove_hp_detects(loc):
 
 
 def preprocess(st, config, t1, t2):
+    """Prepare waveform data for the envelope locator.
+
+    Detrends and tapers the stream, builds band-passed and high-passed copies,
+    trims/pads them to the window, and converts them to resampled, low-passed
+    envelopes.
+
+    Parameters
+    ----------
+    st : obspy.Stream
+        Raw input stream.
+    config : object
+        Alarm configuration (``taper``, filter corners ``f1``/``f2``,
+        ``highpass``, ``lowpass``).
+    t1 : obspy.UTCDateTime
+        Start time of the processing window.
+    t2 : obspy.UTCDateTime
+        End time of the processing window.
+
+    Returns
+    -------
+    band_env : obspy.Stream
+        Band-passed envelope stream.
+    high_env : obspy.Stream
+        High-passed envelope stream.
+    band : obspy.Stream
+        Band-passed (non-envelope) stream, used for RSAM and QC.
+    """
     st.detrend("demean")
     st.taper(max_percentage=None, max_length=config.taper)
 
@@ -116,6 +235,22 @@ def preprocess(st, config, t1, t2):
 
 
 def qc_checks(st):
+    """Drop gappy traces and count distinct station latitudes.
+
+    Removes any trace that is more than 3% zeros (a proxy for missing data),
+    then counts the unique station latitudes remaining, used as the station
+    count for the minimum-station gate.
+
+    Parameters
+    ----------
+    st : obspy.Stream
+        Stream to QC in place; traces carry ``stats.coordinates.latitude``.
+
+    Returns
+    -------
+    int
+        Number of unique station latitudes among the surviving traces.
+    """
     for tr in st:
         num_zeros = len(np.where(tr.data == 0)[0])
         if num_zeros / float(tr.stats.npts) > 0.03:
@@ -128,6 +263,28 @@ def qc_checks(st):
 
 
 def make_env(st, config, t1, t2):
+    """Convert a stream into a resampled, low-passed envelope.
+
+    Resamples each trace to 25 Hz (if above 21 Hz), pads to even length,
+    computes the analytic-signal envelope, resamples to 5 Hz, applies a
+    low-pass filter, and trims to the taper-free interior of the window.
+
+    Parameters
+    ----------
+    st : obspy.Stream
+        Input stream (modified in place).
+    config : object
+        Alarm configuration (``lowpass`` corner, ``taper``).
+    t1 : obspy.UTCDateTime
+        Window start time.
+    t2 : obspy.UTCDateTime
+        Window end time.
+
+    Returns
+    -------
+    obspy.Stream
+        The envelope stream, trimmed to ``[t1 + taper, t2 - taper + 1]``.
+    """
     new_st = st.copy()
     for tr in new_st:
         if tr.stats.sampling_rate > 21:
@@ -150,7 +307,30 @@ def make_env(st, config, t1, t2):
 
 
 def create_icinga_test(CAT, T0, duration, rsam, config):
+    """Build the Icinga status text summarizing recent seismicity.
 
+    Parameters
+    ----------
+    CAT : pandas.DataFrame
+        Catalog of recent tremor/swarm events with a ``time`` column.
+    T0 : obspy.UTCDateTime
+        End time of the processing window.
+    duration : float
+        Total detected seismicity duration in minutes over the lookback window.
+    rsam : float
+        RSAM value at the configured test station.
+    config : object
+        Alarm configuration (``lookback_window``, ``window_length``,
+        ``rsam_station``, ``rsam_threshold``).
+
+    Returns
+    -------
+    duration_text : str
+        Sentence describing how much seismicity was detected.
+    recency_text : str
+        Sentence giving the most-recent detection time and the station RSAM
+        value against its threshold.
+    """
     duration_text = f"Seismicity detected in {round(duration, 1):g} of past {config.lookback_window:g} minutes."
     if duration > 0:
         last = UTCDateTime(pd.Timestamp(CAT.time.values[-1]).to_pydatetime()) + config.window_length

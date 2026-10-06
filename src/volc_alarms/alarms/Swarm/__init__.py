@@ -1,3 +1,17 @@
+"""
+Earthquake swarm-detection alarm.
+
+Downloads recent hypocenters, associates them with the nearest volcano, and
+clusters them in space and time (DBSCAN) to identify swarms. Distinguishes
+brand-new swarms from continuations of ongoing swarms, de-duplicates
+overlapping clusters, and issues a CRITICAL alert with a map and
+magnitude-vs-time figure for each new swarm. Processed events are recorded to
+the swarm catalog table.
+
+The package exposes :func:`run_alarm`, the entry point invoked by
+``run-alarm`` for configs whose ``alarm_type`` is ``Swarm``.
+"""
+
 import numpy as np
 import pandas as pd
 
@@ -13,7 +27,39 @@ logger = get_logger(__name__)
 
 
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force_flag=False):
+    """Run the earthquake swarm alarm for one time window.
 
+    Downloads hypocenters for the trailing ``config.DURATION`` window,
+    discards regional events, and separates new events from those already in
+    the swarm catalog. Clusters the new events into swarms, checks whether any
+    extend an ongoing swarm, and for each new swarm sends a CRITICAL alert.
+    New events are recorded to the swarm catalog and an Icinga heartbeat is
+    sent.
+
+    Parameters
+    ----------
+    config : object
+        Swarm alarm configuration (``swarm_parameters``, ``maxdep``,
+        ``volcano_distance``, etc.).
+    T0 : obspy.UTCDateTime
+        End time of the processing window.
+    test_flag : bool, optional
+        Run in test mode (test tables/channels, TEST watermark), by default
+        False.
+    mm_flag : bool, optional
+        Whether to post to Mattermost, by default True.
+    icinga_flag : bool, optional
+        Whether to send the Icinga heartbeat, by default True.
+    force_flag : bool, optional
+        Present for signature uniformity; not used by this alarm, by default
+        False.
+
+    Returns
+    -------
+    None
+        Returns early (after an Icinga heartbeat) on download error or when no
+        new swarm activity is found; otherwise returns after recording events.
+    """
     # Download the event data
     T0_str = T0.strftime("%Y-%m-%d %H:%M")
 
@@ -103,6 +149,22 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
             logger.info(message)
 
             def _swarm_figure(swarm=swarm, volcano=volcano):
+                """Build the swarm figure and rename it with swarm metadata.
+
+                Parameters
+                ----------
+                swarm : pandas.DataFrame
+                    Events in this swarm (bound per iteration via default arg).
+                volcano : str
+                    Volcano name used in the output filename (bound per
+                    iteration via default arg).
+
+                Returns
+                -------
+                pathlib.Path
+                    Path to the saved figure, renamed to
+                    ``<volcano>_M<t1>-<t2>.png``.
+                """
                 filename = make_figure(swarm, T0, config, test=test_flag)
                 swarm_t1 = swarm.time.min().strftime("%Y%m%d_%H%M")
                 swarm_t2 = swarm.time.max().strftime("%Y%m%d_%H%M")

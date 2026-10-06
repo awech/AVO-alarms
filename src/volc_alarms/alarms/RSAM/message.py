@@ -1,3 +1,11 @@
+"""
+Message construction for the RSAM alarm.
+
+Formats the subject line and body text for an RSAM alert, listing each
+station's RSAM value against its threshold (flagging those over threshold and
+including reduced displacement when available) plus the arrestor station.
+"""
+
 import numpy as np
 
 from volc_alarms.utils import messaging
@@ -51,6 +59,6 @@ def create_message(t1, t2, stations, rsam, levels, DR, alarm_name):
     sta_message = "".join(
         [sta_message, f"\nArrestor: {stations[-1]} {rsam[-1]:.0f}/{levels[-1]:.0f}"]
     )
-    message = "".join([message, sta_message])
+    message = f"{message}{sta_message}"
 
     return subject, message

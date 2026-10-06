@@ -1,3 +1,16 @@
+"""
+Volcanic lightning-detection alarm.
+
+Pulls recent lightning strokes from the Volcview API, associates each with the
+nearest volcano, and separates new strokes from those already processed.
+Strokes are grouped by volcano and classified as proximal (inside the inner
+ring) or distal; a proximal first-detection escalates to CRITICAL and issues
+an alert with a map figure and message.
+
+The package exposes :func:`run_alarm`, the entry point invoked by
+``run-alarm`` for configs whose ``alarm_type`` is ``Lightning``.
+"""
+
 import warnings
 
 import pandas as pd
@@ -15,6 +28,39 @@ logger = get_logger(__name__)
 
 
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force_flag=False):
+    """Run the volcanic lightning alarm for one time window.
+
+    Downloads recent strokes, trims them to the trailing ``config.duration``
+    window, associates each with the nearest volcano, and filters out
+    already-processed strokes. For each volcano with new strokes, classifies
+    the detection as proximal or distal; a proximal first detection escalates
+    to CRITICAL and sends an alert. An Icinga heartbeat is always sent.
+
+    Parameters
+    ----------
+    config : object
+        Lightning alarm configuration (ring distances ``dist1``/``dist2``,
+        ``duration``, etc.).
+    T0 : obspy.UTCDateTime
+        End time of the processing window.
+    test_flag : bool, optional
+        Run in test mode (test tables/channels, TEST watermark), by default
+        False.
+    mm_flag : bool, optional
+        Whether to post to Mattermost, by default True.
+    icinga_flag : bool, optional
+        Whether to send the Icinga heartbeat, by default True.
+    force_flag : bool, optional
+        Force a detection by pointing at the global data source and using the
+        API-provided volcano association, by default False.
+
+    Returns
+    -------
+    None
+        Returns early (after an Icinga heartbeat) on download error or when no
+        new strokes are found; otherwise returns after processing all
+        volcanoes.
+    """
 
     ### get alerts from volcview api
     strokes_df = download_lightning(force=force_flag)
@@ -98,8 +144,12 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
                     T0,
                     state,
                     state_message,
-                    figure_factory=lambda: plot_fig(v_strokes, config, T0, test=test_flag),
-                    message_factory=lambda: create_message(new_v_strokes, v_strokes),
+                    figure_factory=lambda v_strokes=v_strokes: plot_fig(
+                        v_strokes, config, T0, test=test_flag
+                    ),
+                    message_factory=lambda new_v_strokes=new_v_strokes, v_strokes=v_strokes: create_message(
+                        new_v_strokes, v_strokes
+                    ),
                     can_send_kwargs={"volcano": v_name},
                     record_kwargs={
                         "volcano": v_name,

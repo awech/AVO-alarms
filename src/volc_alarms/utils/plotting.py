@@ -1,3 +1,18 @@
+"""
+Shared mapping and figure-building utilities for the alarms package.
+
+Provides the common plotting primitives reused across alarm figures: Cartopy
+basemaps (hillshade, land, coastline) with flexible projections, map
+decorations (volcano markers, scale bars, inset boxes, gridlines/ticks),
+time-axis formatting, colormaps, spectrogram panels, and helpers to watermark
+and save figures to the temporary figure directory.
+
+Matplotlib runs with the non-interactive ``Agg`` backend. The output figure
+directory is read from the ``TMP_FIGURE_DIR`` environment variable and the
+volcano table is loaded via
+:func:`volc_alarms.utils.setup_utils.load_volcano_list`.
+"""
+
 import importlib
 import os
 import time
@@ -24,19 +39,30 @@ logger = get_logger(__name__)
 m.use("Agg")
 
 class ShadedReliefESRI(GoogleTiles):
-    """
-    create a hillshade from esri
+    """Google tile source that serves ESRI World Shaded Relief imagery.
 
-    Example:
-    ```python
-    fig,ax = plt.subplots(subplot_kw={'projection': ccrs.PlateCarree()})
+    Examples
+    --------
+    Add the shaded-relief imagery to a Cartopy axis::
 
-    ax.add_image(ShadedReliefEsri(), zoom_level, alpha)
-    ax.set_extent(extent)
-    ```
+        fig, ax = plt.subplots(subplot_kw={"projection": ccrs.PlateCarree()})
+        ax.add_image(ShadedReliefESRI(), zoom_level, alpha)
+        ax.set_extent(extent)
     """
 
     def _image_url(self, tile):
+        """Return the ESRI World Shaded Relief tile URL for a tile.
+
+        Parameters
+        ----------
+        tile : tuple of int
+            The ``(x, y, z)`` tile coordinates requested by Cartopy.
+
+        Returns
+        -------
+        str
+            URL of the corresponding shaded-relief map tile.
+        """
         x, y, z = tile
         url = (
             "https://server.arcgisonline.com/ArcGIS/rest/services/"
@@ -80,29 +106,33 @@ def get_extent(lat0, lon0, xdist=25, ydist=25):
 
 
 def make_path(extent):
-    """
-    make a matplotlib Path based on a list formatted for
-    a matplotlib geoAxes.set_extent(). Useful for clipping axes to
-    lat, lon boundaries when they are not rectangular in 2D space.
-    DOES NOT WORK WITH MERCATOR PROJECTION - use with projections that make non
-    rectangular lat,lon boxes in 2D space e.g., Orthographic, AlbersEqualArea
+    """Build a matplotlib Path tracing a lat/lon extent.
 
-    Example:
-    ```python
-    fig,ax = plt.subplots(subplot_kw = {'projection': ccrs.Orthographic})
-    extent = [longitude_min, longitude_max, latitude_min, latitude_max]
-    ax.set_boundary(make_path(extent), transform=ccrs.Geodetic())
+    Useful for clipping axes to lat/lon boundaries when they are not
+    rectangular in 2D space. Does not work with the Mercator projection; use
+    with projections that make non-rectangular lat/lon boxes in 2D space,
+    e.g. Orthographic or AlbersEqualArea.
 
     Parameters
     ----------
     extent : list
-        list of lat lon values formatted for matplotlib.geoAxes.set_extent() -
-        [longitude_min, longitude_max, latitude_min, latitude_max]
+        Bounds formatted for ``matplotlib.geoAxes.set_extent()`` as
+        ``[longitude_min, longitude_max, latitude_min, latitude_max]``.
 
-    Return
-    matplotlib Path object representing the desired extent
-    ```
+    Returns
+    -------
+    matplotlib.path.Path
+        Path object tracing the requested extent.
+
+    Examples
+    --------
+    Clip an Orthographic axis to a lat/lon extent::
+
+        fig, ax = plt.subplots(subplot_kw={"projection": ccrs.Orthographic()})
+        extent = [lon_min, lon_max, lat_min, lat_max]
+        ax.set_boundary(make_path(extent), transform=ccrs.Geodetic())
     """
+    
     n = 20
     aoi = mpath(
         list(zip(np.linspace(extent[1], extent[0], n), np.full(n, extent[3])))
@@ -126,52 +156,22 @@ def make_map(
     water_color="#A8C1D9",
     extent=None
 ):
-    """
-    make the basemap for all AVO alarms that require maps.
-    This function is incredibly flexible to allow for use in both main
-    and inset maps.
+    """Build the cartopy basemap used by all alarms that require maps.
 
-    Example:
-    ```python
-    # A basic alarms template with a main map and inset axis:
-    fig, ax = plt.subplots(figsize=(6, 6))
-
-
-    # NORMAL MAP uses the default xdist of 25
-    ax = make_map(
-        volc_lat,
-        volc_lon,
-        ax=ax,
-        basemap="hillshade",
-    )
-    ax.set_title("Alarms general template")
-    # INSET MAP
-    ax_inset = fig.add_axes([0.75, 0.75, 0.2, 0.2])
-    ax_inset = make_map(
-        volc_lat,
-        volc_lon,
-        xdist=500,
-        ydist=300,
-        ax=ax_inset,
-        basemap="land",
-        projection="orthographic",
-    )
-    ```
+    This function is flexible to allow use in both main and inset maps.
 
     Parameters
     ----------
+    ax : matplotlib.Axes
+        the matplotlib axis to create the map on
     volc_lat : float
         volcano or central point latitude
     volc_lon : float
         volcano or central point longitude
-    ax : matplotlib.Axes
-        the matplotlib axis to create the map on
     xdist : float, optional
         E-W distance from the central point in km, by default 25.
     ydist : float, optional
-        N-S distance from the central point in km, by default None.
-        If None, then ydist = xdist / 1.5. This creates relatively
-        square plots at AK latitudes
+        N-S distance from the central point in km, by default 25.
     basemap : str, optional
         what type of basemap to use. Options are:
         'hillshade' - uses ShadedReliefEsri()
@@ -191,8 +191,32 @@ def make_map(
 
     Returns
     -------
-    ax
-        matplotlib.geoAxes
+    ax : cartopy.mpl.geoaxes.GeoAxes
+        The geo-axis with the basemap drawn.
+    extent : list of float
+        The map bounds ``[lonmin, lonmax, latmin, latmax]`` used.
+
+    Examples
+    --------
+    A basic alarms template with a main map and an inset axis::
+
+        fig, ax = plt.subplots(figsize=(6, 6))
+
+        # NORMAL MAP uses the default xdist of 25
+        ax, extent = make_map(ax, volc_lat, volc_lon, basemap="hillshade")
+        ax.set_title("Alarms general template")
+
+        # INSET MAP
+        ax_inset = fig.add_axes([0.75, 0.75, 0.2, 0.2])
+        ax_inset, _ = make_map(
+            ax_inset,
+            volc_lat,
+            volc_lon,
+            xdist=500,
+            ydist=300,
+            basemap="land",
+            projection="orthographic",
+        )
     """
 
     # type checking the ax argument
@@ -292,8 +316,43 @@ def make_map(
     return ax, extent
 
 
-def add_volcanoes_to_map(ax, extent, config, c1="forestgreen", c2="darkseagreen", s1=25, s2=20, ec1="k", ec2="k", **kwargs):
+def add_volcanoes_to_map(
+    ax,
+    extent,
+    config,
+    c1="forestgreen",
+    c2="darkseagreen",
+    s1=25,
+    s2=20,
+    ec1="k",
+    ec2="k",
+    **kwargs,
+):
+    """Plot volcano markers that fall within a map extent.
 
+    Volcanoes inside ``extent`` are drawn as triangles, sorted by distance to
+    the extent center so the closest one can be highlighted with a distinct
+    color, size, and edgecolor (c1, s1, ec1).
+
+    Parameters
+    ----------
+    ax : cartopy.mpl.geoaxes.GeoAxes
+        Map axis to draw on.
+    extent : list of float
+        Map bounds ``[lonmin, lonmax, latmin, latmax]``.
+    config : object
+        Alarm configuration (accepted for a uniform call signature across map
+        helpers).
+    c1, c2 : str, optional
+        Face colors for the nearest volcano (``c1``) and all others (``c2``).
+    s1, s2 : int, optional
+        Marker sizes for the nearest volcano (``s1``) and all others (``s2``).
+    ec1, ec2 : str, optional
+        Edge colors for the nearest volcano (``ec1``) and all others (``ec2``).
+    **kwargs
+        Additional keyword arguments forwarded to ``ax.scatter``.
+    """
+    
     volcs = load_volcano_list()
     volcs = volcs[
         (volcs.Latitude >= extent[2]) & (volcs.Latitude <= extent[3]) & (volcs.Longitude >= extent[0]) & (volcs.Longitude <= extent[1])
@@ -316,10 +375,29 @@ def add_volcanoes_to_map(ax, extent, config, c1="forestgreen", c2="darkseagreen"
 
 
 def add_scale_bar(ax, length_km, location=(0.1, 0.05), txt_yoffset=0.02, extent=None):
+    """Draw a horizontal scale bar with a kilometer label on a map.
 
+    Parameters
+    ----------
+    ax : cartopy.mpl.geoaxes.GeoAxes
+        Map axis to draw on.
+    length_km : float
+        Length of the scale bar in kilometers.
+    location : tuple of float, optional
+        Position of the bar's left end as fractions ``(x, y)`` of the extent,
+        by default ``(0.1, 0.05)``.
+    txt_yoffset : float, optional
+        Vertical offset (in degrees) of the label above the bar, by default
+        0.02.
+    extent : list of float, optional
+        Map bounds ``[lonmin, lonmax, latmin, latmax]``. If omitted, the
+        current axis extent is used. Provided as a workaround for a
+        dateline-spanning extent bug.
+    """
+    
     # 1. Get current map extent to find positioning
     # TODO fix bug when lon0=-180, lon1=180 when spanning dateline
-    # added `extent` argument as quick bandaid, but should be implemented wholesale
+    # (added `extent` argument as quick bandaid, but should be implemented wholesale)
     if not extent:
         lon0, lon1, lat0, lat1 = ax.get_extent(ccrs.PlateCarree())
     else:
@@ -342,6 +420,24 @@ def add_scale_bar(ax, length_km, location=(0.1, 0.05), txt_yoffset=0.02, extent=
 
 
 def add_inset_polygon(ax, extent, fc="none", ec="red", lw=0.35, **kwargs):
+    """Draw a rectangle outlining an extent, e.g. on an inset map.
+
+    Parameters
+    ----------
+    ax : cartopy.mpl.geoaxes.GeoAxes
+        Map axis to draw on (typically the inset/overview axis).
+    extent : list of float
+        Bounds of the box ``[lonmin, lonmax, latmin, latmax]``.
+    fc : str, optional
+        Fill color, by default ``"none"``.
+    ec : str, optional
+        Edge color, by default ``"red"``.
+    lw : float, optional
+        Edge line width, by default 0.35.
+    **kwargs
+        Additional keyword arguments forwarded to ``ax.add_geometries``.
+    """
+    
     extent_new = [sgeom.box(extent[0], extent[2], extent[1], extent[3])]
     ax.add_geometries(
         extent_new,
@@ -354,6 +450,19 @@ def add_inset_polygon(ax, extent, fc="none", ec="red", lw=0.35, **kwargs):
 
 
 def default_grid_params(**kwargs):
+    """Return default gridline styling for Cartopy maps.
+
+    Parameters
+    ----------
+    **kwargs
+        Overrides merged on top of the defaults.
+
+    Returns
+    -------
+    dict
+        Keyword arguments suitable for passing to ``ax.gridlines``.
+    """
+
     grid_kwargs = {
         "ls": "--",
         "color": "gray",
@@ -367,35 +476,56 @@ def default_grid_params(**kwargs):
     return grid_kwargs
 
 
-def map_ticks(ax, extent, nticks_x=2, nticks_y=2, grid_kwargs=None, lon_fmt_kwargs=None, lat_fmt_kwargs=None, y_rotate=None, ticks_right=True):
-    """Adds ticks and/or grid to a cartopy map axis at specified locations.
+def map_ticks(
+    ax,
+    extent,
+    nticks_x=2,
+    nticks_y=2,
+    grid_kwargs=None,
+    lon_fmt_kwargs=None,
+    lat_fmt_kwargs=None,
+    y_rotate=None,
+    ticks_right=True,
+):
+    """Add ticks and/or gridlines to a Cartopy map axis.
+
+    Tick/gridline locations are computed by evenly spacing ``nticks_x``
+    longitudes and ``nticks_y`` latitudes across ``extent`` (interior points
+    only; the extent edges are excluded). Longitudes below ``-180`` are
+    wrapped by adding 360. When ``grid_kwargs`` is provided, gridlines are
+    drawn via ``ax.gridlines``; otherwise fixed ticks are set on the axes.
 
     Parameters
     ----------
-    ax : cartopy axis
-        
-    xlocs : list or numpy array
-        longitudes of grids and/or xticks
-    ylocs : list or numpy array
-        latitudes of grids and/or xticks
-    grid_kwargs : dict, optional
-        additional arguments for cartopy's ax.gridlines(), by default None
-        https://matplotlib.org/stable/api/_as_gen/matplotlib.pyplot.grid.html
+    ax : cartopy.mpl.geoaxes.GeoAxes
+        The map axis to configure.
+    extent : list of float
+        Map bounds ``[lonmin, lonmax, latmin, latmax]`` used to compute the
+        tick locations.
+    nticks_x : int, optional
+        Number of longitude ticks/gridlines to place, by default 2.
+    nticks_y : int, optional
+        Number of latitude ticks/gridlines to place, by default 2.
+    grid_kwargs : dict or str, optional
+        Keyword arguments for ``ax.gridlines``. Pass the string ``"default"``
+        to use :func:`default_grid_params`. If ``None`` (the default), fixed
+        axis ticks are drawn instead of gridlines.
     lon_fmt_kwargs : dict, optional
-        arguments for cartopy's LongitudeFormatter(), by default None
-        https://scitools.org.uk/cartopy/docs/v0.22/reference/generated/cartopy.mpl.ticker.LongitudeFormatter.html
+        Arguments for Cartopy's ``LongitudeFormatter``. If ``None``, a 2-decimal
+        formatter with direction labels is used.
     lat_fmt_kwargs : dict, optional
-        arguments for cartopy's LatitudeFormatter(), by default None
-        https://scitools.org.uk/cartopy/docs/v0.22/reference/generated/cartopy.mpl.ticker.LatitudeFormatter.html
+        Arguments for Cartopy's ``LatitudeFormatter``. If ``None``, a 2-decimal
+        formatter with direction labels is used.
     y_rotate : float, optional
-        rotate y-ticklabels, by default None
+        Rotation (degrees) for the y-tick labels, by default None.
     ticks_right : bool, optional
-        move y-axis ticks to the right, by default True
+        If True, move the y-axis ticks to the right side, by default True.
 
     Returns
     -------
-    None, or:
-        Gridliner() instance if grid_kwargs are passed AND grid_kwargs["draw_labels"]=True
+    cartopy.mpl.gridliner.Gridliner or None
+        The ``Gridliner`` instance when gridlines are drawn (i.e. when
+        ``grid_kwargs`` is provided), otherwise ``None``.
     """
 
     if lon_fmt_kwargs is None:
@@ -447,11 +577,16 @@ def map_ticks(ax, extent, nticks_x=2, nticks_y=2, grid_kwargs=None, lon_fmt_kwar
 
 
 def add_watermark(fig, text):
-    """Add a watermark to a figure
+    """Add a large, semi-transparent diagonal watermark to a figure.
+    Note that this function can be slow if there are multiple subplots
+    as it tries to determine figure bounds to plot across subplots.
 
-    Args:
-        fig (matplotlib Figure object): the matplotlib figure to add the watermark to.
-        text (str): the text to add as a watermark
+    Parameters
+    ----------
+    fig : matplotlib.figure.Figure
+        The figure to annotate.
+    text : str
+        The watermark text (e.g. ``"TEST ALARM"``).
     """
     
     fig_width_pts = fig.get_figwidth() * fig.dpi
@@ -473,22 +608,31 @@ def add_watermark(fig, text):
 
 
 def save_file(fig, config, test=False, dpi=250):
-    """_summary_
+    """Save a figure as a JPG in the temporary figure directory.
+
+    The filename is built from the alarm name and the current UTC timestamp.
+    In test mode a ``"TEST ALARM"`` watermark is stamped on first. The figure
+    is closed after saving.
+    
+    Requires environmental variable `TMP_FIGURE_DIR`
 
     Parameters
     ----------
-    fig : _type_
-        _description_
-    config : _type_
-        _description_
+    fig : matplotlib.figure.Figure
+        The figure to save.
+    config : object
+        Alarm configuration exposing ``alarm_name``.
+    test : bool, optional
+        If True, add a TEST watermark before saving, by default False.
     dpi : int, optional
-        _description_, by default 250
+        Output resolution in dots per inch, by default 250.
 
     Returns
     -------
-    _type_
-        _description_
+    pathlib.Path
+        Path to the saved JPG file.
     """
+    
     tmp_fig_dir = Path(os.environ["TMP_FIGURE_DIR"])
 
     jpg_file = (
@@ -517,7 +661,7 @@ def time_ticks(
     ha="right",
     **kwargs,
 ):
-    """Set the xlims and xticks with a specific start and end dates.
+    """Set the xlims with specific start and end dates, and xticks at specific intervals.
     To be called after finished all plotting so the axes and ticks aren't subsequently modified.
 
     Parameters
@@ -583,11 +727,27 @@ def time_ticks(
 
 
 def default_colormap(infrasound=False):
+    """Return the default spectrogram colormap.
+
+    Prefers the perceptually uniform ``cmcrameri`` ``roma_r`` map when that
+    package is installed, otherwise falls back to ``jet``. For infrasound
+    channels, ``viridis`` is used instead.
+
+    Parameters
+    ----------
+    infrasound : bool, optional
+        If True, return the infrasound colormap, by default False.
+
+    Returns
+    -------
+    matplotlib.colors.LinearSegmentedColormap
+        The selected colormap.
+    """
     if importlib.util.find_spec("cmcrameri") is not None:
         from cmcrameri import cm
         colors = cm.roma_r(np.linspace(-1, 1.2, 256))
     else:
-        import matplotlib.cm as cm
+        from matplotlib import cm
         colors = cm.jet(np.linspace(-1, 1.2, 256))
     if infrasound:
         import matplotlib.cm as cm_infra
@@ -597,8 +757,23 @@ def default_colormap(infrasound=False):
     return color_map
 
 
-def plot_spectrogram(ax, tr, colormap=default_colormap()):
+def plot_spectrogram(ax, tr, colormap=None):
+    """Plot a single-trace spectrogram panel on an provided axis.
 
+    Infrasound channels (``BDF``, ``HDF``, ``EDH``) are drawn with the
+    infrasound colormap and a red station label.
+
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+        Axis to draw the spectrogram on.
+    tr : obspy.Trace
+        Trace to compute the spectrogram from.
+    colormap : matplotlib.colors.Colormap, optional
+        Colormap to use, by default the result of :func:`default_colormap`.
+    """
+    
+    colormap = default_colormap()
     label_color = "black"
     if tr.stats.channel in ["BDF", "HDF", "EDH"]:
         colormap = default_colormap(infrasound=True)
@@ -666,7 +841,28 @@ def set_time_ticks(ax, xlim_left, xlim_right, duration):
 
 
 def format_spec_xaxis(ax, tr, st, i, config, duration=None):
+    """Format the x-axis of one panel in a spectrogram mosaic.
 
+    Adds a title on the top panel, hides tick labels on all but the bottom
+    panel, and labels the bottom panel with formatted times and the date.
+
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+        The panel axis to format.
+    tr : obspy.Trace
+        Trace plotted in this panel (used for its start time).
+    st : obspy.Stream
+        Full stream, used to determine which panel is last.
+    i : int
+        Index of this panel within the mosaic.
+    config : object
+        Alarm configuration exposing ``alarm_name`` and optionally
+        ``plot_duration``.
+    duration : float, optional
+        Window duration in seconds. Falls back to ``config.plot_duration`` or
+        3600 when not provided.
+    """
     if duration is None:
         duration = config.plot_duration if hasattr(config, "plot_duration") else 3600
 

@@ -1,3 +1,10 @@
+"""Command-line entry point for resetting a generic alarm's Icinga status.
+
+Sets an arbitrary named alarm service to an empty ``OK`` state in Icinga.
+Useful for alarm services that have no detection logic of their own but still
+need a periodic heartbeat. Exposed as the ``generic-alarm`` console script.
+"""
+
 import argparse
 import os
 from pathlib import Path
@@ -12,10 +19,34 @@ from volc_alarms.utils.setup_utils import (
 
 
 def config():
+    """Lightweight namespace carrier for the generic alarm's settings.
+
+    This empty function is used as a mutable attribute holder: ``main`` sets
+    ``config.alarm_name`` and ``config.icinga_service_name`` on it and passes
+    it to :func:`volc_alarms.utils.messaging.icinga`, which only reads those
+    attributes.
+
+    Returns
+    -------
+    None
+    """
     return
 
 
 def parse_args():
+    """Parse command-line arguments for the generic alarm tool.
+
+    Returns
+    -------
+    argparse.Namespace
+        Parsed arguments with the following attributes:
+
+        alarm : str
+            Alarm name, with ``_`` standing in for spaces.
+        env_file : str or None
+            Path to a ``.env`` file; if omitted, the directory tree is
+            searched upward.
+    """
     parser = argparse.ArgumentParser(prog="generic-alarm")
     parser.add_argument(
         "alarm",
@@ -32,7 +63,17 @@ def parse_args():
 
 
 def main():
+    """Set a named alarm service to an empty OK state in Icinga.
 
+    Loads the environment, configures logging, acquires a single-instance
+    lock keyed on the alarm name, and sends an ``OK`` heartbeat with an empty
+    state message to Icinga. The lock is always released on exit.
+
+    Notes
+    -----
+    Intended to be invoked via the ``generic-alarm`` console script. Reads
+    arguments from the command line and takes no parameters.
+    """
     args = parse_args()
     load_environment(args.env_file)
 

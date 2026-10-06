@@ -1,0 +1,46 @@
+{
+  "call_order": [
+    "download_hypocenters_csv",
+    "filter_dataframe",
+    "can_send",
+    "make_figure",
+    "post_mattermost",
+    "record_send",
+    "icinga",
+    "icinga"
+  ],
+  "detection_state": "CRITICAL",
+  "icinga": [
+    {
+      "send": true,
+      "state": "CRITICAL",
+      "state_message": "2026-09-23 21:30 (UTC) Swarm actvity at: Makushin"
+    },
+    {
+      "send": true,
+      "state": "CRITICAL",
+      "state_message": "2026-09-23 21:30 (UTC) Swarm actvity at: Makushin"
+    }
+  ],
+  "os_remove": [],
+  "post_mattermost": [
+    {
+      "body": "23 events in 18h 34m\n\n***--- UTC ---***\n**First:** 2026-09-23 02:50\n**Last:** 2026-09-23 21:24\n\n***--- AKDT ---***\n**First:** 2026-09-22 18:50\n**Last:** 2026-09-23 13:24\n\n**Magnitude range:** -0.7 - 1.7\n**Depth range:** -0.8 - 6.4 km",
+      "channel_ids": null,
+      "send": true,
+      "subject": "Earthquake swarm at Makushin",
+      "test": false,
+      "volcano": "Makushin"
+    }
+  ],
+  "record_send": [
+    {
+      "alarm_id": "Earthquake Swarm",
+      "event_id": null,
+      "process_time": "2026-09-23T21:30:00",
+      "test": false,
+      "volcano": "Makushin"
+    }
+  ],
+  "send_alert": []
+}

@@ -1,0 +1,351 @@
+
+
+
+
+<!DOCTYPE HTML>
+<html>
+<head>
+	<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-ZD8CET2BWF"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-ZD8CET2BWF');
+</script>
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+	<title>
+					Volcanic Cloud Monitoring -- NOAA/CIMSS
+			</title>
+	<script type="text/javascript">
+		
+		var ENVIRONMENT = 'production'; // DEBUG - move this to VOLC_CONST
+		var VOLC_CONST = {
+			MYSQL_CODE_DUPLICATE_KEY: "1062",
+			BASE_IMAGERY_DIR: "data",
+			ALERT_IMAGERY_DIR: "data/alert",
+			SECTOR_IMAGERY_DIR: "data/sector_imagery",
+			SECTOR_IMAGERY_ARCHIVE_DIR: "data/sector_imagery_archive",
+			SECTOR_IMAGERY_LONGTERM_DIR: "data/sector_imagery_longterm",
+			SECTOR_IMAGERY_CONFIG: "data/sector_imagery_config",
+			SECTOR_IMAGERY_UPLOAD_DIR: "upload",
+			SECTOR_IMAGERY_FN_DELIMITER: ".",
+			SUBSCRIBE_VDATABASE: "Volcat_Alert_Volcano_Database_Jul2_2013_125933.txt",
+			MAX_SUBSCRIPTIONS: "5",
+			MAX_N_MONTHS: "12",
+			DEFAULT_N_MONTHS: "3"
+					};
+
+
+		var BASE_URL = 'https://volcano.ssec.wisc.edu/';
+
+		// ensure that BASE_URL begins with https - Google Maps API doesn't like
+		// protocol relative URLs (i.e., //volcano.ssec.wisc.edu/)
+		// first, remove http / https from beginning of URL (don't assume whether BASE_URL is protocol relative
+		// format or some other format)
+		// BASE_URL = BASE_URL.replace(/^https{0,1}:/, '');
+		// BASE_URL = 'https:' + BASE_URL;
+
+		var BASE_URL_PATH = '/';
+	</script>
+	<script type="text/javascript" src="https://volcano.ssec.wisc.edu/js/jquery-1.9.1.min.js"></script>
+	<link rel="stylesheet"
+		  href="https://volcano.ssec.wisc.edu/js/jquery-ui-1.10.3.custom/css/smoothness/jquery-ui-1.10.3.custom.min.css">
+	<script type="text/javascript"
+			src="https://volcano.ssec.wisc.edu/js/jquery-ui-1.10.3.custom/js/jquery-ui-1.10.3.custom.min.js"></script>
+
+	<script type="text/javascript" src="https://volcano.ssec.wisc.edu/js/global.js?20170112"></script>
+	<!--============================ CINB: BEGIN ===========================-->
+	<script type="text/javascript">
+		var crumbs = {}; // comma separated list of link_text : link_URL pairs
+	</script>
+	<script type="text/javascript" src="//cimss.ssec.wisc.edu/cinb/cinb-loader.js"></script>
+	<!--============================ CINB: END ===========================-->
+	<link href="https://volcano.ssec.wisc.edu/css/site_style.css?20180124" rel="stylesheet" type="text/css">
+	<!--[if IE]>
+	<style type="text/css">
+		#navbar li, #navbar li a {
+			background: #ffefc6 !important;
+			filter: progid:DXImageTransform.Microsoft.gradient(enabled=false);
+		}
+	</style>
+	<![endif]-->
+		<style type="text/css">
+		#page {
+			width: 1200px;
+		}
+	</style>
+
+	<script src="/js/alert_report_single.js?20180226"></script>
+</head>
+
+<body>
+
+<div id="page">
+	<div id="banner">
+		 <h1 style="display: flex; align-items: center;">
+                         <a href="http://cimss.ssec.wisc.edu" style="text-decoration: none; height: 55px; margin-right: 0.5em;">
+                                <img src="https://volcano.ssec.wisc.edu/images/cimss-logo.png" alt="CIMSS" id="cimss_logo" title="CIMSS">
+                        </a>
+			Volcanic Cloud Monitoring &mdash; NOAA/CIMSS
+		</h1>
+		<ul id="navbar">
+			<li><a href="https://volcano.ssec.wisc.edu/">Home</a></li>
+			<li><a href="https://volcano.ssec.wisc.edu/imagery/view/">Satellite Imagery</a></li>
+			<li><a href="https://volcano.ssec.wisc.edu/alert/">Alerts</a></li>
+						<li><a href="https://volcano.ssec.wisc.edu/imagery_map">Coverage Map</a></li>
+			<li><a href="https://volcano.ssec.wisc.edu/tutorials/">Tutorials</a></li>
+			<li><a href="https://volcano.ssec.wisc.edu/thermal/">Thermal Monitoring</a></li>
+						<li id="login_logout_link">
+				<a href="https://volcano.ssec.wisc.edu/blog/wp-login.php?action=logout&amp;redirect_to=https%3A%2F%2Fvolcano.ssec.wisc.edu%2F&amp;_wpnonce=ea9522c1f2">Logout <span class="username">(awech)</span></a>			</li>
+						<li id="status_tab"><a href="https://volcano.ssec.wisc.edu/status">Status</a></li>
+		</ul>
+	</div>
+	<div id="content">
+		<!--[if lt IE 8]>
+		<div
+			style="font-size: 12px; color: #990000; margin-top: 8em; background-color: #eee; border: solid 1px #999; padding: 10px; margin-bottom: 1em;">
+			<p style="margin-bottom: 5px;"><strong style="font-size: 16px;">BETA website</strong></p>
+
+			<p style="margin-bottom: 0; margin-top: 0;">This website is in <strong>BETA</strong>
+				status and as a result it currently does <strong>not work</strong>
+				completely or display as intended in versions of
+				<strong>Internet Explorer older than version 8</strong>. It's recommended
+				that you view this website in a newer, more W3C compliant browser such as:</p>
+			<ul style="margin-top: 5px;">
+				<li>Firefox</li>
+				<li>Google Chrome</li>
+				<li>Apple Safari</li>
+				<li>Internet Explorer 8 or newer</li>
+			</ul>
+		</div>
+		<![endif]-->
+												<h2>Volcanic Cloud Alert Report</h2>
+	<div id="alert_report">
+		<!--======================== components/alert_report_summary.php: BEGIN ============================-->
+<div class="alert_box alert_report_summary">
+	<table>
+		<tr>
+			<th>Date:</th>
+			<td>2026-09-29</td>
+		</tr>
+		<tr>
+			<th>Time:</th>
+			<td>14:30:20</td>
+		</tr>
+		<tr>
+			<th>Production Date and Time:</th>
+			<td>2026-09-29 14:43:50 UTC</td>
+		</tr>
+		<tr>
+			<th>Primary Instrument:</th>
+			<td>GOES-18 ABI</td>
+		</tr>
+		<tr class="extra_summary_info">
+			<th>Wmo Spacecraft Id:</th>
+			<td>665</td>
+		</tr>
+		<tr class="extra_summary_info">
+			<th>Location/orbit:</th>
+			<td>GEO</td>
+		</tr>
+		<tr class="extra_summary_info">
+			<th>L1 File:</th>
+			<td>OR_ABI-L1b-RadF-M6C14_G18_s20262721430206_e20262721439514_c20262721439568.nc</td>
+		</tr>
+                <tr class='extra_summary_info'><th>L1 File(s) - Temporal</th><td>OR_ABI-L1b-RadF-M6C14_G18_s20262721420206_e20262721429514_c20262721429578.nc</td></tr>		<tr class="extra_summary_info">
+			<th>Number Of Ash Cloud Alerts:</th>
+			<td>1</td>
+		</tr>
+		<tr class="extra_summary_info">
+			<th>Number Of Cb Alerts:</th>
+			<td>0</td>
+		</tr>
+		<tr class="extra_summary_info">
+			<th>Number Of Thermal Anomaly Alerts:</th>
+			<td>0</td>
+		</tr>
+		<tr class="extra_summary_info">
+			<th>Number Of So2 Cloud Alerts:</th>
+			<td>0</td>
+		</tr>
+	</table>
+	</div><!--.alert_box.alert_report_summary-->
+<!--======================== components/alert_report_summary.php: END ============================-->
+		<div id="expand_collapse_report_container" class="blue_gradient"><span id="expand_report_link">More details &#x25BC;</span>
+			<span id="hide_report_link">Hide details &#x25B2;</span></div>
+
+		
+			
+			<div class="alert_box volcanic_ash_alert">
+				<h3 class="alert_icon"><span>Possible</span> Volcanic Ash Cloud</h3>
+
+				<div class="alert_images_container">
+					<ul class="alert_images">
+																																								<li>
+									<a href="https://volcano.ssec.wisc.edu/alert/individual/531652#img=GOES-18.ABI-FULL_DISK.2026-09-29.14-30-30_cluster1_node0.Sep29_2026_144406.RGB1112um_8511um_11um.zoomin.png"><img src="/data/alert/2026-09-29/GOES-18.ABI-FULL_DISK.2026-09-29.14-30-30_cluster1_node0.Sep29_2026_144406.RGB1112um_8511um_11um.zoomin.png"  alt=""><span class="imageCaption">False Color Image (12-11, 11-8.5, 11) [zoomed-in]</span></a>
+								</li>
+																																									<li>
+									<a href="https://volcano.ssec.wisc.edu/alert/individual/531652#img=GOES-18.ABI-FULL_DISK.2026-09-29.14-30-30_cluster1_node0.Sep29_2026_144409.RGB1112or13um_3911um_11um.zoomin.png"><img src="/data/alert/2026-09-29/GOES-18.ABI-FULL_DISK.2026-09-29.14-30-30_cluster1_node0.Sep29_2026_144409.RGB1112or13um_3911um_11um.zoomin.png"  alt=""><span class="imageCaption">False Color Image (12-11, 11-3.9, 11) [zoomed-in]</span></a>
+								</li>
+																																																																																																																																																																																																																																																												</ul>
+				</div><!--.alert_images_container-->
+
+				<!--======================== components/alerts/volcanic_ash.php: BEGIN ============================-->
+
+<table>
+	<tbody class="default">
+		<tr>
+			<th class="alert_header" colspan="2">
+				Basic Information
+			</th>
+		</tr>
+										<tr>
+				<th>Volcanic Region(s)</th>
+				<td class="nowrap">Alaska</td>
+			</tr>
+								<tr>
+				<th>Country/Countries</th>
+				<td class="nowrap">United States</td>
+			</tr>
+								<tr>
+				<th>Volcanic Subregion(s)</th>
+				<td class="nowrap">Alaska (southwestern)</td>
+			</tr>
+								<tr>
+				<th>VAAC Region(s) of Nearby Volcanoes</th>
+				<td class="nowrap">Anchorage</td>
+			</tr>
+				<tr><th>Identification Method</th><td><span class="nowrap">Plume/Puff Extraction (SECO+)</span></td></tr>		<tr><th>Mean Object Date/Time</th><td><span class="nowrap">2026-09-29 14:30:38UTC</span></td></tr>		<tr>
+			<th>Radiative Center (Lat, Lon):</th>
+			<td><span
+						class="nowrap">61.300&deg;</span>,
+				<span
+						class="nowrap">-152.250&deg;</span>
+			</td>
+		</tr>
+		<tr>
+			<th>Nearby Volcanoes (meeting alert criteria):</th>
+			<td>
+				<ul class="nearby_volcanoes">
+																							<li><a target="_blank" href="https://volcano.si.edu/volcano.cfm?vn=313040">                         Spurr <span class="nowrap">(0.00 km)</span> </a></li>																													<li><a target="_blank" href="https://volcano.si.edu/volcano.cfm?vn=313050">                         Hayes <span class="nowrap">(38.90 km)</span> </a></li>																													<li><a target="_blank" href="https://volcano.si.edu/volcano.cfm?vn=313030">                       Redoubt <span class="nowrap">(94.40 km)</span> </a></li>																													<li><a target="_blank" href="https://volcano.si.edu/volcano.cfm?vn=313020">                       Iliamna <span class="nowrap">(148.30 km)</span> </a></li>																													<li><a target="_blank" href="https://volcano.si.edu/volcano.cfm?vn=313010">                     Augustine <span class="nowrap">(225.10 km)</span> </a></li>															</ul>
+			</td>
+		</tr>
+                <tr><th>Maximum Height [AMSL]</th><td><span class="nowrap">3.30 km ;  10827 ft</span></td></tr>
+                <tr><th>Maximum Height (opaque assumption) [AMSL]</th><td><span class="nowrap">3.10 km ;  10171 ft</span></td></tr>
+                <tr><th>Minimum IR Window BT</th><td><span class="nowrap">261.60 K</span></td></tr>
+
+
+	</tbody>
+	<tbody class="more">
+		<tr>
+			<th class="alert_header" colspan="2">
+				Additional Information
+			</th>
+		</tr>
+
+		
+		<tr>
+			<th>Alert Status</th>
+			<td>New Volcanic Feature</td>
+		</tr>
+                <tr><th>Type of Volcanic Event</th><td><span class="nowrap">Potential Ash Emission</span></td></tr>                <tr><th>Volcanic Event Priority Ranking</th><td><span class="nowrap">2</span></td></tr>
+
+										<tr>
+				<th>Median Probability of Pixels</th>
+				<td>0.01000%</td>
+			</tr>
+		
+		
+		<tr>
+			<th>Mean Viewing Angle</th>
+			<td>71.30&deg;</td>
+		</tr>
+		<tr>
+			<th>Mean Solar Zenith Angle</th>
+			<td>102.40&deg;</td>
+		</tr>
+										<tr>
+				<th>Total Mass</th>
+				<td>0.000306 Tg</td>
+			</tr>
+								<tr>
+				<th>Median Effective Particle Radius</th>
+				<td>13.00 um</td>
+			</tr>
+								<tr>
+				<th>Total Pixel Area</th>
+				<td>47.60 km<sup>2</sup></td>
+			</tr>
+						<tr>
+			<th>Latest Satellite Imagery:</th>
+			<td>
+				<ul class="nearby_volcanoes">
+																																																																																																																				<li><a target="_blank" href="https://volcano.ssec.wisc.edu/imagery/view/#sector:Alaska_2_km::instr:all::sat:all::image_type:RGB1112or13um_3911um_11um::endtime:latest::daterange:60">Alaska_2_km</a></li>											<li><a target="_blank" href="https://volcano.ssec.wisc.edu/imagery/view/#sector:Anchorage_1_km::instr:all::sat:all::image_type:RGB1112or13um_3911um_11um::endtime:latest::daterange:60">Anchorage_1_km</a></li>											<li><a target="_blank" href="https://volcano.ssec.wisc.edu/imagery/view/#sector:Gulf_Of_Alaska_2_km::instr:all::sat:all::image_type:RGB1112or13um_3911um_11um::endtime:latest::daterange:60">Gulf_Of_Alaska_2_km</a></li>											<li><a target="_blank" href="https://volcano.ssec.wisc.edu/imagery/view/#sector:Kamchatka_3_km::instr:all::sat:all::image_type:RGB1112or13um_3911um_11um::endtime:latest::daterange:60">Kamchatka_3_km</a></li>											<li><a target="_blank" href="https://volcano.ssec.wisc.edu/imagery/view/#sector:North_Pacific_5_km::instr:all::sat:all::image_type:RGB1112or13um_3911um_11um::endtime:latest::daterange:60">North_Pacific_5_km</a></li>														</ul>
+			</td>
+		</tr>
+			</tbody>
+	<tr>
+		<th colspan="2" style="padding: 0; vertical-align: top;">
+			<span style="float: left;">
+				<span class="showMoreAlert"><span class="moreLessAlertStyle volc-button blue_gradient">Show More <span
+								class="up_arrow">&#x25B2;</span></span></span>
+				<span class="showLessAlert"><span class="moreLessAlertStyle volc-button blue_gradient">Show Less <span
+								class="down_arrow">&#x25BC;</span></span></span>
+				<script type="text/javascript">
+						$(".showMoreAlert").bind('click', function(e) {
+							$(e.target).closest('table').children('tbody.more').show();
+							$(this).hide();
+							$(this).closest('tr').find('.showLessAlert').show();
+						});
+
+						$(".showLessAlert").bind('click', function(e) {
+							$(e.target).closest('table').children('tbody.more').hide();
+							$(this).hide();
+							$(this).closest('tr').find('.showMoreAlert').show();
+						});
+				</script>
+			</span>
+										<span style="float: right;">
+					<a href="https://volcano.ssec.wisc.edu/alert/individual/531652"
+					   class="volc-button blue_gradient"><span>View all event imagery &raquo;</span></a>
+				</span>
+					</th>
+	</tr>
+</table>
+<!--======================== components/alerts/volcanic_ash.php: END ============================-->
+				<br style="clear: both;">
+			</div><!--.alert_box-->
+
+		
+		<br style="clear:both;">
+	</div><!--#alert_report-->
+	</div>
+	<div id="footer">
+		<p>Disclaimer: The NOAA/CIMSS Volcanic Cloud Monitoring website is hosted and populated at the Space Science and
+			Engineering Center
+			at the University of Wisconsin. While reliability is quite high, outages, including unannounced outages,
+			will occasionally occur.
+			Outages may include, but are not limited to, any of the following: website offline, specific sensor
+			processing to cease, email and/or text message
+			distribution outages, database outages, computer malfunction, etc. While every effort is made to correct
+			problems as soon as
+			they arise, the SSEC is not staffed 24/7. As such, any user implicitly agrees to use the services and data
+			available through
+			this website as is with no warranty issued or implied and should be used for informational purposes only.
+			Any use of this data
+			for decision making processes is done at the sole risk of the end user.</p><br>
+
+		Problems with website: <a href="http://www.ssec.wisc.edu/contact-form/index.php?name=SSEC%20Webmaster">Webmaster
+			contact form</a>
+		<!--DEBUG: need to make a resized version of the STAR NOAA logo -->
+		<div id="logos"></div>
+	</div>
+</div>
+<br style="clear: both;">
+
+
+</body>
+</html>

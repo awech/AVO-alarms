@@ -1,0 +1,17 @@
+{
+  "call_order": [
+    "icinga"
+  ],
+  "detection_state": "OK",
+  "icinga": [
+    {
+      "send": true,
+      "state": "OK",
+      "state_message": "2026-09-29 23:00 (UTC) No new recent NOAA CIMSS alerts"
+    }
+  ],
+  "os_remove": [],
+  "post_mattermost": [],
+  "record_send": [],
+  "send_alert": []
+}

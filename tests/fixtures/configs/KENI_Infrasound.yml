@@ -1,0 +1,92 @@
+alarm_type: Infrasound        # designates which alarm module will be imported and executed
+alarm_name: KENI Infrasound   # alarm name sent to icinga and in message alerts
+
+# Infrasound channels list
+nslc:
+  - AV.KENI.01.HDF
+  - AV.KENI.02.HDF
+  - AV.KENI.03.HDF
+  - AV.KENI.04.HDF
+  - AV.KENI.05.HDF
+  - AV.KENI.06.HDF
+
+# Processing parameters
+# duration: 90         # optional duration value in seconds. Default: 90 s
+f1: 0.5               # minimum frequency for bandpass filter
+f2: 8.0               # maximum frequency for bandpass filter
+
+# Detection parameters
+cmin: 0.6             # min normalized correlation coefficient to accept
+min_chan: 3           # minimum number of channels for code to run
+
+# Infrasound target list:
+# Required:
+#   name, az_tolerance (degrees), min_pa (Pascals)
+# Optional:
+#   lat, lon, vmin (default 0.28 km/s), vmax (default 0.45 km/s)
+#   back_azimuth: if known, manual target backazimuth can be given instead of lat/lon
+#   local_nslc: is a list of seismic channels to be plot on detect
+#   traveltime: boolean to determine whether to calculate predicted airwave traveltime
+#
+# lat/lon info taken from target list file set as environment variable,
+# if `name` not listed there, lat/lon must be included here.
+
+targets:
+  - name: Spurr
+    az_tolerance: 5
+    min_pa: 1.0
+    vmax: 0.4
+    local_nslc:
+      - AV.SPCP..BHZ
+      - AV.SPCL..BHZ
+      - AV.SPU..BHZ
+    plot_duration: 10 * 60 # in seconds
+
+  - name: Redoubt
+    az_tolerance: 5
+    min_pa: 1.0
+    vmax: 0.4
+    local_nslc:
+      - AV.RDDF..BHZ
+      - AV.RDSO..BHZ
+    plot_duration: 10 * 60 # in seconds
+
+  - name: Iliamna
+    az_tolerance: 5
+    min_pa: 0.8
+    vmax: 0.4
+    local_nslc:
+      - AV.ILSW..BHZ
+      - AV.ILS..BHZ
+      - AV.IVE..BHZ
+    plot_duration: 10 * 60 # in seconds
+
+  - name: Augustine
+    az_tolerance: 5
+    min_pa: 1.0
+    vmax: 0.4
+    local_nslc:
+      - AV.AUJA..BHZ
+      - AV.AUJK..BHZ
+      - AV.AUSS..BHZ
+    plot_duration: 15 * 60 # in seconds
+
+  - name: Fourpeaked
+    az_tolerance: 5
+    min_pa: 0.5
+    vmax: 0.4
+    local_nslc:
+      - AV.Q19K..BHZ
+      - AV.KARR..BHZ
+      - AV.KAHG..BHZ
+    plot_duration: 15 * 60 # in seconds
+
+  - name: Katmai
+    az_tolerance: 10
+    min_pa: 0.5
+    vmax: 0.4
+    local_nslc:
+      - AV.MGLS..BHZ
+      - AV.KABU..BHZ
+      - AV.ACH..BHZ
+    plot_duration: 20 * 60 # in seconds

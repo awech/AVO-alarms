@@ -1,0 +1,43 @@
+{
+  "call_order": [
+    "download_mesonet_vaa_list",
+    "download_mesonet_vaa_list",
+    "can_send",
+    "make_map",
+    "post_mattermost",
+    "record_send",
+    "os.remove",
+    "icinga"
+  ],
+  "detection_state": "CRITICAL",
+  "icinga": [
+    {
+      "send": true,
+      "state": "CRITICAL",
+      "state_message": "2026-09-28 18:00 (UTC) New Sheveluch Volcanic Ash Advisory"
+    }
+  ],
+  "os_remove": [
+    "<FIGURE>"
+  ],
+  "post_mattermost": [
+    {
+      "body": "VAA 11,000 - 38,000 ft\n2026-09-28 17:53 UTC\n2026-09-28 09:53 AKDT\n\n#### *Original Message*\n**DTG:** 20260928/1753Z\n**VAAC:** ANCHORAGE\n**VOLCANO:** SHEVELUCH 300270\n**PSN:** N5639 E161021\n**AREA:** KAMCHATKA PENINSULA\n**SOURCE ELEV:** 10768 FT AMSL\n**ADVISORY NR:** 2026/267\n**INFO SOURCE:** GOES.\n**ERUPTION DETAILS:** VA ASSOCIATED WITH THE 27/0930Z ERUPTION.\n**OBS VA DTG:** 28/1752Z\n**OBS VA CLD:** 110/FL380 N5243 W16916 - N5211 W16807 - N5151 W16909 - N5235 W16954 - N5243 W16916 MOV SE 35KT\n**FCST VA CLD +6HR:** 28/2352 110/FL380 N5110 W16609 - N5020 W16453 - N4940 W16628 - N5047 W16719 - N5110 W16609\n**FCST VA CLD +12HR:** NO VA EXP\n**FCST VA CLD +18HR:** NO VA EXP\n**RMK:** NIL ...TS\n**NXT ADVISORY:** WILL BE ISSUED BY 20260928/2348Z\n",
+      "channel_ids": null,
+      "send": true,
+      "subject": "Sheveluch Volcanic Ash Advisory",
+      "test": false,
+      "volcano": null
+    }
+  ],
+  "record_send": [
+    {
+      "alarm_id": "SIGMET",
+      "event_id": "20260928/1753Z-SHEVELUCH",
+      "process_time": "2026-09-28T18:00:00",
+      "test": false,
+      "volcano": "Western Cones"
+    }
+  ],
+  "send_alert": []
+}

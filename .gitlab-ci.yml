@@ -14,7 +14,7 @@ stages:
 # Main test + coverage (runs on the primary Python version)
 # ---------------------------------------------------------------------------
 test:
-  image: python:3.13
+  image: python:3.14
   stage: test
   before_script:
     - pip install --upgrade pip
@@ -22,7 +22,16 @@ test:
   script:
     - coverage run -m pytest -ra
     - coverage report
-  coverage: '/(?i)total.*? ([1-9]?\d|100)\%$/'
+    - coverage xml -i
+    - coverage html
+  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+    paths:
+      - htmlcov/
 
 # ---------------------------------------------------------------------------
 # Multi-version compatibility (no coverage, just verify tests pass)
@@ -31,7 +40,7 @@ test-compat:
   stage: test
   parallel:
     matrix:
-      - PYTHON_VERSION: ["3.10", "3.11", "3.12"]
+      - PYTHON_VERSION: ["3.11", "3.12", "3.13"]
   image: python:${PYTHON_VERSION}
   before_script:
     - pip install --upgrade pip

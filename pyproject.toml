@@ -7,7 +7,7 @@ name = "volc-alarms"
 version = "0.1.0"
 description = "Various volcano monitoring alarms."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 authors = [{name = "Aaron Wech", email = "awech@usgs.gov"}]
 license = {file = "LICENSE"}
 dependencies = [
@@ -35,10 +35,10 @@ classifiers = [
     "Development Status :: 4 - Beta",
     "Topic :: Scientific/Engineering",
     "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 keywords = ["volcano", "geophysics", "monitoring"]
 
@@ -53,6 +53,7 @@ avo = [
 test = [
     "pytest>=7.0",
     "coverage",
+    "tzdata",  # IANA tz DB so zoneinfo resolves US/Alaska on tzdata-less CI images
 ]
 
 [project.scripts]
@@ -71,3 +72,24 @@ packages = ["src/volc_alarms", "src/lts_array"]
 minversion = "7.0"
 testpaths = ["tests"]
 addopts = "-ra"
+markers = [
+    "unit: fast, isolated tests of a single function with local mocking only (no network, DB, email, or matplotlib rendering).",
+    "integration: end-to-end tests that drive an alarm's run_alarm() through the shared fakes harness and compare against a frozen baseline.",
+]
+filterwarnings = [
+    "ignore:.*:UserWarning:obspy.core.inventory.*",
+]
+
+[tool.coverage.run]
+source = ["volc_alarms"]
+omit = [
+    "tests/*",
+    "*/alarms/SO2/*",   # no recordable fixture: real SO2 alerts are rare + ephemeral
+    "*/lts_array/*",    # vendored third-party code
+]
+
+[tool.coverage.report]
+show_missing = true
+
+[tool.ruff.lint]
+ignore = ["SIM114", "SIM102"]

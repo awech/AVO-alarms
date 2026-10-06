@@ -1,0 +1,120 @@
+"""Shared pytest fixtures and environment setup for the whole test suite.
+
+Sets up a deterministic, offline test environment used by BOTH the unit tests
+(``tests/utils``, ``tests/alarms/<Alarm>/test_*.py``, ``tests/scripts``) and the
+integration tests (``tests/alarms/<Alarm>/test_run_alarm.py``):
+
+* CONFIGS_DIR -> real config/*.yml files in the repo (configs are NOT mocked)
+* Data-file env vars point at in-repo copies / temp dirs
+* FROMCRON unset so no sleeps or time-backup logic fires
+
+The integration-only fixtures (``alarm_doubles`` etc.) install the shared fakes
+from ``tests/_harness``. Unit tests generally do their own local mocking and only
+depend on the environment setup below.
+"""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+import pytest
+
+from importlib.resources import files
+
+from tests._harness.fakes import AlarmDoubles, CallRecorder, FakeAlarmDB, install
+
+# Repo root is one level up from tests/.
+REPO_ROOT = Path(__file__).resolve().parents[1]
+CONFIG_DIR = REPO_ROOT / "config"
+DATA_DIR = files("volc_alarms.data")
+
+# ---------------------------------------------------------------------------
+# Environment setup (applied at import so it is in place before any volc_alarms
+# module that reads these vars at call time runs).
+# ---------------------------------------------------------------------------
+# Drive run_alarm with the real .yml config files checked into the repo.
+os.environ["CONFIGS_DIR"] = str(CONFIG_DIR)
+# Keep the harness self-contained: point data files at in-repo copies / temp.
+os.environ.setdefault("VOLCANO_LIST", str(DATA_DIR.joinpath("volcano_list.csv")))
+os.environ.setdefault("TMP_FIGURE_DIR", str(REPO_ROOT / "tmp_files"))
+# Pin TIMEZONE (force, not setdefault) so the frozen baselines are deterministic
+# regardless of a developer's inherited environment (e.g. from sourcing a
+# deployment .env). We deliberately pin a NON-UTC zone that matches production
+# (US/Alaska) rather than UTC: alarm messages render both a UTC and a local-time
+# line, so pinning a real zone means the integration baselines actually exercise
+# the UTC<->local rendering. T0 and the scenario event times are fixed constants,
+# so the resulting local-time strings are still fully reproducible.
+os.environ["TIMEZONE"] = "US/Alaska"
+# FDSN base URL used by the Swarm alarm to build its (mocked) download request.
+os.environ.setdefault("FDSN_URL", "https://service.example.com/fdsnws/event/1/query?")
+# Never touch a real alarm-history DB; the fakes are in-memory regardless.
+os.environ.setdefault("DB_FILE", str(REPO_ROOT / "tmp_files" / "__test_alarms__.db"))
+# Point at the test station XML so add_metadata and RSAM_to_DR work offline.
+os.environ.setdefault(
+    "STATION_XML", str(REPO_ROOT / "tests" / "fixtures" / "data" / "station.xml")
+)
+# Make sure no test accidentally runs as if launched from cron unless it asks.
+os.environ.pop("FROMCRON", None)
+
+
+@pytest.fixture
+def recorder() -> CallRecorder:
+    """A fresh ordered call recorder for the test."""
+    return CallRecorder()
+
+
+@pytest.fixture
+def fake_db() -> FakeAlarmDB:
+    """A fresh in-memory alarm-history store for the test."""
+    return FakeAlarmDB()
+
+
+@pytest.fixture
+def fromcron(monkeypatch):
+    """Return a setter controlling the ``FROMCRON`` environment variable.
+
+    Usage::
+
+        def test_x(fromcron):
+            fromcron("yep")   # simulate a cron launch
+            ...
+            fromcron(None)    # explicit non-cron
+    """
+
+    def _set(value: str | None = "yep") -> None:
+        if value is None:
+            monkeypatch.delenv("FROMCRON", raising=False)
+        else:
+            monkeypatch.setenv("FROMCRON", value)
+
+    return _set
+
+
+@pytest.fixture
+def alarm_doubles(monkeypatch, recorder, fake_db) -> AlarmDoubles:
+    """Install all fakes and return the configurable test handle.
+
+    Replaces every external service call (downloads, Mattermost, email, Icinga,
+    DB access, figure save, os.remove) with recording fakes so an alarm's
+    run_alarm runs fully offline and deterministically. Used by the integration
+    tests under tests/alarms/<Alarm>/test_run_alarm.py.
+    """
+    handle = AlarmDoubles(recorder, fake_db, monkeypatch)
+    return install(handle)
+
+
+@pytest.fixture
+def load_alarm_config():
+    """Factory that loads a real config module via ``setup_utils.load_config``.
+
+    ``CONFIGS_DIR`` already points at the repo ``config/`` directory, so e.g.
+    ``load_alarm_config("RSAM")`` returns the genuine config object that
+    ``run_alarm`` expects.
+    """
+    from volc_alarms.utils import setup_utils
+
+    def _load(config_name: str):
+        return setup_utils.load_config(config_name)
+
+    return _load

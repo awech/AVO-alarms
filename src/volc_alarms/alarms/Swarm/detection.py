@@ -1,3 +1,11 @@
+"""
+Detection routines for the Swarm alarm.
+
+Builds the FDSN query URL, clusters hypocenters in space and time with DBSCAN
+to identify swarms, checks whether new events continue an existing swarm, and
+de-duplicates overlapping swarm clusters.
+"""
+
 import os
 from itertools import combinations
 
@@ -12,7 +20,21 @@ logger = get_logger(__name__)
 
 
 def build_download_url(T0, config):
+    """Build the FDSN event-query URL for the swarm lookback window.
 
+    Parameters
+    ----------
+    T0 : obspy.UTCDateTime
+        End time of the query window.
+    config : object
+        Configuration exposing ``DURATION`` (window length, seconds) and
+        ``maxdep`` (maximum depth).
+
+    Returns
+    -------
+    str
+        The FDSN CSV event-query URL covering ``[T0 - DURATION, T0]``.
+    """
     T2 = T0
     T1 = T2 - config.DURATION
     URL = (
@@ -26,7 +48,32 @@ def build_download_url(T0, config):
 
 
 def check_swarm_continue(T0, config, old_eq_df, new_eq_df, col_key="event_id"):
+    """Find swarms that extend previously recorded activity.
 
+    Combines previously stored and new events, re-clusters them, and keeps the
+    swarms that contain at least one new event (i.e. continuations of ongoing
+    activity rather than brand-new swarms made only of new events).
+
+    Parameters
+    ----------
+    T0 : obspy.UTCDateTime
+        End time of the processing window.
+    config : object
+        Swarm alarm configuration (clustering parameters).
+    old_eq_df : pandas.DataFrame
+        Previously recorded events.
+    new_eq_df : pandas.DataFrame
+        Newly downloaded events.
+    col_key : str, optional
+        Event id column used for de-duplication and membership, by default
+        ``"event_id"``.
+
+    Returns
+    -------
+    list of pandas.DataFrame
+        One DataFrame per continuing swarm, each containing only its new
+        events; empty if no swarm continues.
+    """
     tmp_new_df = new_eq_df.copy()
     drop_columns = [col for col in tmp_new_df if col not in old_eq_df.columns]
     tmp_new_df = tmp_new_df.drop(columns=drop_columns)
@@ -41,6 +88,24 @@ def check_swarm_continue(T0, config, old_eq_df, new_eq_df, col_key="event_id"):
 
 
 def compare_swarms(swarms):
+    """Remove duplicate and overlapping swarm clusters.
+
+    Iteratively compares every pair of swarms: identical clusters are
+    collapsed, and when two clusters share events the longer-duration one is
+    dropped (keeping the tightest detection). Repeats until no more pairs
+    overlap.
+
+    Parameters
+    ----------
+    swarms : list of pandas.DataFrame
+        Candidate swarm clusters, each a DataFrame of events sharing an
+        ``event_id`` column.
+
+    Returns
+    -------
+    list of pandas.DataFrame
+        The de-duplicated, non-overlapping subset of ``swarms``.
+    """
     flag = True
     test_swarms = swarms.copy()
     while flag:
@@ -62,17 +127,17 @@ def compare_swarms(swarms):
                     test_swarms[ind_combo[0]],
                     test_swarms[ind_combo[1]],
                     how="inner",
-                    on=["id", "id"],
+                    on="event_id",
                 )
                 if len(int_df) > 0:
                     logger.info("overlap")
                     dt0 = (
-                        test_swarms[ind_combo[0]].Time.max()
-                        - test_swarms[ind_combo[0]].Time.min()
+                        test_swarms[ind_combo[0]].time.max()
+                        - test_swarms[ind_combo[0]].time.min()
                     )
                     dt1 = (
-                        test_swarms[ind_combo[1]].Time.max()
-                        - test_swarms[ind_combo[1]].Time.min()
+                        test_swarms[ind_combo[1]].time.max()
+                        - test_swarms[ind_combo[1]].time.min()
                     )
                     remove_swarm_ind.append(ind_combo[np.argmax([dt0, dt1])])
                     flag_list.append(True)
@@ -94,7 +159,29 @@ def compare_swarms(swarms):
 
 
 def get_swarms(DF, T0, config):
+    """Cluster hypocenters into swarms using space-time DBSCAN.
 
+    Projects events to UTM, scales time into the same units as distance, and
+    runs DBSCAN once per entry in ``config.swarm_parameters`` (each defining a
+    distance/time/min-count regime). Every resulting cluster is returned as a
+    separate swarm.
+
+    Parameters
+    ----------
+    DF : pandas.DataFrame
+        Candidate events with ``latitude``, ``longitude``, and ``time``.
+    T0 : obspy.UTCDateTime
+        End time used to window each parameter set's lookback.
+    config : object
+        Configuration exposing ``swarm_parameters``, a list of dicts with
+        ``name``, ``max_evt_time``, ``max_evt_distance``, and ``min_num_evt``.
+
+    Returns
+    -------
+    list of pandas.DataFrame
+        One DataFrame per detected cluster, each annotated with a ``label``
+        and ``param_duration``.
+    """
     df = DF.copy()
 
     t_str_fmt = "%Y-%m-%d %H:%M:%S"

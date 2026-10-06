@@ -1,3 +1,17 @@
+"""
+Outbound notification helpers for the alarms package.
+
+Centralizes every way an alarm reaches the outside world: Icinga heartbeats,
+email/SMS alerts (with attachments), and Mattermost posts (including
+per-volcano and ad-hoc channel fan-out). Also provides the formatting helpers
+that turn raw alarm data into human-readable subjects, bodies, timestamp
+strings, and nearest-volcano summaries.
+
+Recipient lists are resolved from the distribution and phonebook YAML files,
+and server endpoints/credentials are read from environment variables (SMTP,
+Mattermost, and Icinga settings).
+"""
+
 import json
 import os
 import re
@@ -24,6 +38,12 @@ warnings.filterwarnings("ignore")
 
 def icinga(config, state, state_message, send=True):
     """Send alarm state and message to Icinga monitoring system.
+
+    Requires environment variables for Icinga configuration:
+    - ICINGA_URL
+    - ICINGA_USERNAME
+    - ICINGA_PASSWORD
+    - ICINGA_HOST_NAME
 
     Parameters
     ----------
@@ -90,7 +110,7 @@ def icinga(config, state, state_message, send=True):
         else:
             logger.info(f"Status code = {resp.status_code:g}")
             logger.error("Failed to send message to icinga2")
-    except Exception as e:
+    except (requests.exceptions.RequestException, RuntimeError) as e:
         logger.error("requests error. Failed to send message to icinga")
         logger.error(f"An unexpected error occurred: {e}")
 
@@ -98,7 +118,7 @@ def icinga(config, state, state_message, send=True):
 
 
 def attachments_tolist(attachment):
-    """Convert attachment(s) to a list format.
+    """Convert attachment path(s) to a list format.
 
     Parameters
     ----------
@@ -120,6 +140,10 @@ def attachments_tolist(attachment):
 
 def get_recipients_list(alarm_name, test=False):
     """Retrieve recipient email addresses for a given alarm from distribution list.
+    
+    Requires the following environment variables:
+    - DISTRIBUTION_FILE: path to distribution list YAML file
+    - PHONEBOOK_FILE: path to phonebook YAML file
 
     Parameters
     ----------
@@ -146,14 +170,14 @@ def get_recipients_list(alarm_name, test=False):
 
     alarm_key = alarm_name
     if test:
-        if "Test" in distribution.keys():
+        if "Test" in distribution:
             alarm_key = "Test"
             logger.info("Test mode. Sending message to 'Test' recipients")
         else:
             alarm_key = "Error"
             logger.info("Test mode. No 'Test' group found; sending message to 'Error' recipients")
     else:
-        if alarm_name not in distribution.keys():
+        if alarm_name not in distribution:
             alarm_key = "All Alarms"
             logger.info("Defaulting to 'All alarms' list")
         else:
@@ -210,9 +234,9 @@ def send_alert(alarm_name, subject, body, attachment=None, test=False):
 
     attachment_list = attachments_tolist(attachment)
     for file in attachment_list:
-        with open(file, "rb") as attachment:
+        with open(file, "rb") as attachment_file:
             part = MIMEBase("image", "jpeg")
-            part.set_payload(attachment.read())
+            part.set_payload(attachment_file.read())
             encoders.encode_base64(part)
             part.add_header("Content-Disposition", f"attachment; filename={file.name}")
             msg.attach(part)
@@ -230,8 +254,6 @@ def send_alert(alarm_name, subject, body, attachment=None, test=False):
     text = msg.as_string()
     server.sendmail(fromaddr, recipients, text)
     server.quit()
-
-    return
 
 
 def connect_mattermost():
@@ -260,10 +282,10 @@ def connect_mattermost():
             "password": os.environ["MATTERMOST_USER_PASS"],
             "scheme": "https",
             "port": 443,
-            "verify": os.environ.get("REQUESTS_CA_BUNDLE", True),
+            "verify": os.environ.get("REQUESTS_CA_BUNDLE") or True,
         }
     )
-    mm.login();  # noqa: E703
+    mm.login();
 
     return mm
 
@@ -338,8 +360,22 @@ def upload_mm_attachments(mm, channel_id, attachment):
     return file_ids
 
 
-def post_mattermost(config, subject, body, attachment=None, send=False, test=False, volcano=None, channel_ids=None):
+def post_mattermost(
+    config,
+    subject,
+    body,
+    attachment=None,
+    send=False,
+    test=False,
+    volcano=None,
+    channel_ids=None,
+):
     """Post alarm message to Mattermost channel with optional attachments.
+    
+    Requires environment variables for Mattermost configuration:
+    - MATTERMOST_DEFAULT_CHANNEL_ID
+    - MATTERMOST_POST_URL
+    - MATTERMOST_TEST_CHANNEL_ID (optional)
 
     Parameters
     ----------
@@ -394,23 +430,15 @@ def post_mattermost(config, subject, body, attachment=None, send=False, test=Fal
 
     try:
         post = mm.posts.create_post(options=message_details)
-    except Exception as e:
+    except (requests.exceptions.RequestException, RuntimeError) as e:
         logger.error("Error posting to Mattermost. Retrying once...")
         logger.error(f"An unexpected error occurred: {e}")
         time.sleep(2)
         post = mm.posts.create_post(options=message_details)
 
     url = f"mattermost://{os.environ['MATTERMOST_POST_URL']}/{post['id']}"
-
-    # Two complementary ways to fan out to additional channels (not duplicates):
-    #   - ``volcano``: declarative, config-driven routing. Any alarm passing a
-    #     volcano name gets per-volcano response channels for free via
-    #     ``config.mm_response_channels`` (enabled by YAML alone, no code).
-    #   - ``channel_ids``: imperative routing for cases the config map can't
-    #     express, where the caller computes the channel list (e.g. NOAA_CIMSS
-    #     thermal/elevated alerts keyed on alert attributes + thresholds).
-    # Both are skipped in test mode and may be used together in one call.
-    if not test and volcano is not None:
+    
+    if not test and volcano is not None:  # noqa: SIM102
         if volcano in getattr(config, "mm_response_channels", "empty"):
             logger.info(f"Posting to {volcano} Mattermost response channel")
             volcano_channel_id = config.mm_response_channels[volcano]
@@ -439,7 +467,24 @@ def post_mattermost(config, subject, body, attachment=None, send=False, test=Fal
 
 
 def format_timestring(t1, t2=None):
+    """Format a UTC time (or time range) with its local-timezone equivalent.
 
+    Chooses second- or minute-level precision automatically based on whether
+    the inputs carry sub-minute information. The local timezone is read from
+    the ``TIMEZONE`` environment variable.
+
+    Parameters
+    ----------
+    t1 : obspy.UTCDateTime
+        The time, or the start of the range.
+    t2 : obspy.UTCDateTime, optional
+        End of the range. If omitted, only ``t1`` is formatted.
+
+    Returns
+    -------
+    str
+        A multi-line string showing the time(s) in both UTC and local time.
+    """
     if t2 is not None and (t2 - t1) % 60 != 0:
         str_fmt = "%Y-%m-%d %H:%M:%S"
     elif (t2 is not None) and (t1.second !=0 or t2.second !=0):

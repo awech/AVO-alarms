@@ -1,0 +1,46 @@
+{
+  "call_order": [
+    "download_hypocenters_csv",
+    "download_hypocenter_xml",
+    "plot_event",
+    "can_send",
+    "post_mattermost",
+    "record_send",
+    "icinga",
+    "icinga"
+  ],
+  "detection_state": "CRITICAL",
+  "icinga": [
+    {
+      "send": true,
+      "state": "CRITICAL",
+      "state_message": "2026-01-04 20:16:41 (UTC) M3.2 earthquake at Denison"
+    },
+    {
+      "send": true,
+      "state": "CRITICAL",
+      "state_message": "2026-01-04 20:16:41 (UTC) M3.2 earthquake at Denison"
+    }
+  ],
+  "os_remove": [],
+  "post_mattermost": [
+    {
+      "body": "2026-01-04 20:16:41 UTC\n2026-01-04 11:16:41 AKST\n\n**Magnitude:** 3.2\n**Latitude:** 58.442\n**Longitude:** -154.516\n**Depth:** 8.0 km\n**Event ID:** av93980456\n**Nearest volcanoes:** Denison (5 km), Steller (7 km), Kukak (9 km)\n\n***--- REVIEWED Location ---***\nUsing 33 phases from 19 stations\n**Azimuthal Gap:** 177 degrees\n**Standard Error:** 0.34 s\n**Vertical/Horizontal Error:** 1.0 km / 0.7 km",
+      "channel_ids": null,
+      "send": true,
+      "subject": "M3.2 earthquake at Denison",
+      "test": false,
+      "volcano": "Denison"
+    }
+  ],
+  "record_send": [
+    {
+      "alarm_id": "Earthquake Magnitude",
+      "event_id": 93980456,
+      "process_time": "2026-01-04T20:30:00",
+      "test": false,
+      "volcano": "Denison"
+    }
+  ],
+  "send_alert": []
+}

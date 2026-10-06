@@ -1,3 +1,12 @@
+"""
+Download and parsing routines for the VAA alarm.
+
+Fetches the Mesonet VAA advisory list and individual text products, parses the
+free-text advisory into structured fields, converts VAA coordinate strings to
+latitude/longitude, extracts observed/forecast ash-cloud polygons, and
+computes a map extent that frames them.
+"""
+
 import os
 import re
 import time
@@ -15,9 +24,23 @@ logger = get_logger(__name__)
 def download_mesonet_vaa_list(T0, max_tries=3, timeout=10, backoff=2):
     """Download the mesonet VAA advisory list for a given date.
 
-    Returns a single-column ``text_link`` DataFrame on success (which may be
-    empty if there are no advisories for that date), or ``None`` if the API
-    could not be reached / parsed after ``max_tries`` attempts.
+    Parameters
+    ----------
+    T0 : obspy.UTCDateTime
+        Date to query; only the calendar date is used.
+    max_tries : int, optional
+        Maximum number of attempts, by default 3.
+    timeout : float, optional
+        Per-request timeout in seconds, by default 10.
+    backoff : float, optional
+        Seconds to wait between attempts, by default 2.
+
+    Returns
+    -------
+    pandas.DataFrame or None
+        A single-column ``text_link`` DataFrame on success (which may be empty
+        if there are no advisories for that date), or ``None`` if the API
+        could not be reached or parsed after ``max_tries`` attempts.
     """
     logger.info(
         f"Reading in alerts from mesonet api .json file for {T0.strftime('%Y-%m-%d')}"
@@ -54,8 +77,22 @@ def download_mesonet_vaa_list(T0, max_tries=3, timeout=10, backoff=2):
 def fetch_vaa_page(url, max_tries=3, timeout=10, backoff=2):
     """Fetch a VAA text page, retrying on transient network errors.
 
-    Returns the ``requests.Response`` on success, or ``None`` if every attempt
-    failed (e.g. repeated read timeouts from the upstream server).
+    Parameters
+    ----------
+    url : str
+        URL of the advisory text page to fetch.
+    max_tries : int, optional
+        Maximum number of attempts, by default 3.
+    timeout : float, optional
+        Per-request timeout in seconds, by default 10.
+    backoff : float, optional
+        Seconds to wait between attempts, by default 2.
+
+    Returns
+    -------
+    requests.Response or None
+        The response on success, or ``None`` if every attempt failed (e.g.
+        repeated read timeouts from the upstream server).
     """
     for attempt in range(1, max_tries + 1):
         try:
@@ -99,7 +136,21 @@ def parse_vaa_fields(text, fields=None):
     on consecutive lines with no blank separators. Walks line by line, starting
     a new field on any known ``LABEL:`` and treating other non-blank lines as
     continuations. Newlines inside a value are preserved so polygon parsing can
-    still split on them. ``"header"`` holds the lines before the first field.
+    still split on them.
+
+    Parameters
+    ----------
+    text : str
+        Raw advisory text product.
+    fields : list of str, optional
+        Known field labels to recognize. Defaults to :data:`VAA_FIELDS` when
+        ``None``.
+
+    Returns
+    -------
+    dict
+        Mapping of field label to its (possibly multi-line) value. The
+        ``"header"`` key holds the lines before the first recognized field.
     """
     if fields is None:
         fields = VAA_FIELDS
@@ -138,6 +189,16 @@ def parse_vaa_dtg(dtg):
     """Convert a VAA ``DTG`` string to a UTC timestamp.
 
     Advisories use either ``YYYYMMDD/HHMMZ`` or the abbreviated ``YYMMDD/HHMMZ``.
+
+    Parameters
+    ----------
+    dtg : str
+        The advisory ``DTG`` date-time group string.
+
+    Returns
+    -------
+    pandas.Timestamp
+        The parsed, timezone-aware (UTC) timestamp.
     """
     date_txt, _, time_txt = dtg.strip().rstrip("Z").partition("/")
     fmt = "%Y%m%d%H%M" if len(date_txt) == 8 else "%y%m%d%H%M"
@@ -145,7 +206,24 @@ def parse_vaa_dtg(dtg):
 
 
 def process_vaa_id(vaa_id):
+    """Download and parse a single VAA advisory into a record.
 
+    Fetches the advisory text, parses its fields, skips test advisories, and
+    derives latitude/longitude, time, and a unique id. Malformed or truncated
+    advisories are skipped (logged) rather than raising.
+
+    Parameters
+    ----------
+    vaa_id : pandas.Series or Mapping
+        Row exposing ``text_link`` (the advisory URL).
+
+    Returns
+    -------
+    dict or None
+        The parsed advisory with added ``lat``, ``lon``, ``time``, and ``id``
+        keys, or ``None`` if it is a test advisory, could not be downloaded,
+        or was malformed.
+    """
     page = fetch_vaa_page(vaa_id["text_link"])
     if page is None:
         return None
@@ -175,15 +253,28 @@ def process_vaa_id(vaa_id):
 def process_polygons(vaa, field):
     """Parse a VAA cloud field into a list of per-sub-polygon groups.
 
-    Returns a LIST of ``(lons, lats, level_txt)`` tuples, one per parsed ring.
-    Returns ``[]`` for a missing field, a non-string field, a
-    ``VA NOT IDENTIFIABLE`` field, or a field with no real coordinate ring
-    (e.g. a whole-field ``NO VA EXP``).
-
     A field can carry MULTIPLE sub-polygons (each its own level + ring),
     separated by newlines. Forecast fields may lead with a ``DD/HHMM`` time
     token and trail each ring with a ``MOV <DIR> <N>KT`` motion token; a
     sub-polygon can also be ``NO VA EXP`` beside a real sibling ring.
+
+    Parameters
+    ----------
+    vaa : dict
+        Parsed advisory record (see :func:`parse_vaa_fields`).
+    field : str
+        Name of the cloud field to parse (e.g. ``"OBS VA CLD"`` or
+        ``"FCST VA CLD +6HR"``).
+
+    Returns
+    -------
+    list of tuple
+        A list of ``(lons, lats, level_txt)`` tuples, one per parsed ring,
+        where ``lons`` and ``lats`` are lists of floats and ``level_txt`` is a
+        formatted flight-level string (possibly empty). Returns ``[]`` for a
+        missing field, a non-string field, a ``VA NOT IDENTIFIABLE`` field, or
+        a field with no real coordinate ring (e.g. a whole-field
+        ``NO VA EXP``).
     """
     if field not in vaa:
         return []
@@ -255,6 +346,24 @@ def process_polygons(vaa, field):
 
 
 def text_to_latlon(latlon_txt):
+    """Convert a VAA coordinate string to decimal latitude/longitude.
+
+    Parses the degrees-and-minutes format used in advisories (e.g.
+    ``"N5612 W15430"``), applying hemisphere signs and normalizing longitude
+    to the ``(-360, 0]`` range used elsewhere in the package.
+
+    Parameters
+    ----------
+    latlon_txt : str
+        A single whitespace-separated ``lat lon`` coordinate token.
+
+    Returns
+    -------
+    tmp_lat : float
+        Decimal latitude in degrees.
+    tmp_lon : float
+        Decimal longitude in degrees.
+    """
     pr = latlon_txt.strip()
     pr = pr.replace('E','')
     pr = pr.replace('W','-')
@@ -278,7 +387,24 @@ def text_to_latlon(latlon_txt):
 
 
 def get_extent(LONS, LATS):
+    """Compute a map extent that frames a set of coordinates.
 
+    Finds the bounding box of the given longitudes/latitudes, measures its
+    width and height in km, and returns a square-ish extent padded to 1.5x the
+    larger dimension and centered on the coordinates.
+
+    Parameters
+    ----------
+    LONS : numpy.ndarray
+        Longitudes in degrees.
+    LATS : numpy.ndarray
+        Latitudes in degrees.
+
+    Returns
+    -------
+    list of float
+        Map extent as ``[lonmin, lonmax, latmin, latmax]`` in degrees.
+    """
     lat0 = np.mean([LATS.max(), LATS.min()])
     lon0 = np.mean([LONS.max(), LONS.min()])
     lat_dist = gps2dist_azimuth(LATS.min(), lon0, LATS.max(), lon0)[0] / 1000

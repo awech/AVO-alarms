@@ -1,0 +1,71 @@
+{
+  "call_order": [
+    "download_hypocenters_csv",
+    "filter_dataframe",
+    "can_send",
+    "make_figure",
+    "post_mattermost",
+    "record_send",
+    "icinga",
+    "can_send",
+    "make_figure",
+    "post_mattermost",
+    "record_send",
+    "icinga",
+    "icinga"
+  ],
+  "detection_state": "CRITICAL",
+  "icinga": [
+    {
+      "send": true,
+      "state": "CRITICAL",
+      "state_message": "2026-09-23 21:30 (UTC) Swarm actvity at: Spurr"
+    },
+    {
+      "send": true,
+      "state": "CRITICAL",
+      "state_message": "2026-09-23 21:30 (UTC) Swarm actvity at: Redoubt"
+    },
+    {
+      "send": true,
+      "state": "CRITICAL",
+      "state_message": "2026-09-23 21:30 (UTC) Swarm actvity at: Redoubt"
+    }
+  ],
+  "os_remove": [],
+  "post_mattermost": [
+    {
+      "body": "6 events in 0h 35m\n\n***--- UTC ---***\n**First:** 2026-09-23 20:37\n**Last:** 2026-09-23 21:12\n\n***--- AKDT ---***\n**First:** 2026-09-23 12:37\n**Last:** 2026-09-23 13:12\n\n**Magnitude range:** -0.1 - 1.9\n**Depth range:** 4.2 - 6.0 km",
+      "channel_ids": null,
+      "send": true,
+      "subject": "Earthquake swarm at Spurr",
+      "test": false,
+      "volcano": "Spurr"
+    },
+    {
+      "body": "7 events in 0h 24m\n\n***--- UTC ---***\n**First:** 2026-09-23 21:00\n**Last:** 2026-09-23 21:24\n\n***--- AKDT ---***\n**First:** 2026-09-23 13:00\n**Last:** 2026-09-23 13:24\n\n**Magnitude range:** -0.3 - 1.9\n**Depth range:** 3.7 - 6.9 km",
+      "channel_ids": null,
+      "send": true,
+      "subject": "Earthquake swarm at Redoubt",
+      "test": false,
+      "volcano": "Redoubt"
+    }
+  ],
+  "record_send": [
+    {
+      "alarm_id": "Earthquake Swarm",
+      "event_id": null,
+      "process_time": "2026-09-23T21:30:00",
+      "test": false,
+      "volcano": "Spurr"
+    },
+    {
+      "alarm_id": "Earthquake Swarm",
+      "event_id": null,
+      "process_time": "2026-09-23T21:30:00",
+      "test": false,
+      "volcano": "Redoubt"
+    }
+  ],
+  "send_alert": []
+}

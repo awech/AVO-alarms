@@ -1,0 +1,51 @@
+{
+  "call_order": [
+    "download_waveforms",
+    "download_waveforms",
+    "can_send",
+    "make_figure",
+    "post_mattermost",
+    "send_alert",
+    "record_send",
+    "os.remove",
+    "icinga"
+  ],
+  "detection_state": "CRITICAL",
+  "icinga": [
+    {
+      "send": true,
+      "state": "CRITICAL",
+      "state_message": "2026-09-28 20:40 (UTC) RSAM detection! PS4A: 319/400 (RD = 2.4), PVV: 426/400 (RD = 3.1), PS1A: 579/375 (RD = 4.7), HAG: 216/300 (RD = 2.1), PN7A: 647/450 (RD = 4.2), PV6A: 1066/325 (RD = 9.8), Arrestor (BLDW): 50/200[3 station minimum,1 -- 5 Hz]"
+    }
+  ],
+  "os_remove": [
+    "<FIGURE>"
+  ],
+  "post_mattermost": [
+    {
+      "body": "Start: 2026-09-28 20:35 (UTC)\nEnd: 2026-09-28 20:40 (UTC)\n\nStart: 2026-09-28 12:35 (AKDT)\nEnd: 2026-09-28 12:40 (AKDT)\n\nPS4A: 319/400 (RD = 2.4)\nPVV*: 426/400 (RD = 3.1)\nPS1A*: 579/375 (RD = 4.7)\nHAG: 216/300 (RD = 2.1)\nPN7A*: 647/450 (RD = 4.2)\nPV6A*: 1066/325 (RD = 9.8)\n\nArrestor: BLDW 50/200",
+      "channel_ids": null,
+      "send": true,
+      "subject": "--- Pavlof RSAM ---",
+      "test": false,
+      "volcano": null
+    }
+  ],
+  "record_send": [
+    {
+      "alarm_id": "Pavlof RSAM",
+      "event_id": null,
+      "process_time": "2026-09-28T20:40:00",
+      "test": false,
+      "volcano": "Pavlof"
+    }
+  ],
+  "send_alert": [
+    {
+      "alarm_name": "Pavlof RSAM",
+      "body": "Start: 2026-09-28 20:35 (UTC)\nEnd: 2026-09-28 20:40 (UTC)\n\nStart: 2026-09-28 12:35 (AKDT)\nEnd: 2026-09-28 12:40 (AKDT)\n\nPS4A: 319/400 (RD = 2.4)\nPVV*: 426/400 (RD = 3.1)\nPS1A*: 579/375 (RD = 4.7)\nHAG: 216/300 (RD = 2.1)\nPN7A*: 647/450 (RD = 4.2)\nPV6A*: 1066/325 (RD = 9.8)\n\nArrestor: BLDW 50/200\n\nmattermost://test-server/post-id",
+      "subject": "--- Pavlof RSAM ---",
+      "test": false
+    }
+  ]
+}

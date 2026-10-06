@@ -31,10 +31,19 @@ f2: 10.0              # maximum frequency for bandpass filter
 # taper: 5.0           # Optional. Pre-filter taper. Default 5 s
 # latency: 10.0        # Optional. Delay when run from cron for data latency. Default 10 s
 
+# LTS array processing parameters (optional; fall back to env vars / defaults)
+# lts_window_length: 30   # Optional. LTS window length (s).   Default: 30 (LTS_WINDOW_LENGTH)
+# lts_overlap: 15         # Optional. LTS window overlap (s).  Default: 15 (LTS_OVERLAP)
+
 # Detection parameters
-min_cc: 0.6           # min normalized correlation coefficient to accept
 min_chan: 3           # minimum number of channels for code to run
-cc_shift_length: 6    # maximum seconds to shift in cross-correlation
+
+# Config-wide target defaults (optional). Apply to every target below unless
+# the target overrides them. If unset, fall back to env vars / defaults.
+# vmin: 0.28              # Optional. Min trace velocity (km/s).   Default: 0.28 (INFRASOUND_VMIN)
+# vmax: 0.45              # Optional. Max trace velocity (km/s).   Default: 0.45 (INFRASOUND_VMAX)
+# cmin: 0.6               # Optional. Min correlation to accept.   Default: 0.6  (INFRASOUND_CMIN)
+# plot_duration: 10 * 60  # Optional. Array/local plot window (s). Default: 3600 (INFRASOUND_PLOT_DURATION)
 
 # Alerting parameters
 alert_memory: 3600     # lookback window (seconds)
@@ -44,11 +53,13 @@ max_alerts: 3          # max alerts within that window
 # Required:
 #   name, az_tolerance (degrees), min_pa (Pascals)
 # Optional:
-#   lat, lon, vmin (default 0.28 km/s), vmax (default 0.45 km/s)
+#   lat, lon
+#   vmin, vmax, cmin, plot_duration: override the config-wide defaults above
+#       for this target only. Precedence: target value > config-wide value >
+#       env var > built-in default (0.28 / 0.45 / 0.6 / 3600).
 #   back_azimuth: if known, manual target backazimuth can be given instead of lat/lon
 #   local_nslc: is a list of local (to the target) seismic/infrasound channels 
 #               to be plotted as spectrograms with array detection
-#   plot_duration: duration in seconds for array processing & local_nslc spectrogram plot
 #   traveltime: boolean to determine whether to calculate predicted airwave traveltime
 #
 # lat/lon info taken from target list file set as environment variable,

@@ -1,3 +1,12 @@
+"""
+Detection and page-scraping routines for the NOAA/CIMSS alarm.
+
+Downloads the NOAA/CIMSS alert feed from the Volcview API, normalizes it into
+a DataFrame, filters out alert types a volcano has opted out of, and scrapes
+each alert's CIMSS web page for details (instrument, height, status, type,
+timestamp, radiative-center location) and imagery.
+"""
+
 import os
 import re
 import time
@@ -50,7 +59,16 @@ def resolve_ignore_column(alert_type, volcs_columns):
 
 
 def download_cimss_vv_api():
+    """Download the NOAA/CIMSS alert feed from the Volcview API.
 
+    Retries up to three times, authenticating with the ``API_USERNAME`` /
+    ``API_PASSWORD`` credentials against ``NOAA_CIMSS_URL``.
+
+    Returns
+    -------
+    pandas.DataFrame or None
+        The parsed alert feed, or ``None`` if all download attempts fail.
+    """
     usr = os.getenv("API_USERNAME")
     pwd = os.getenv("API_PASSWORD")
     url = os.getenv("NOAA_CIMSS_URL")
@@ -64,7 +82,7 @@ def download_cimss_vv_api():
             )
             cimss_df = pd.read_json(result)
             break
-        except Exception as e:
+        except Exception as e: # noqa: BLE001
             logger.warning(f"Error getting data from Volcview-API on attempt {attempt:g}")
             logger.warning(e)
             time.sleep(2)
@@ -74,6 +92,22 @@ def download_cimss_vv_api():
 
 
 def scrape_cimss_alert(alert):
+    """Log in to the CIMSS site and fetch an alert's detail page.
+
+    Posts the ``CIMSS_USERNAME`` / ``CIMSS_PASSWORD`` credentials to the login
+    form, then requests the alert URL within the authenticated session.
+    Retries up to three times.
+
+    Parameters
+    ----------
+    alert : pandas.Series
+        Alert row exposing ``alert_url``.
+
+    Returns
+    -------
+    bs4.BeautifulSoup or None
+        Parsed HTML of the alert page, or ``None`` if all attempts fail.
+    """
     from bs4 import BeautifulSoup
 
     attempt = 1
@@ -99,7 +133,7 @@ def scrape_cimss_alert(alert):
                 soup = BeautifulSoup(r.content)
             session.close()
             break
-        except Exception:
+        except Exception: # noqa: BLE001
             logger.warning(f"Error scraping NOAA CIMSS alert on attempt {attempt:g}")
             if attempt == max_tries:
                 soup = None
@@ -109,7 +143,24 @@ def scrape_cimss_alert(alert):
 
 
 def get_cimss_image(soup, alert, config):
+    """Download the alert images from a CIMSS alert page.
 
+    Finds the images in the page's ``alert_images`` block and saves each to the
+    temporary directory as ``noaa_out_<n>.png``.
+
+    Parameters
+    ----------
+    soup : bs4.BeautifulSoup
+        Parsed alert page.
+    alert : pandas.Series
+        Alert row exposing ``alert_url`` (used to resolve relative image URLs).
+    config : object
+        Alarm configuration (accepted for signature uniformity).
+
+    Returns
+    -------
+    None
+    """
     base_url = "://".join(urlparse(alert.alert_url)[:2])
     image_files = soup.find(class_="alert_images").find_all("img")
     img_file = TMP_DIR / "noaa_out_.png"
@@ -121,12 +172,30 @@ def get_cimss_image(soup, alert, config):
         if r.status_code == 200:
             new_file = Path(str(img_file).replace(".png", f"{i+1:g}.png"))
             with open(new_file, "wb") as out:
-                for bits in r.iter_content():
-                    out.write(bits)
+                out.writelines(r.iter_content())
 
 
 def format_cimss_dataframe(cimss_df, config, T0):
+    """Normalize the raw CIMSS alert feed into a usable DataFrame.
 
+    Drops rows without an alert URL, extracts a numeric ``NOAA_id`` from each
+    URL, parses the alert time, and sorts chronologically.
+
+    Parameters
+    ----------
+    cimss_df : pandas.DataFrame
+        Raw alert feed from :func:`download_cimss_vv_api`.
+    config : object
+        Alarm configuration (Unused; present for a consistent call signature).
+    T0 : obspy.UTCDateTime
+        Processing time (Unused; present for a consistent call signature).
+
+    Returns
+    -------
+    pandas.DataFrame
+        Cleaned alerts with ``NOAA_id`` and parsed ``time`` columns, sorted by
+        time.
+    """
     # update DataFrame with unique NOAA/CIMSS id
     # Remove rows with empty alert_url and extract NOAA_id
     cimss_df = cimss_df[cimss_df["alert_url"].notna() & (cimss_df["alert_url"] != "")]
@@ -147,7 +216,22 @@ def format_cimss_dataframe(cimss_df, config, T0):
 
 
 def check_ignore_volcano(cimss_df):
+    """Mark alerts that should be suppressed per the volcano opt-out list.
 
+    For each alert, looks up the governing volcano-list column for its alert
+    type (via :func:`resolve_ignore_column`) and sets ``keep`` to False when
+    that column is ``"N"`` for the alert's volcano.
+
+    Parameters
+    ----------
+    cimss_df : pandas.DataFrame
+        Alerts with ``v_name`` and ``alert_type`` columns.
+
+    Returns
+    -------
+    pandas.DataFrame
+        The input with an added boolean ``keep`` column.
+    """
     volcs = load_volcano_list().set_index("Name")
 
     cimss_df["keep"] = True
@@ -168,12 +252,34 @@ def check_ignore_volcano(cimss_df):
 
 
 def process_alert_soup(soup, alert, config):
+    """Extract alert details and imagery from a parsed CIMSS page.
 
+    Locates the alert box whose timestamp and radiative center match the
+    alert, then collects the instrument, height, status, and type text,
+    downloads its images, and records the detail-page id (``aid``).
+
+    Parameters
+    ----------
+    soup : bs4.BeautifulSoup
+        Parsed alert page.
+    alert : pandas.Series
+        Alert row; updated in place with ``aid``.
+    config : object
+        Alarm configuration (forwarded to image download).
+
+    Returns
+    -------
+    alert : pandas.Series
+        The alert row, with ``aid`` populated when a matching box is found.
+    output : dict or None
+        Extracted fields (``instrument``, ``height_txt``, ``status_txt``,
+        ``type_txt``), or ``None`` if the page could not be processed.
+    """
     output = {}
     try:
         output["instrument"] = get_instrument(soup)
         sections = soup.select("div[class*=alert_box]")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("Error processing NOAA CIMSS alert page")
         logger.error(e)
         return alert, None
@@ -212,7 +318,18 @@ def process_alert_soup(soup, alert, config):
 
 
 def get_instrument(soup):
+    """Extract the primary instrument name from an alert summary table.
 
+    Parameters
+    ----------
+    soup : bs4.BeautifulSoup
+        Parsed alert page.
+
+    Returns
+    -------
+    str
+        The primary instrument text.
+    """
     tbl = soup.find("div", {"class": "alert_box alert_report_summary"})
     rows = tbl.find_all("tr")
     row = [tr for tr in rows if "Primary" in str(tr)]
@@ -222,8 +339,19 @@ def get_instrument(soup):
 
 
 def get_height_txt(soup):
+    """Extract the maximum-height line from an alert box.
 
-    height_txt = soup.find(text=re.compile("Maximum Height [AMSL]"))
+    Parameters
+    ----------
+    soup : bs4.BeautifulSoup
+        Parsed alert box.
+
+    Returns
+    -------
+    str or None
+        The ``"Maximum Height [AMSL]: <value>"`` text, or ``None`` if absent.
+    """
+    height_txt = soup.find(string=re.compile("Maximum Height [AMSL]"))
     if height_txt:
         height_txt += ":  " + height_txt.find_all_next("td")[0].text
 
@@ -231,8 +359,19 @@ def get_height_txt(soup):
 
 
 def get_alert_status_txt(soup):
+    """Extract the alert-status line from an alert box.
 
-    status_txt = soup.find(text=re.compile("Alert Status"))
+    Parameters
+    ----------
+    soup : bs4.BeautifulSoup
+        Parsed alert box.
+
+    Returns
+    -------
+    str or None
+        The ``"Alert Status: <value>"`` text, or ``None`` if absent.
+    """
+    status_txt = soup.find(string=re.compile("Alert Status"))
     if status_txt:
         status_txt += ":  " + status_txt.find_all_next("td")[0].text
 
@@ -240,8 +379,19 @@ def get_alert_status_txt(soup):
 
 
 def get_type_txt(soup):
+    """Extract the volcanic-event-type line from an alert box.
 
-    type_txt = soup.find(text=re.compile("Type of Volcanic Event"))
+    Parameters
+    ----------
+    soup : bs4.BeautifulSoup
+        Parsed alert box.
+
+    Returns
+    -------
+    str or None
+        The ``"Type of Volcanic Event: <value>"`` text, or ``None`` if absent.
+    """
+    type_txt = soup.find(string=re.compile("Type of Volcanic Event"))
     if type_txt:
         type_txt += ":  " + type_txt.find_all_next("td")[0].text
 
@@ -249,8 +399,19 @@ def get_type_txt(soup):
 
 
 def get_timestamp(soup):
+    """Extract the UTC date/time string from an alert box.
 
-    time_txt = soup.find(text=re.compile("Date/Time"))
+    Parameters
+    ----------
+    soup : bs4.BeautifulSoup
+        Parsed alert box.
+
+    Returns
+    -------
+    str or None
+        The date/time text (portion before ``"UTC"``), or ``None`` if absent.
+    """
+    time_txt = soup.find(string=re.compile("Date/Time"))
     if time_txt:
         time_txt = time_txt.find_all_next("td")[0].text.split("UTC")[0]
 
@@ -258,8 +419,21 @@ def get_timestamp(soup):
 
 
 def get_latitude(soup):
+    """Extract the radiative-center latitude and longitude from an alert box.
 
-    lat_txt = soup.find(text=re.compile("Radiative Center"))
+    Parameters
+    ----------
+    soup : bs4.BeautifulSoup
+        Parsed alert box.
+
+    Returns
+    -------
+    lat : float or None
+        Radiative-center latitude, or ``None`` if not found.
+    lon : float or None
+        Radiative-center longitude, or ``None`` if not found.
+    """
+    lat_txt = soup.find(string=re.compile("Radiative Center"))
     lat = None
     lon = None
     if lat_txt:

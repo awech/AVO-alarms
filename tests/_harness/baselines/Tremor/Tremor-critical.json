@@ -1,0 +1,50 @@
+{
+  "call_order": [
+    "download_waveforms",
+    "can_send",
+    "make_figure",
+    "post_mattermost",
+    "send_alert",
+    "record_send",
+    "os.remove",
+    "icinga"
+  ],
+  "detection_state": "CRITICAL",
+  "icinga": [
+    {
+      "send": true,
+      "state": "CRITICAL",
+      "state_message": "2026-09-29 10:35 (UTC) Pavlof Tremor Tremor/Swarm detection! Seismicity detected in 25 of past 60 minutes. Most recent: 0 minutes ago. PS1A RSAM:35/20"
+    }
+  ],
+  "os_remove": [
+    "<FIGURE>"
+  ],
+  "post_mattermost": [
+    {
+      "body": "Start: 2026-09-29 09:35 (UTC)\nEnd: 2026-09-29 10:35 (UTC)\n\nStart: 2026-09-29 01:35 (AKDT)\nEnd: 2026-09-29 02:35 (AKDT)\n\nSeismicity detected in 25 of past 60 minutes.",
+      "channel_ids": null,
+      "send": true,
+      "subject": "--- Pavlof Tremor ---",
+      "test": false,
+      "volcano": null
+    }
+  ],
+  "record_send": [
+    {
+      "alarm_id": "Pavlof Tremor",
+      "event_id": null,
+      "process_time": "2026-09-29T10:35:00",
+      "test": false,
+      "volcano": "Pavlof"
+    }
+  ],
+  "send_alert": [
+    {
+      "alarm_name": "Pavlof Tremor",
+      "body": "Start: 2026-09-29 09:35 (UTC)\nEnd: 2026-09-29 10:35 (UTC)\n\nStart: 2026-09-29 01:35 (AKDT)\nEnd: 2026-09-29 02:35 (AKDT)\n\nSeismicity detected in 25 of past 60 minutes.\n\nmattermost://test-server/post-id",
+      "subject": "--- Pavlof Tremor ---",
+      "test": false
+    }
+  ]
+}

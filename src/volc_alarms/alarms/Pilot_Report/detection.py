@@ -1,3 +1,12 @@
+"""
+Download and parsing routines for the Pilot Report (PIREP) alarm.
+
+Fetches PIREP shapefiles from the IEM API for a time window, parses them into
+a de-duplicated DataFrame with per-report event ids, flags reports that mention
+volcanic activity, and extracts the flight level and pilot remark used in the
+figure and message.
+"""
+
 import os
 import re
 import zipfile
@@ -13,7 +22,26 @@ logger = get_logger(__name__)
 
 
 def download_pilot_reports(T0, config):
+    """Download the PIREP shapefile archive for a time window.
 
+    Builds the API request for the ``config.duration`` window ending at ``T0``
+    and downloads the result, returning the opened zip archive when the
+    response is a valid zip file.
+
+    Parameters
+    ----------
+    T0 : obspy.UTCDateTime
+        End time of the download window.
+    config : object
+        PIREP alarm configuration providing ``duration``.
+
+    Returns
+    -------
+    state : str
+        ``"OK"`` normally, or ``"WARNING"`` on a request error.
+    archive : zipfile.ZipFile or None
+        The opened archive if new reports were returned, else ``None``.
+    """
     volcs = load_volcano_list()
     if "PIREP" in volcs.columns:
         volcs = volcs[volcs["PIREP"] == "Y"]
@@ -44,7 +72,7 @@ def download_pilot_reports(T0, config):
         with open(tmp_zipfile, "wb") as f:
             resp = requests.get(pirep_url, verify=True, timeout=10)
             f.write(resp.content)
-    except Exception:
+    except Exception:  # noqa: BLE001
         logger.error("Request error from PIREP API")
         state = "WARNING"
         return state, archive
@@ -61,7 +89,27 @@ def download_pilot_reports(T0, config):
 
 
 def pirep_archive_to_dataframe(T0, config, archive):
+    """Parse a PIREP shapefile archive into a DataFrame.
 
+    Extracts the archive, reads the shapefile for the window, keeps reports
+    north of 49 degrees latitude, drops duplicate reports (ignoring differing
+    ``REPORT`` text), and assigns a unique per-report ``event_id``.
+
+    Parameters
+    ----------
+    T0 : obspy.UTCDateTime
+        End time of the window (used to locate the shapefile name).
+    config : object
+        PIREP alarm configuration providing ``duration``.
+    archive : zipfile.ZipFile
+        The opened PIREP archive from :func:`download_pilot_reports`.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Reports with ``time``, ``lat``, ``lon``, and ``event_id`` columns
+        added.
+    """
     T2 = T0
     T1 = T2 - config.duration
 
@@ -105,6 +153,23 @@ def pirep_archive_to_dataframe(T0, config, archive):
 
 
 def check_volcano_mention(df):
+    """Flag pilot reports that mention volcanic activity.
+
+    Scans each report's text for a volcanic-ash mention in the ``/SK`` (sky)
+    or ``/RM`` (remarks) sections and for trigger words (ash, volc, plume,
+    erupt, etc.), masking out common false-positive substrings (e.g.
+    ``PREVAIL``, ``CORDOVA``) first.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        PIREP reports with a ``REPORT`` text column.
+
+    Returns
+    -------
+    pandas.DataFrame
+        The same DataFrame with a boolean ``trigger`` column added.
+    """
     df["trigger"] = False
     for i, row in df.iterrows():
         report = row["REPORT"].upper()
@@ -156,16 +221,43 @@ def check_volcano_mention(df):
 
 
 def get_height_text(FL):
+    """Format a flight-level value as display text.
+
+    Parameters
+    ----------
+    FL : float
+        Flight level in feet above sea level (may be unparseable).
+
+    Returns
+    -------
+    str
+        ``"Flight level: <N> feet asl"``, or ``"Flight level: UNKNOWN"`` if the
+        value could not be formatted.
+    """
     try:
         height_text = f"Flight level: {FL:,.0f} feet asl"
-    except Exception:
+    except Exception: # noqa: BLE001
         logger.warning('Could not parse flight level from report')
         height_text = "Flight level: UNKNOWN"
     return height_text
 
 
 def get_pilot_remark(report):
+    """Extract the free-text pilot remark from a PIREP report.
 
+    Splits the report on ``/`` and returns the capitalized text of the ``RM``
+    (remarks) field.
+
+    Parameters
+    ----------
+    report : str
+        Raw PIREP report text.
+
+    Returns
+    -------
+    str
+        The pilot remark, or ``"NA"`` if no remark field was found.
+    """
     pattern = re.compile(r'^(?:\s)?RM(.*)$')
     fields = report.split("/")
 

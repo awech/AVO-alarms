@@ -1,3 +1,18 @@
+"""
+RSAM (Real-time Seismic Amplitude Measurement) alarm.
+
+Downloads and conditions waveform data for a set of stations plus an arrestor
+station, computes each station's RSAM level (and optional reduced
+displacement), and compares against per-station thresholds. A detection
+requires at least ``min_sta`` stations over threshold while the arrestor stays
+below its threshold; detections escalate to CRITICAL and send an alert with a
+spectrogram figure and message. Lesser conditions map to elevated, arrested,
+missing-data, or normal states.
+
+The package exposes :func:`run_alarm`, the entry point invoked by
+``run-alarm`` for configs whose ``alarm_type`` is ``RSAM``.
+"""
+
 import traceback
 
 import numpy as np
@@ -14,7 +29,38 @@ logger = get_logger(__name__)
 
 
 def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force_flag=False):
+    """Run the RSAM alarm for one time window.
 
+    Downloads station and arrestor data for the ``config.duration`` window,
+    computes RSAM levels (and reduced displacement when a volcano is
+    configured), and classifies the result. A CRITICAL detection (enough
+    stations over threshold with the arrestor quiet) sends an alert; otherwise
+    an Icinga heartbeat reports the elevated/arrested/missing/normal state.
+
+    Parameters
+    ----------
+    config : object
+        RSAM alarm configuration (``rsam_stations``, ``arrestor``, ``duration``,
+        ``min_sta``, filter corners, optional ``volcano_name``/``infrasound``).
+    T0 : obspy.UTCDateTime
+        End time of the processing window.
+    test_flag : bool, optional
+        Run in test mode (test tables/channels, TEST watermark), by default
+        False.
+    mm_flag : bool, optional
+        Whether to post to Mattermost, by default True.
+    icinga_flag : bool, optional
+        Whether to send the Icinga heartbeat, by default True.
+    force_flag : bool, optional
+        Force a detection by setting the station minimum to zero, by default
+        False.
+
+    Returns
+    -------
+    None
+        Returns after sending the alert (on a CRITICAL detection) or after the
+        Icinga heartbeat otherwise.
+    """
     T0 = apply_cron_latency_backup(config, T0)
     t1 = T0 - config.duration
     t2 = T0
@@ -58,10 +104,9 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
                 ]
             )
             logger.info("Successfully calculated Reduced Displacement")
-    except Exception as e:
+    except Exception as e: # noqa: BLE001
         logger.warning(e)
         logger.error(traceback.format_exc())
-        pass
 
     ############################# Icinga message #############################
     if any(DR):

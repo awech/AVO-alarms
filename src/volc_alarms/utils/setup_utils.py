@@ -1,11 +1,27 @@
 """
-Centralized logging configuration for AVO Alarms package.
+Setup and configuration helpers for the volc-alarms package.
 
-Provides setup functions to configure loggers with appropriate handlers
-based on whether the code is running from cron or interactively.
+Collects the routines that bootstrap an alarm run before any detection
+happens:
 
-When FROMCRON environment variable is set, logs are written to rotating
-files (4-hour intervals, 2-week retention). Otherwise, logs go to console.
+- Environment loading: :func:`load_environment` reads a ``.env`` file and
+    fills in path and connection defaults derived from the project layout.
+- Configuration: :func:`load_config` parses an alarm's YAML config into a
+    namespace, converting path-like strings to ``Path`` objects, evaluating
+    simple arithmetic expressions, and applying per-alarm-type defaults.
+    :func:`update_infrasound_config` enriches Infrasound targets with
+    coordinates and velocity defaults.
+- Reference data: :func:`load_volcano_list` loads the volcano table from
+    ``.xlsx``/``.csv``/``.txt``.
+- Logging: :func:`setup_root_logger` and :func:`get_logger` configure
+    logging to rotating files when running from cron (``FROMCRON``) or to the
+    console otherwise, with the rotation interval and retention controlled by
+    the ``LOG_HOUR_INTERVAL`` and ``LOG_DAYS_KEEP`` environment variables.
+- Concurrency: :class:`LockFile` is a PID-based lock to stop two instances
+    of the same alarm from running at once.
+
+Behavior is driven largely by environment variables; most have sensible
+defaults inferred from the installed package location.
 """
 
 import glob
@@ -29,21 +45,25 @@ TMP_DIR = PROJECT_ROOT / "tmp_files"
 
 
 def load_environment(env_file=None):
-    """
-    Load environment variables from a .env file and apply sensible defaults.
+    """Load environment variables from a .env file and apply sensible defaults.
 
     After loading the dotenv file, sets defaults for path-based variables that
     can be inferred from the project layout. Variables already set (via .env or
-    the shell environment) are never overwritten.
+    the shell environment) are never overwritten here, but can be over-ruled by
+    specific values in individual alarm config .yml files
 
-    Args:
-        env_file: Optional path to a .env file. If provided, that file is
-            loaded and its values override any variables already set in the
-            environment. If omitted, the directory tree is searched upward
-            for a .env file (the default python-dotenv behavior).
+    Parameters
+    ----------
+    env_file : str or Path, optional
+        Path to a .env file. If provided, that file is loaded and its values
+        override any variables already set in the environment. If omitted, the
+        directory tree is searched upward for a .env file (the default
+        python-dotenv behavior).
 
-    Raises:
-        FileNotFoundError: If an explicit env_file is given but does not exist.
+    Raises
+    ------
+    FileNotFoundError
+        If an explicit ``env_file`` is given but does not exist.
     """
     if env_file:
         env_path = Path(env_file)
@@ -125,19 +145,40 @@ def _detect_system_tz():
 
 
 class StderrToLogger(io.TextIOBase):
-    """
-    Redirect stderr output to a logger.
-    
+    """Redirect stderr output to a logger.
+
     This captures output from C/FORTRAN libraries (like earthworm) that print 
     directly to stderr, routing it through Python's logging system.
     """
     def __init__(self, logger, log_level=logging.WARNING):
+        """Initialize the stderr-to-logger redirector.
+
+        Parameters
+        ----------
+        logger : logging.Logger
+            Logger that captured stderr lines are forwarded to.
+        log_level : int, optional
+            Level at which captured lines are logged, by default
+            ``logging.WARNING``.
+        """
         self.logger = logger
         self.log_level = log_level
         self.linebuf = ""
 
     def write(self, buf):
-        """Write buffer to logger."""
+        """Write a buffer to the logger, one record per non-empty line.
+
+        Parameters
+        ----------
+        buf : str
+            Text written to the redirected stream.
+
+        Returns
+        -------
+        int
+            The number of characters in ``buf`` (per the ``io`` write
+            contract).
+        """
         for line in buf.rstrip().splitlines():
             line = line.rstrip()
             if line:
@@ -145,16 +186,44 @@ class StderrToLogger(io.TextIOBase):
         return len(buf)
 
     def flush(self):
-        """Flush (no-op for logger)."""
-        pass
+        """Flush the stream.
+
+        Returns
+        -------
+        None
+            No-op; the logger handles its own flushing.
+        """
 
     def isatty(self):
-        """Return False since we're not a terminal."""
+        """Report whether the stream is a terminal.
+
+        Returns
+        -------
+        bool
+            Always ``False``, since this is a logging redirect, not a TTY.
+        """
         return False
 
 
 def looks_like_path(value):
-    """Check if a string value looks like a file path."""
+    """Heuristically decide whether a string looks like a file path.
+
+    A value is treated as a path if it contains a path separator (``/`` or
+    ``\\``), starts with a relative/home/env-var prefix (``.``, ``~``, ``$``),
+    or ends with a filename-plus-extension pattern. NSLC channel names of the
+    form ``net.sta.loc.chan`` (exactly three dots, alphanumeric parts) are
+    explicitly rejected so they are not mistaken for filenames.
+
+    Parameters
+    ----------
+    value : Any
+        Value to test. Non-string values always return ``False``.
+
+    Returns
+    -------
+    bool
+        True if ``value`` looks like a file path, False otherwise.
+    """
     if not isinstance(value, str):
         return False
 
@@ -175,7 +244,7 @@ def looks_like_path(value):
 
     # Check for filename with extension pattern
     # Matches patterns like "file.txt", "config.yml", etc.
-    if re.search(r'[a-zA-Z0-9_-]+\.[a-zA-Z0-9]{2,}$', value):
+    if re.search(r'[a-zA-Z0-9_-]+\.[a-zA-Z0-9]{2,}$', value):  # noqa: SIM103
         return True
 
     return False
@@ -184,11 +253,24 @@ def looks_like_path(value):
 def _evaluate_math_expr(value):
     """Evaluate a simple arithmetic string (e.g. '3600 * 24 * 3').
 
-    Supports chained +, -, *, / operations between numeric values.
-    Only evaluates strings composed entirely of digits, decimal points,
-    whitespace, and arithmetic operators. Returns the numeric result,
-    or the original value unchanged if it doesn't match.
+    Supports chained ``+``, ``-``, ``*``, ``/`` operations between numeric
+    values. Only strings composed entirely of digits, decimal points,
+    whitespace, parentheses, and arithmetic operators are evaluated; anything
+    else is returned unchanged.
+
+    Parameters
+    ----------
+    value : Any
+        The value to evaluate. Non-string values are returned unchanged.
+
+    Returns
+    -------
+    int, float, or Any
+        The numeric result of the expression, downcast to ``int`` when it is a
+        whole number. If ``value`` is not a string, does not match the safe
+        arithmetic pattern, or fails to evaluate, it is returned unchanged.
     """
+
     if not isinstance(value, str):
         return value
 
@@ -198,7 +280,7 @@ def _evaluate_math_expr(value):
         return value
 
     try:
-        result = eval(value)  # noqa: S307 — input is validated above
+        result = eval(value)
     except (SyntaxError, ZeroDivisionError, TypeError):
         return value
 
@@ -220,6 +302,7 @@ def _apply_math_expressions(config):
     config : types.SimpleNamespace
         The parsed config object (modified in place).
     """
+
     math_eligible_keys = {"value", "duration"}
 
     # Top-level attributes
@@ -243,8 +326,7 @@ def _apply_math_expressions(config):
 
 
 def load_config(config_name):
-    """
-    Load configuration from a YAML file in CONFIGS_DIR.
+    """Load configuration from a YAML file in CONFIGS_DIR.
 
     Reads CONFIGS_DIR/{config_name}.yml, parses it with ``yaml.safe_load``,
     and wraps the resulting mapping in a ``types.SimpleNamespace`` so that
@@ -273,6 +355,7 @@ def load_config(config_name):
     TypeError
         If the YAML root is not a mapping.
     """
+
     config_path = Path(os.environ.get("CONFIGS_DIR")) / f"{config_name}.yml"
     if not config_path.is_file():
         raise FileNotFoundError(f"Config file not found: {config_path}")
@@ -309,33 +392,46 @@ def load_config(config_name):
     if config.alarm_type == "Infrasound":
         config = update_infrasound_config(config)
         if not hasattr(config, "duration") or config.duration is None:
-            config.duration = os.environ.get("INFRASOUND_DURATION", 90)
+            config.duration = float(os.environ.get("INFRASOUND_DURATION", "90"))
             
     if config.alarm_type == "RSAM":
         if not hasattr(config, "duration") or config.duration is None:
-            config.duration = os.environ.get("RSAM_DURATION", 300)
+            config.duration = float(os.environ.get("RSAM_DURATION", "300"))
 
     if config.alarm_type == "Tremor":
         if not hasattr(config, "grid_file"):
             config.grid_file = TMP_DIR / f"{config.alarm_name.replace(' ', '_')}_grid.npz"
         if not hasattr(config, "lookback_window") or config.lookback_window is None:
-            config.lookback_window = int(os.environ.get("TREMOR_LOOKBACK_WINDOW", 60))
+            config.lookback_window = float(os.environ.get("TREMOR_LOOKBACK_WINDOW", "60"))
         if not hasattr(config, "window_length") or config.window_length is None:
-            config.window_length = os.environ.get("TREMOR_WINDOW_LENGTH", 300)
+            config.window_length = float(os.environ.get("TREMOR_WINDOW_LENGTH", "300"))
 
     return config
 
 
 def update_infrasound_config(config):
-    """
-    Enrich Infrasound targets with location and velocity defaults.
+    """Enrich Infrasound targets with location and plotting/velocity defaults.
 
     For each entry in ``config.targets`` (the canonical lowercase key), fill
     ``lat``/``lon`` from the Volcano_List row matching the target ``name`` when
-    either is absent, and default ``vmin``/``vmax``/``cmin`` from the
-    ``INFRASOUND_VMIN``/``INFRASOUND_VMAX`` environment variables (0.28/0.45)
-    when absent. Pre-existing ``lat``/``lon``/``vmin``/``vmax`` values are
-    preserved.
+    either is absent.
+
+    The parameters ``vmin``, ``vmax``, ``cmin`` and ``plot_duration`` are
+    resolved per target using the following precedence (highest first):
+
+    1. A value set on the individual target.
+    2. A config-wide value set at the top level of the config
+       (``config.vmin``, ``config.vmax``, ``config.cmin``,
+       ``config.plot_duration``).
+    3. The corresponding environment variable
+       (``INFRASOUND_VMIN``/``INFRASOUND_VMAX``/``INFRASOUND_CMIN``/
+       ``INFRASOUND_PLOT_DURATION``).
+    4. A hard-coded default (0.28/0.45/0.6/3600).
+
+    Config-wide and per-target ``plot_duration`` values may be arithmetic
+    strings (e.g. ``"10 * 60"``); they are evaluated via
+    :func:`_evaluate_math_expr` and coerced to ``float``. Pre-existing
+    ``lat``/``lon`` values are preserved.
 
     Parameters
     ----------
@@ -353,26 +449,38 @@ def update_infrasound_config(config):
         If a target lacks explicit ``lat``/``lon`` and its ``name`` is not
         found in the Volcano_List (Req 14.4).
     """
-    df = load_volcano_list()
-    VMIN = os.environ.get("INFRASOUND_VMIN", 0.28)
-    VMAX = os.environ.get("INFRASOUND_VMAX", 0.45)
-    CMIN = os.environ.get("INFRASOUND_CMIN", 0.6)
-    PLOT_DURATION = os.environ.get("INFRASOUND_PLOT_DURATION", 3600)
 
     # --- Infrasound defaults ---
     if not hasattr(config, "min_channels"):
-        config.min_channels = os.environ.get("INFRASOUND_MIN_CHANNELS", 3)
-    if not hasattr(config, "window_length"):
-        config.lts_window_length = os.environ.get("LTS_WINDOW_LENGTH", 30)
-    if not hasattr(config, "overlap"):
-        config.lts_overlap = os.environ.get("LTS_OVERLAP", 15)
+        config.min_channels = int(os.environ.get("INFRASOUND_MIN_CHANNELS", "3"))
+    if not hasattr(config, "lts_window_length") or config.lts_window_length is None:
+        config.lts_window_length = float(os.environ.get("LTS_WINDOW_LENGTH", "30"))
+    if not hasattr(config, "lts_overlap") or config.lts_overlap is None:
+        config.lts_overlap = float(os.environ.get("LTS_OVERLAP", "15"))
     if not hasattr(config, "lts_alpha"):
-        config.lts_alpha = os.environ.get("LTS_ALPHA", 0.5)
+        config.lts_alpha = float(os.environ.get("LTS_ALPHA", "0.5"))
     if not hasattr(config, "lts_n_samples"):
-        config.lts_n_samples = int(os.environ.get("LTS_N_SAMPLES", 100))
+        config.lts_n_samples = int(os.environ.get("LTS_N_SAMPLES", "100"))
     if not hasattr(config, "max_gap_fraction"):
-        config.max_gap_fraction = os.environ.get("MAX_GAP_FRACTION", 0.5)
+        config.max_gap_fraction = float(os.environ.get("MAX_GAP_FRACTION", "0.5"))
 
+    # --- defaults that can be modified target-by-target ---
+    VMIN = float(os.environ.get("INFRASOUND_VMIN", "0.28"))
+    VMAX = float(os.environ.get("INFRASOUND_VMAX", "0.45"))
+    CMIN = float(os.environ.get("INFRASOUND_CMIN", "0.6"))
+    PLOT_DURATION = float(os.environ.get("INFRASOUND_PLOT_DURATION", "3600"))
+
+    if hasattr(config, "vmin"):
+        VMIN = config.vmin
+    if hasattr(config, "vmax"):
+        VMAX = config.vmax
+    if hasattr(config, "cmin"):
+        CMIN = config.cmin
+    if hasattr(config, "plot_duration"):
+        PLOT_DURATION = _evaluate_math_expr(config.plot_duration)
+
+    # --- update configs for each target ---
+    df = load_volcano_list()
     for i, target in enumerate(config.targets):
         if "lat" not in target or "lon" not in target:
             v_name = target["name"]
@@ -407,9 +515,8 @@ def update_infrasound_config(config):
 
 
 def load_volcano_list(volcano_file=None):
-    """
-    Load volcano list from file, supporting .xlsx, .csv, or .txt formats.
-    
+    """Load volcano list from file, supporting .xlsx, .csv, or .txt formats.
+
     Requires the following columns: "Name", "Latitude", "Longitude".
     Additional columns are preserved if present.
 
@@ -417,8 +524,8 @@ def load_volcano_list(volcano_file=None):
     ----------
     volcano_file : str, Path, or None
         Path to the volcano list file (.xlsx, .csv, or .txt). If None (default),
-        loads from VOLCANO_LIST environment variable. If that is also unset,
-        falls back to the bundled volcano_list.xlsx in volc_alarms.data.
+        loads from ``VOLCANO_LIST`` environment variable. If that is also unset,
+        falls back to the bundled `volcano_list.xlsx` in `volc_alarms/data`.
 
     Returns
     -------
@@ -485,12 +592,16 @@ def setup_root_logger(
     config_name=None,
     log_level=logging.INFO,
 ):
-    """
-    Configure the root logger with appropriate handler.
+    """Configure the root logger with appropriate handler.
 
     This should be called once from the main script (run_alarm.py) to set up
-    the root logger with either a file handler (when FROMCRON) or console handler.
+    the root logger with either a file handler (when FROMCRON=="yep") or console handler.
     All module loggers will propagate to this root logger.
+    
+    Requires environmental variables:
+    - LOGS_DIR: directory for log files (when FROMCRON=yep), otherwise console logging
+    - LOG_HOUR_INTERVAL: How often to rotate log files (default: 12 hours)
+    - LOG_DAYS_KEEP: How many days to keep log files (default: 7 days)
 
     Parameters
     ----------
@@ -546,7 +657,7 @@ def setup_root_logger(
         Path(log_dir).mkdir(parents=True, exist_ok=True)
 
         # Generate filename with current time rounded to nearest interval
-        log_hour_interval = int(os.environ.get("LOG_HOUR_INTERVAL", 12))
+        log_hour_interval = int(os.environ.get("LOG_HOUR_INTERVAL", "12"))
         current_time = time.localtime()
         hour = current_time.tm_hour
         rounded_hour = (hour // log_hour_interval) * log_hour_interval
@@ -554,7 +665,7 @@ def setup_root_logger(
         log_file = os.path.join(log_dir, f"{config_name}-{current_time_str}.log")
 
         # Clean up old log files beyond retention period
-        log_days_keep = int(os.environ.get("LOG_DAYS_KEEP", 7))
+        log_days_keep = int(os.environ.get("LOG_DAYS_KEEP", "7"))
         cutoff = time.time() - (log_days_keep * 86400)
         for old_log in glob.glob(os.path.join(log_dir, f"{config_name}-*.log")):
             if os.path.getmtime(old_log) < cutoff:
@@ -574,8 +685,7 @@ def setup_root_logger(
 
 
 def get_logger(name):
-    """
-    Get or create a module logger.
+    """Get or create a module logger.
 
     Returns a logger with the given name that propagates to the root logger.
     Module-level loggers should call this function to get their logger instance.
@@ -598,17 +708,15 @@ def get_logger(name):
 
 
 class LockFile:
-    """
-    Context manager for file-based locking.
-    
+    """Context manager for file-based locking.
+
     Prevents multiple instances of the same alarm from running simultaneously
     by using a lock file directory. The lock file contains the PID of the
     running process.
     """
     def __init__(self, lock_dir, config_name, timeout=300):
-        """
-        Initialize the lock file manager.
-        
+        """Initialize the lock file manager.
+
         Parameters
         ----------
         lock_dir : str
@@ -625,18 +733,38 @@ class LockFile:
         self.acquired = False
 
     def __enter__(self):
-        """Acquire the lock."""
+        """Acquire the lock on entering the ``with`` block.
+
+        Returns
+        -------
+        LockFile
+            This instance, so it can be bound by the ``as`` clause.
+        """
         self.acquire()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Release the lock."""
+        """Release the lock on leaving the ``with`` block.
+
+        Parameters
+        ----------
+        exc_type : type or None
+            Exception class if the block raised, else ``None``.
+        exc_val : BaseException or None
+            Exception instance if the block raised, else ``None``.
+        exc_tb : traceback or None
+            Traceback if the block raised, else ``None``.
+
+        Returns
+        -------
+        None
+            Returns ``None`` so any exception propagates normally.
+        """
         self.release()
 
     def acquire(self):
-        """
-        Acquire the lock, blocking if necessary.
-        
+        """Acquire the lock, blocking if necessary.
+
         Raises
         ------
         RuntimeError
@@ -649,7 +777,7 @@ class LockFile:
             try:
                 with open(self.lock_file, 'r') as f:
                     old_pid = int(f.read().strip())
-            except (ValueError, IOError):
+            except (OSError, ValueError):
                 # Lock file is corrupted, remove it
                 self.lock_file.unlink()
                 old_pid = None
@@ -672,7 +800,16 @@ class LockFile:
         self.acquired = True
 
     def release(self):
-        """Release the lock."""
+        """Release the lock if this process owns it.
+
+        Removes the lock file only when it still contains this process's PID,
+        so a lock reclaimed by another instance is left untouched. Corrupted
+        or unreadable lock files are ignored.
+
+        Returns
+        -------
+        None
+        """
         if self.acquired and self.lock_file.exists():
             try:
                 with open(self.lock_file, 'r') as f:
@@ -680,6 +817,6 @@ class LockFile:
                 # Only remove if it's our lock
                 if lock_pid == os.getpid():
                     self.lock_file.unlink()
-            except (ValueError, IOError):
+            except (OSError, ValueError):
                 pass
             self.acquired = False

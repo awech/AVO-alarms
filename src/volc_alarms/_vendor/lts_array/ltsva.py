@@ -1,5 +1,5 @@
-from lts_array.classes.lts_data_class import DataBin
-from lts_array.classes.lts_classes import OLSEstimator, LTSEstimator
+from .classes.lts_data_class import DataBin
+from .classes.lts_classes import OLSEstimator, LTSEstimator
 
 # Don't print FutureWarning for scipy.lstsq
 import warnings

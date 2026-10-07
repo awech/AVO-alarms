@@ -17,4 +17,6 @@ is always available to this project.
 ## Updating
 
 To update, clone the upstream repo at a specific commit and replace the contents
-of `src/lts_array/` (preserving this file and LICENSE.txt).
+of `src/volc_alarms/_vendor/lts_array/` (preserving this file and LICENSE.txt).
+
+Imported as `volc_alarms._vendor.lts_array` (e.g. `from volc_alarms._vendor.lts_array import ltsva`).

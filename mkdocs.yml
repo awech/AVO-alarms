@@ -1,0 +1,109 @@
+site_name: volc-alarms
+site_description: Geophysical volcano monitoring alarms at AVO
+site_url: https://vsc.code-pages.usgs.gov/vsc/seis/tools/volc-alarms/
+site_author: Aaron Wech
+
+repo_url: https://code.usgs.gov/vsc/seis/tools/volc-alarms
+repo_name: vsc/seis/tools/enveloc
+edit_uri: -/edit/main/docs
+
+copyright: >
+  Made by <a href="mailto:awech@usgs.gov">Aaron Wech</a> &middot;
+  U.S. Geological Survey &middot;
+  Released under <a href="https://creativecommons.org/publicdomain/zero/1.0/">CC0 1.0</a>
+
+docs_dir: docs
+
+theme:
+  name: material
+  highlightjs: true
+  icon:
+    repo: fontawesome/brands/gitlab
+    edit: material/pencil
+    view: material/eye
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - navigation.footer.sticky
+    - content.code.copy
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue grey
+      accent: pink
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue grey
+      accent: pink
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: numpy
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_root_toc_entry: true
+            show_submodules: false
+            filters: ["!^_"]
+            heading_level: 4
+            members_order: source
+            separate_signature: true
+            merge_init_into_class: true
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - footnotes
+  - toc:
+      permalink: true
+      toc_depth: 3
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.details
+  - pymdownx.arithmatex:
+      generic: true
+
+extra_css:
+  - stylesheets/extra.css
+
+extra:
+  social:
+    - icon: fontawesome/brands/gitlab
+      link: https://code.usgs.gov/vsc/seis/tools/volc-alarms
+      name: volc-alarms on USGS GitLab
+    - icon: fontawesome/solid/globe
+      link: https://www.usgs.gov/
+      name: U.S. Geological Survey
+    - icon: fontawesome/solid/envelope
+      link: mailto:awech@usgs.gov
+      name: Email the maintainer
+  generator: false
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Getting Started: getting-started.md
+  - Alerting: alerting.md
+  - Alarm Modules: alarm-modules.md
+  - Alarm Configuration: alarm-configuration.md
+  - Helper Scripts: helper-scripts.md
+  - API Reference: api-reference.md

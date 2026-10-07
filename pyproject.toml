@@ -55,6 +55,12 @@ test = [
     "coverage",
     "tzdata",  # IANA tz DB so zoneinfo resolves US/Alaska on tzdata-less CI images
 ]
+docs = [
+    "mkdocs",
+    "mkdocs-material",
+    "mkdocstrings[python]",
+    "ruff",  # mkdocstrings uses it to format rendered signatures
+]
 
 [project.scripts]
 run-alarm = "volc_alarms.scripts.run_alarm:main"

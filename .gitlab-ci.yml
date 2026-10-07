@@ -9,6 +9,7 @@ cache:
 
 stages:
   - test
+  - deploy
 
 # ---------------------------------------------------------------------------
 # Main test + coverage (runs on the primary Python version)
@@ -47,3 +48,20 @@ test-compat:
     - pip install -e ".[avo,test]"
   script:
     - pytest -ra
+
+# ---------------------------------------------------------------------------
+# Documentation site (GitLab Pages, built with MkDocs Material)
+# ---------------------------------------------------------------------------
+pages:
+  image: python:3.14
+  stage: deploy
+  before_script:
+    - pip install --upgrade pip
+    - pip install -e ".[avo,docs]"
+  script:
+    - mkdocs build --strict --site-dir public
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'

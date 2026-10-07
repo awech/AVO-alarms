@@ -1,0 +1,17 @@
+.doc-signature.highlight > pre {
+  white-space: pre-wrap !important;
+  word-wrap: break-word !important;
+  overflow-x: visible !important;
+}
+
+.doc-signature.highlight > pre > code {
+  white-space: pre-wrap !important;
+  word-wrap: break-word !important;
+}
+
+/* Reduce the vertical space between list items */
+.md-typeset ul li, 
+.md-typeset ol li {
+    margin-bottom: 0.0em; /* Adjust this value to your liking */
+    margin-top: 0.05em;
+}

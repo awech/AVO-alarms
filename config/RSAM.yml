@@ -35,6 +35,7 @@ infrasound:            # Optional. List of infrasound channels to plot
   - AV.CERB..BDF
   - AV.CESW..BDF
 
-# Optinal volcano name used for calculating reduced displacement
+# Optional volcano name used for calculating reduced displacement
 # Name and lat/lon must be in target list file set as environment variable
+# and `rsam_stations` metadata must be available in `STATION_XML`
 volcano_name: Semisopochnoi

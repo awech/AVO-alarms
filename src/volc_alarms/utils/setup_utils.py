@@ -391,9 +391,7 @@ def load_config(config_name):
 
     if config.alarm_type == "Infrasound":
         config = update_infrasound_config(config)
-        if not hasattr(config, "duration") or config.duration is None:
-            config.duration = float(os.environ.get("INFRASOUND_DURATION", "90"))
-            
+
     if config.alarm_type == "RSAM":
         if not hasattr(config, "duration") or config.duration is None:
             config.duration = float(os.environ.get("RSAM_DURATION", "300"))
@@ -459,6 +457,8 @@ def update_infrasound_config(config):
     # --- Infrasound defaults ---
     if not hasattr(config, "min_channels"):
         config.min_channels = int(os.environ.get("INFRASOUND_MIN_CHANNELS", "3"))
+    if not hasattr(config, "duration") or config.duration is None:
+            config.duration = float(os.environ.get("INFRASOUND_DURATION", "90"))
     if not hasattr(config, "lts_window_length") or config.lts_window_length is None:
         config.lts_window_length = float(os.environ.get("LTS_WINDOW_LENGTH", "30"))
     if not hasattr(config, "lts_overlap") or config.lts_overlap is None:

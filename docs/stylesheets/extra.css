@@ -15,3 +15,15 @@
     margin-bottom: 0.0em; /* Adjust this value to your liking */
     margin-top: 0.05em;
 }
+
+/* Example-alert figures: render at their native pixel size and never upscale.
+   Material otherwise stretches images to the full content width, which blurs
+   these relatively small PNGs. `width: auto` + `max-width: 100%` keeps them
+   crisp while still shrinking to fit on narrow screens. */
+.md-typeset details.example img {
+    width: auto;
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto; /* center under the caret */
+}

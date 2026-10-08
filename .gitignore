@@ -17,3 +17,7 @@ dist/
 *.db-shm
 # coverage HTML report
 htmlcov/
+
+# MkDocs build output
+public/
+site/

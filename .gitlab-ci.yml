@@ -9,12 +9,13 @@ cache:
 
 stages:
   - test
+  - deploy
 
 # ---------------------------------------------------------------------------
 # Main test + coverage (runs on the primary Python version)
 # ---------------------------------------------------------------------------
 test:
-  image: python:3.14
+  image: &primary_python python:3.14
   stage: test
   before_script:
     - pip install --upgrade pip
@@ -47,3 +48,21 @@ test-compat:
     - pip install -e ".[avo,test]"
   script:
     - pytest -ra
+
+# ---------------------------------------------------------------------------
+# Documentation site (GitLab Pages, built with MkDocs Material)
+# ---------------------------------------------------------------------------
+pages:
+  image: *primary_python
+  stage: deploy
+  before_script:
+    - pip install --upgrade pip
+    - pip install -e ".[avo,docs]"
+  script:
+    - mkdocs build --strict --site-dir public
+    - mv htmlcov/ public/coverage
+  artifacts:
+    paths:
+      - public
+  only:
+    - main

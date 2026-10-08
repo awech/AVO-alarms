@@ -56,7 +56,7 @@ test = [
     "tzdata",  # IANA tz DB so zoneinfo resolves US/Alaska on tzdata-less CI images
 ]
 docs = [
-    "mkdocs",
+    "mkdocs<2",
     "mkdocs-material",
     "mkdocstrings[python]",
     "ruff",  # mkdocstrings uses it to format rendered signatures

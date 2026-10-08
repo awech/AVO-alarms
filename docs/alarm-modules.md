@@ -15,6 +15,8 @@ Downloads and conditions waveform data for a set of stations plus an arrestor st
 ### Infrasound
 Downloads and conditions infrasound array data, runs least-trimmed-squares (LTS) array processing to estimate back-azimuth and trace velocity, and compares the results against each configured volcano target. When a target's filters are satisfied, it issues an airwave-detection alert with a figure and message.
 
+The LTS processing relies on Jordan Bishop's least trimmed squares package [package](https://uaf-lts-array.readthedocs.io/en/master/index.html#){:target="_blank"} (vendored in `src/volc_alarms/_vendor/lts_array`), which performs the calculations to estimate trace velocity, back-azimuth, cross-correlation maxima, and flagged array element pairs (details: [https://doi.org/10.1093/gji/ggaa110](https://doi.org/10.1093/gji/ggaa110){:target="_blank"})
+
 ??? example "Example alert"
     ![Example Infrasound alert](example_alerts/Example_Infrasound.png)
     
@@ -55,7 +57,7 @@ Pulls recent lightning strokes from the Volcview API, associates each with the n
 
 ??? example "Example alert"
     ![Example Lightning alert](example_alerts/Example_Lightning.png)
-    
+
     ⚠️ Note the alert limit was reached for the example
 
 ## Advisory feeds

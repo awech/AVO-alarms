@@ -2,6 +2,29 @@
 
 This page is generated automatically from the source docstrings via [mkdocstrings](https://mkdocstrings.github.io/). Edit the docstrings in `src/volc_alarms/` to update it.
 
+## Package layout
+
+```text
+src/volc_alarms/
+├── __init__.py          # package version + lazy alarm imports
+├── alarms/              # one package per alarm type
+│   └── <AlarmType>/     # (RSAM, Infrasound, Magnitude, ...)
+│       ├── __init__.py  # run_alarm entry point
+│       ├── detection.py # data acquisition + detection logic
+│       ├── figure.py    # alert figure
+│       └── message.py   # alert subject/body
+├── utils/               # shared machinery
+│   ├── setup_utils.py   # config, env, logging, single-instance locking
+│   ├── alarm_flow.py    # shared latency handling + send sequence
+│   ├── alarming.py      # alert-history database
+│   ├── downloading.py   # waveform / event / external-API fetchers
+│   ├── processing.py    # signal + data processing
+│   ├── plotting.py      # plotting helpers
+│   └── messaging.py     # email/SMS, Icinga, and Mattermost
+├── scripts/             # console-script entry points (run-alarm, etc.)
+└── data/                # bundled data (volcano list, plot style, ...)
+```
+
 ## Package
 
 ::: volc_alarms

@@ -4,7 +4,7 @@ These console scripts are installed alongside `run-alarm` (see the `[project.scr
 
 ## `update-metadata`
 
-Download and refresh station metadata (`STATION_XML` file). Typically run on a daily cron. It scrapes NSLC info from all RSAM, Infrasound, and Tremor config files and pulls metadata from Earthscope.
+Download and refresh station metadata (`STATION_XML` file). Typically run on a daily cron. It scrapes NSLC info from all RSAM, Infrasound, and Tremor config files and pulls metadata from Earthscope. Requires environment variable `CONFIG_DIR` defined.
 
 ```bash
 update-metadata

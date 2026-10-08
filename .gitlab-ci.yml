@@ -15,7 +15,9 @@ stages:
 # Main test + coverage (runs on the primary Python version)
 # ---------------------------------------------------------------------------
 test:
-  image: python:3.14
+  image: 
+    name: &primary_python python:3.14
+    pull_policy: if-not-present
   stage: test
   before_script:
     - pip install --upgrade pip
@@ -42,7 +44,9 @@ test-compat:
   parallel:
     matrix:
       - PYTHON_VERSION: ["3.11", "3.12", "3.13"]
-  image: python:${PYTHON_VERSION}
+  image: 
+    name: python:${PYTHON_VERSION}
+    pull_policy: if-not-present
   before_script:
     - pip install --upgrade pip
     - pip install -e ".[avo,test]"
@@ -53,7 +57,9 @@ test-compat:
 # Documentation site (GitLab Pages, built with MkDocs Material)
 # ---------------------------------------------------------------------------
 pages:
-  image: python:3.14
+  image: 
+    name: *primary_python
+    pull_policy: if-not-present
   stage: deploy
   before_script:
     - pip install --upgrade pip

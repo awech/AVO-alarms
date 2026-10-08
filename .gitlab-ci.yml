@@ -60,8 +60,9 @@ pages:
     - pip install -e ".[avo,docs]"
   script:
     - mkdocs build --strict --site-dir public
+    - mv htmlcov/ public/coverage
   artifacts:
     paths:
       - public
-  # rules:
-  #   - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+  only:
+    - main

@@ -41,7 +41,7 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     ----------
     config : object
         Tremor alarm configuration (``nslc``, ``window_length``, ``taper``,
-        ``lookback_window``, ``threshold``, ``min_sta``, grid settings, and
+        ``lookback_window``, ``duration_threshold``, ``min_sta``, grid settings, and
         optional ``rsam_station``/``rsam_threshold``).
     T0 : obspy.UTCDateTime
         End time of the processing window.
@@ -154,15 +154,15 @@ def run_alarm(config, T0, test_flag=False, mm_flag=True, icinga_flag=True, force
     ####### set icinga status #######
     duration_text, recency_text = detection.create_icinga_test(tremor_df, T0, duration, rsam, config)
 
-    if duration < config.threshold / 2:
+    if duration < config.duration_threshold / 2:
         state_message = f"{state_message} Seismicity normal. {duration_text} {recency_text}"
         state = "OK"
         logger.info(state_message)
-    elif duration >= config.threshold / 2 and duration < config.threshold:
+    elif duration >= config.duration_threshold / 2 and duration < config.duration_threshold:
         state_message = f"{state_message} Elevated seismicity. {duration_text} {recency_text}"
         state = "WARNING"
         logger.info(state_message)
-    elif duration >= config.threshold and rsam_test < config.rsam_threshold:
+    elif duration >= config.duration_threshold and rsam_test < config.rsam_threshold:
         state_message = f"{state_message} Tremor/Swarm detection, but low amplitude. {duration_text} {recency_text}"
         state = "WARNING"
         logger.info(state_message)

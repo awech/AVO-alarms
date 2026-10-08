@@ -13,7 +13,7 @@ nslc:
 
 # Alarm threshold parameters
 lookback_window: 60        # [minutes] how far into past to look for detections
-threshold: 25              # [minutes] required in past hour for notification
+duration_threshold: 25     # [minutes] required in past hour for notification
 rsam_station: AV.PS1A..BHZ # N.S.L.C - channel to be used for RSAM threshold test
 rsam_threshold: 180        # RSAM threshold for above nslc. Alarm won't send if below this level
 

@@ -14,7 +14,7 @@ from matplotlib import dates
 from obspy import UTCDateTime as utc
 from obspy.geodetics.base import gps2dist_azimuth
 
-from lts_array import ltsva
+from volc_alarms._vendor.lts_array import ltsva
 from volc_alarms.utils.setup_utils import get_logger
 
 logger = get_logger(__name__)
@@ -107,7 +107,7 @@ def get_target_backazimuth(st, config):
 def do_LTS(st, config, skip_chans=None):
     """Run least-trimmed-squares array processing on an infrasound stream.
 
-    Calls :func:`lts_array.ltsva` with the configured window length, overlap,
+    Calls :func:`volc_alarms._vendor.lts_array.ltsva` with the configured window length, overlap,
     alpha, and sample count, then assembles the per-window results into a
     DataFrame. ``alpha`` is forced to 1.0 when three or fewer channels remain
     after excluding ``skip_chans``.

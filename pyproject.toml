@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "volc-alarms"
-version = "0.1.0"
+version = "1.0.0"
 description = "Various volcano monitoring alarms."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -55,6 +55,12 @@ test = [
     "coverage",
     "tzdata",  # IANA tz DB so zoneinfo resolves US/Alaska on tzdata-less CI images
 ]
+docs = [
+    "mkdocs",
+    "mkdocs-material",
+    "mkdocstrings[python]",
+    "ruff",  # mkdocstrings uses it to format rendered signatures
+]
 
 [project.scripts]
 run-alarm = "volc_alarms.scripts.run_alarm:main"
@@ -66,7 +72,7 @@ update-html = "volc_alarms.scripts.notification_html:main"
 list-alerts = "volc_alarms.scripts.list_alerts:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/volc_alarms", "src/lts_array"]
+packages = ["src/volc_alarms"]
 
 [tool.pytest.ini_options]
 minversion = "7.0"
@@ -85,7 +91,7 @@ source = ["volc_alarms"]
 omit = [
     "tests/*",
     "*/alarms/SO2/*",   # no recordable fixture: real SO2 alerts are rare + ephemeral
-    "*/lts_array/*",    # vendored third-party code
+    "*/_vendor/*",      # vendored third-party code (e.g. lts_array)
 ]
 
 [tool.coverage.report]

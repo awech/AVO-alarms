@@ -1,0 +1,41 @@
+[
+  {
+    "name": "volc-alarms",
+    "organization": "U.S. Geological Survey",
+    "description": "Near-real-time monitoring alarms that detect and alert on volcanic unrest",
+    "version": "1.0.0",
+    "status": "Development",
+    "permissions": {
+      "usageType": "openSource",
+      "licenses": [
+        {
+          "name": "Public Domain, CC0-1.0",
+          "URL": "https://code.usgs.gov/vsc/seis/tools/volc-alarms/-/raw/1.0.0/LICENSE.md"
+        }
+      ]
+    },
+    "homepageURL": "https://code.usgs.gov/vsc/seis/tools/volc-alarms",
+    "downloadURL": "https://code.usgs.gov/vsc/seis/tools/volc-alarms/-/archive/1.0.0/volc-alarms-1.0.0.zip",
+    "disclaimerURL": "https://code.usgs.gov/vsc/seis/tools/volc-alarms/-/raw/1.0.0/DISCLAIMER.md",
+    "repositoryURL": "https://code.usgs.gov/vsc/seis/tools/volc-alarms.git",
+    "vcs": "git",
+    "laborHours": 0,
+    "tags": [
+      "volcanoes",
+      "monitoring",
+      "seismology",
+      "infrasound",
+      "remote sensing"
+    ],
+    "languages": [
+      "Python"
+    ],
+    "contact": {
+      "name": "Aaron Wech",
+      "email": "awech@usgs.gov"
+    },
+    "date": {
+      "metadataLastUpdated": "2026-10-06"
+    }
+  }
+]

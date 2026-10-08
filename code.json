@@ -2,7 +2,7 @@
   {
     "name": "volc-alarms",
     "organization": "U.S. Geological Survey",
-    "description": "Near-real-time monitoring alarms that detect volcanic unrest",
+    "description": "Near-real-time monitoring alarms that detect and alert on volcanic unrest",
     "version": "1.0.0",
     "status": "Development",
     "permissions": {

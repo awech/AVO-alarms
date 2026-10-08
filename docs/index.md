@@ -10,10 +10,11 @@ The codes were developed for and are used operational at the Alaska Volcano Obse
 
 | Section | What's inside |
 |---------|---------------|
-| [Installation](installation.md) | Dependencies, install commands, and running the alarms |
-| [Getting Started](getting-started.md) | Directory/file paths, data access, URLs, email, logging defaults |
+| [Quickstart](quickstart.md) | Install, verify email delivery, and run a test alarm |
+| [System Configuration](system-configuration.md) | Directory structure, environment variables, data access, email setup, logging |
+| [Alarm Workflow](alarm-workflow.md) | How a run flows from dispatch to detection to the send sequence |
+| [Alerting](alerting.md) | Distribution setup, icinga, mattermost, test messages |
 | [Alarm Modules](alarm-modules.md) | Overview of each alarm type and what it detects |
 | [Alarm Configuration](alarm-configuration.md) | Per-alarm defaults, config math, rate limiting, notifications |
-| [Alerting](alerting.md) | Email/SMS, Icinga heartbeats, and Mattermost posting |
 | [Helper Scripts](helper-scripts.md) | `list-alerts`, `update-metadata`, `update-html`, and friends |
 | [API Reference](api-reference.md) | Auto-generated reference from the source docstrings |

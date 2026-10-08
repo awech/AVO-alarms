@@ -1,6 +1,6 @@
 # Alerting
 
-When an alarm triggers, `volc-alarms` can reach the outside world through three independent channels: **email/SMS**, **Icinga** heartbeats, and **Mattermost** posts. Email/SMS fires on every detection for most alarm modules; Icinga and Mattermost are opt-in per run via the `--icinga` and `--mm` flags. All three are driven from `utils/messaging.py` as part of the shared [send sequence](getting-started.md#3-send-sequence-on-a-detection).
+When an alarm triggers, `volc-alarms` can reach the outside world through three independent channels: **email/SMS**, **Icinga** heartbeats, and **Mattermost** posts. Email/SMS fires on every detection for most alarm modules; Icinga and Mattermost are opt-in per run via the `--icinga` and `--mm` flags. All three are driven from `utils/messaging.py` as part of the shared [send sequence](alarm-workflow.md#3-send-sequence-on-a-detection).
 
 ## Email/SMS alerts
 
@@ -32,6 +32,55 @@ See `config/distribution.yml` and `config/phonebook.yml` for example formats of 
 | `PHONEBOOK_FILE`    | Path to the phonebook YAML (user key → address)          |
 
 The `From` address is derived from the alarm name (e.g. `Pavlof_RSAM@usgs.gov`). In test mode the subject is prefixed with `TEST:`.
+
+
+## Testing
+
+Alarms send real notifications to real people, so you need a way to exercise the full detection and alerting path without paging the duty scientist or polluting the alert history. Three `run-alarm` flags exist for exactly that: `--test`, `--force`, and `--earthscope`. They are independent of the `--mm`/`--icinga` toggles and can be combined. `pytest` is great for checking logic and execution, but these flags allow the user to test alarm and config changes on real data and to test the full alerting pathway.
+
+### `--test`
+
+Runs the alarm end-to-end but routes everything to test destinations so a real detection is never confused with a drill. It changes behavior in several places:
+
+- **Database:** reads and writes go to the `test_*` tables (`test_sent_events`, `test_swarm_table`, `test_tremor_table`) instead of production (`resolve_table_name`). Test runs therefore don't affect rate limiting, de-duplication, or the real alert history. Query them with `list-alerts --test`.
+- **Email/SMS:** recipients resolve to the `Test` distribution group if it exists, otherwise the `Error` group — never the real alarm recipients. The subject is prefixed with `TEST:`.
+- **Mattermost:** posts go to `MATTERMOST_TEST_CHANNEL_ID` (also prefixed `TEST:`), and the per-volcano and ad-hoc channel fan-out is skipped.
+- **Figures:** the generated figure is watermarked `TEST` so it's obvious at a glance.
+
+```bash
+run-alarm Pavlof_RSAM --test -t 201701020205   # replay a known event into the test tables/channels
+```
+
+### `--force`
+
+Forces a detection even when the data doesn't actually cross threshold — useful for verifying the full alert path (figure → message → post → email → record) end-to-end, or for confirming a newly configured alarm wires up correctly. **`--force` implies `--test`** (it sets `test=True` in `update_arguments`), so a forced run never touches production tables or recipients.
+
+How "force" is applied is **alarm-specific** — each module relaxes whatever threshold or filter normally gates its detection. For example:
+
+- **RSAM** sets the station minimum to zero (`min_sta = 0`) so any run trips the detection branch.
+- **Infrasound** drops the amplitude threshold to zero (`min_pa = 0`), skips the channel-count gate, and evaluates only the first configured target (relaxing the per-target filters if nothing passes).
+
+Most other modules behave similarly (e.g. Magnitude lowers its magnitude minimum; NOAA_CIMSS and VAA replay the most recent advisory). A few exceptions worth knowing:
+
+- **Tremor** and **Swarm** accept the flag but don't act on it — forcing has no effect.
+- **NOAA_CIMSS** and **VAA** only send email/SMS when forced; otherwise they post to Mattermost only.
+
+```bash
+run-alarm Pavlof_RSAM --force   # guaranteed detection; test mode is implied
+```
+
+### `--earthscope`
+
+Switches waveform downloads from the configured waveserver (Winston, via `WINSTON_HOST`/`WINSTON_PORT`) to the [EarthScope](https://www.earthscope.org/) FDSN client. It sets the `USE_EARTHSCOPE` environment variable, which `downloading.download_waveforms` checks when choosing a client.
+
+This matters because the local Winston typically only buffers a limited, recent window of data. To test or replay an **older** event — one that has aged out of the waveserver — point the alarm at EarthScope's archive instead:
+
+```bash
+run-alarm Pavlof_RSAM --test --earthscope -t 201701020205   # pull archived data for an old event
+```
+
+`--earthscope` only affects the seismic/acoustic alarms that download waveforms (RSAM, Infrasound, Tremor); alarms sourced from FDSN event services or external APIs are unaffected.
+
 
 ## Icinga
 
@@ -129,51 +178,3 @@ Some alarms route to extra channels (e.g. thermal or elevated-volcano channels) 
 ### Message formatting
 
 Alarm subjects and bodies are rendered into Mattermost markdown before posting (see `format_mm_message`). Figure attachments are uploaded first and referenced from the post. See the [API Reference](api-reference.md#volc_alarms.utils.messaging) for the underlying functions.
-
-
-## Testing
-
-Alarms send real notifications to real people, so you need a way to exercise the full detection and alerting path without paging the duty scientist or polluting the alert history. Three `run-alarm` flags exist for exactly that: `--test`, `--force`, and `--earthscope`. They are independent of the `--mm`/`--icinga` toggles and can be combined. pytest is great for checking logic and execution, but these flags allow the user to test alarm and config changes on real data and to test the full alerting pathway.
-
-### `--test`
-
-Runs the alarm end-to-end but routes everything to test destinations so a real detection is never confused with a drill. It changes behavior in several places:
-
-- **Database:** reads and writes go to the `test_*` tables (`test_sent_events`, `test_swarm_table`, `test_tremor_table`) instead of production (`resolve_table_name`). Test runs therefore don't affect rate limiting, de-duplication, or the real alert history. Query them with `list-alerts --test`.
-- **Email/SMS:** recipients resolve to the `Test` distribution group if it exists, otherwise the `Error` group — never the real alarm recipients. The subject is prefixed with `TEST:`.
-- **Mattermost:** posts go to `MATTERMOST_TEST_CHANNEL_ID` (also prefixed `TEST:`), and the per-volcano and ad-hoc channel fan-out is skipped.
-- **Figures:** the generated figure is watermarked `TEST` so it's obvious at a glance.
-
-```bash
-run-alarm Pavlof_RSAM --test -t 201701020205   # replay a known event into the test tables/channels
-```
-
-### `--force`
-
-Forces a detection even when the data doesn't actually cross threshold — useful for verifying the full alert path (figure → message → post → email → record) end-to-end, or for confirming a newly configured alarm wires up correctly. **`--force` implies `--test`** (it sets `test=True` in `update_arguments`), so a forced run never touches production tables or recipients.
-
-How "force" is applied is **alarm-specific** — each module relaxes whatever threshold or filter normally gates its detection. For example:
-
-- **RSAM** sets the station minimum to zero (`min_sta = 0`) so any run trips the detection branch.
-- **Infrasound** drops the amplitude threshold to zero (`min_pa = 0`), skips the channel-count gate, and evaluates only the first configured target (relaxing the per-target filters if nothing passes).
-
-Most other modules behave similarly (e.g. Magnitude lowers its magnitude minimum; NOAA_CIMSS and VAA replay the most recent advisory). A few exceptions worth knowing:
-
-- **Tremor** and **Swarm** accept the flag but don't act on it — forcing has no effect.
-- **NOAA_CIMSS** and **VAA** only send email/SMS when forced; otherwise they post to Mattermost only.
-
-```bash
-run-alarm Pavlof_RSAM --force   # guaranteed detection; test mode is implied
-```
-
-### `--earthscope`
-
-Switches waveform downloads from the configured waveserver (Winston, via `WINSTON_HOST`/`WINSTON_PORT`) to the [EarthScope](https://www.earthscope.org/) FDSN client. It sets the `USE_EARTHSCOPE` environment variable, which `downloading.download_waveforms` checks when choosing a client.
-
-This matters because the local Winston typically only buffers a limited, recent window of data. To test or replay an **older** event — one that has aged out of the waveserver — point the alarm at EarthScope's archive instead:
-
-```bash
-run-alarm Pavlof_RSAM --test --earthscope -t 201701020205   # pull archived data for an old event
-```
-
-`--earthscope` only affects the seismic/acoustic alarms that download waveforms (RSAM, Infrasound, Tremor); alarms sourced from FDSN event services or external APIs are unaffected.

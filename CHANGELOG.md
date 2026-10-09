@@ -8,7 +8,7 @@ pip show volc-alarms
 
 ## Maintenance team
 
-Current and past maintainers of AVO-alarms:
+Current and past maintainers of volc-alarms:
 
 - @awech
 - @jlubbers

@@ -61,17 +61,17 @@ def resolve_ignore_column(alert_type, volcs_columns):
 def download_cimss_vv_api():
     """Download the NOAA/CIMSS alert feed from the Volcview API.
 
-    Retries up to three times, authenticating with the ``API_USERNAME`` /
-    ``API_PASSWORD`` credentials against ``NOAA_CIMSS_URL``.
+    Retries up to three times, authenticating with the ``VV_USERNAME`` /
+    ``VV_PASSWORD`` credentials against ``VV_NOAA_CIMSS_URL``.
 
     Returns
     -------
     pandas.DataFrame or None
         The parsed alert feed, or ``None`` if all download attempts fail.
     """
-    usr = os.getenv("API_USERNAME")
-    pwd = os.getenv("API_PASSWORD")
-    url = os.getenv("NOAA_CIMSS_URL")
+    usr = os.getenv("VV_USERNAME")
+    pwd = os.getenv("VV_PASSWORD")
+    url = os.getenv("VV_NOAA_CIMSS_URL")
 
     attempt = 1
     max_tries = 3

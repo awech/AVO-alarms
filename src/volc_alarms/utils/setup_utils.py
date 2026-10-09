@@ -337,7 +337,8 @@ def load_config(config_name):
     Parameters
     ----------
     config_name : str
-        Name of the config file (without .yml extension)
+        Name of the config file, with or without the .yml/.yaml extension
+        (e.g. both ``"RSAM"`` and ``"RSAM.yml"`` resolve to ``RSAM.yml``).
 
     Returns
     -------
@@ -356,9 +357,17 @@ def load_config(config_name):
         If the YAML root is not a mapping.
     """
 
+    # Tolerate an optional .yml/.yaml suffix so both `RSAM` and `RSAM.yml` work.
+    if config_name.endswith((".yml", ".yaml")):
+        config_name = config_name.rsplit(".", 1)[0]
+
     config_path = Path(os.environ.get("CONFIGS_DIR")) / f"{config_name}.yml"
     if not config_path.is_file():
-        raise FileNotFoundError(f"Config file not found: {config_path}")
+        available = sorted(p.stem for p in Path(os.environ["CONFIGS_DIR"]).glob("*.yml"))
+        raise FileNotFoundError(
+            f"Config '{config_name}' not found in CONFIG_DIR: {os.environ['CONFIGS_DIR']}. "
+            f"Available configs: {', '.join(available) or '(none)'}"
+        )
 
     with open(config_path, "r") as f:
         data = yaml.safe_load(f)

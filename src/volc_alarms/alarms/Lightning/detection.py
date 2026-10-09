@@ -41,7 +41,7 @@ def download_lightning(force=False):
     logger.info("Reading in alerts from volcview api .json file")
     attempt = 1
     max_tries = 3
-    lightning_url = os.getenv("LIGHTNING_URL")
+    lightning_url = os.getenv("VV_LIGHTNING_URL")
     if force:
         logger.warning("Forcing trigger by pointing to global data source")
         lightning_url = lightning_url.replace("avorecent", "recent")
@@ -51,8 +51,8 @@ def download_lightning(force=False):
             data = json.load(
                 os.popen(
                     'curl --connect-timeout 5 -H "username:{}" -H "password:{}" -X GET {}'.format(
-                        os.getenv("API_USERNAME"),
-                        os.getenv("API_PASSWORD"),
+                        os.getenv("VV_USERNAME"),
+                        os.getenv("VV_PASSWORD"),
                         lightning_url,
                     )
                 )

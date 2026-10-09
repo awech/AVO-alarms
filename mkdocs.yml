@@ -4,7 +4,7 @@ site_url: https://vsc.code-pages.usgs.gov/vsc/seis/tools/volc-alarms/
 site_author: Aaron Wech
 
 repo_url: https://code.usgs.gov/vsc/seis/tools/volc-alarms
-repo_name: vsc/seis/tools/enveloc
+repo_name: vsc/seis/tools/volc-alarms
 edit_uri: -/edit/main/docs
 
 copyright: >
@@ -100,8 +100,9 @@ extra:
 
 nav:
   - Home: index.md
-  - Installation: installation.md
-  - Getting Started: getting-started.md
+  - Quickstart: quickstart.md
+  - System Configuration: system-configuration.md
+  - Alarm Workflow: alarm-workflow.md
   - Alerting: alerting.md
   - Alarm Modules: alarm-modules.md
   - Alarm Configuration: alarm-configuration.md

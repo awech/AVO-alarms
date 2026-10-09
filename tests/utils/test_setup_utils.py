@@ -294,8 +294,31 @@ def test_load_environment_missing_explicit_file_raises(tmp_path):
 def test_load_config_missing_file_raises(monkeypatch, tmp_path):
     """load_config raises FileNotFoundError when the YAML file is absent."""
     monkeypatch.setenv("CONFIGS_DIR", str(tmp_path))
-    with pytest.raises(FileNotFoundError, match="Config file not found"):
+    with pytest.raises(FileNotFoundError, match="not found in CONFIG_DIR"):
         setup_utils.load_config("DoesNotExist")
+
+
+def test_load_config_missing_file_lists_available_configs(monkeypatch, tmp_path):
+    """The FileNotFoundError lists the configs that do exist in CONFIGS_DIR."""
+    (tmp_path / "Alpha.yml").write_text("alarm_type: RSAM\nalarm_name: A\n")
+    (tmp_path / "Beta.yml").write_text("alarm_type: RSAM\nalarm_name: B\n")
+    monkeypatch.setenv("CONFIGS_DIR", str(tmp_path))
+    with pytest.raises(FileNotFoundError, match="Available configs: Alpha, Beta"):
+        setup_utils.load_config("Missing")
+
+
+def test_load_config_tolerates_yml_suffix(monkeypatch, tmp_path):
+    """load_config accepts a config name given with or without a .yml/.yaml suffix."""
+    (tmp_path / "Suffixed.yml").write_text(
+        "alarm_type: RSAM\nalarm_name: Suffixed RSAM\n"
+    )
+    monkeypatch.setenv("CONFIGS_DIR", str(tmp_path))
+
+    bare = setup_utils.load_config("Suffixed")
+    with_yml = setup_utils.load_config("Suffixed.yml")
+    with_yaml = setup_utils.load_config("Suffixed.yaml")
+
+    assert bare.alarm_name == with_yml.alarm_name == with_yaml.alarm_name == "Suffixed RSAM"
 
 
 def test_load_config_non_mapping_root_raises_typeerror(monkeypatch, tmp_path):

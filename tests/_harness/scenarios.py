@@ -598,9 +598,9 @@ def _run_lightning_from_fixture(doubles, fixture_path, T0_event):
     mp.setattr(lightning_detection.os, "popen", _fake_popen)
     # download_lightning builds a curl string from these; values are irrelevant
     # since popen is faked, but must exist so the f-string formats.
-    mp.setenv("LIGHTNING_URL", "https://example.test/vv-api/lightningApi/avorecent")
-    mp.setenv("API_USERNAME", "test")
-    mp.setenv("API_PASSWORD", "test")
+    mp.setenv("VV_LIGHTNING_URL", "https://example.test/vv-api/lightningApi/avorecent")
+    mp.setenv("VV_USERNAME", "test")
+    mp.setenv("VV_PASSWORD", "test")
     # Activate the Y/N ignore column via the fuller shipped volcano list.
     mp.setenv("VOLCANO_LIST", str(LIGHTNING_VOLCANO_LIST))
 
@@ -757,9 +757,9 @@ def _install_real_cimss_download(doubles, json_fixture):
     mp.setattr(cimss_detection, "download_cimss_vv_api", _REAL_DOWNLOAD_CIMSS)
     mp.setattr(NOAA_CIMSS, "download_cimss_vv_api", _REAL_DOWNLOAD_CIMSS)
     mp.setattr(cimss_detection.os, "popen", lambda *a, **k: io.StringIO(text))
-    mp.setenv("NOAA_CIMSS_URL", "https://example.test/vv-api/noaa_cimss")
-    mp.setenv("API_USERNAME", "test")
-    mp.setenv("API_PASSWORD", "test")
+    mp.setenv("VV_NOAA_CIMSS_URL", "https://example.test/vv-api/noaa_cimss")
+    mp.setenv("VV_USERNAME", "test")
+    mp.setenv("VV_PASSWORD", "test")
     # Pin the volcano list so find_nearest_volcano / create_message resolve the
     # same nearest-volcano set regardless of test order (the NOAA opt-out column
     # also lives here). Keeps the baseline deterministic.

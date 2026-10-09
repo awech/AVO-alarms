@@ -6,6 +6,7 @@ Python codes used for geophysical alarms at AVO. Currently (2026-Jun-18) running
 
 ## Quick start
 
+### Installation
 It is recommended to do this in a fresh virtual environment:
 
 ```bash
@@ -25,26 +26,55 @@ cd volc-alarms
 pip install -e .            # core dependencies
 
 # Optionally include AVO-specific extras (mattermost, enveloc, etc.)
-pip install -e .[avo]       # include AVO-specific extras (mattermost, enveloc, etc.)
+pip install -e ".[avo]"     # include AVO-specific extras (mattermost, enveloc, etc.)
 ```
 
+### Setup email delivery
+1. Copy `.env_example` to `.env` and edit:
+- `SMTP_IP`
+- `SMTP_PORT`
+- `SMTP_SECURITY` (optional you need TLS inspection)
 
-Copy `.env_example` to `.env` and fill in the relevant system parameters, then run an alarm:
+2. Set up a test recipient
+- edit `config/phonebook.yml`
+    ```yaml
+    # config/phonebook.yml
+    Your Name: youremail@email.com 
+    ```
+- edit the `Test` recipient in `config/distribution.yml`
+    ```yaml
+    # config/distribution.yml
+    Test:
+    - Your Name     # must match an entry in config/phonebook.yml
+    ```
 
-```bash
-run-alarm Pavlof_RSAM                   # run with current time
-run-alarm Pavlof_RSAM -t 201701020205   # run with a specific time
-run-alarm Pavlof_RSAM --test --force    # test mode, no real notifications
-```
+3. Verify email delivery end-to-end with `email-test`, which sends a
+single message (and attachment) to the `Test` recipients
+    ```bash
+    email-test # can be slow the first time
+    ```
+
+### Test alarm
+1. edit the `All Alarms` recipient in `config/distribution.yml`
+    ```yaml
+    # config/distribution.yml
+    All Alarms:
+    - Your Name     # must match an entry in config/phonebook.yml
+    ```
+2. Run a test alarm. This example uses the bundled `config/RSAM.yml` and the 
+`--earthscope` flag, which pulls waveforms from EarthScope
+    ```bash
+    run-alarm RSAM -t 202607161210 --earthscope # can be slow the first time
+    ```
 
 ## Documentation
 
 Full documentation lives in [`docs/`](docs/index.md) and is published via GitLab Pages:
 
-- [Installation](docs/installation.md) — dependencies, install, and running the alarms
-- [System Configuration](docs/system-configuration.md) — paths, data access, URLs, email, logging
+- [Quickstart](docs/quickstart.md) — install, verify email delivery, and run a test alarm
+- [System Configuration](docs/system-configuration.md) — directory structure, environment variables, data access, email setup, logging
+- [Alarm Workflow](docs/alarm-workflow.md) — how a run flows from dispatch to detection to the send sequence
+- [Alerting](docs/alerting.md) – distribution setup, icinga, mattermost, test messages
 - [Alarm Modules](docs/alarm-modules.md) — what each alarm type detects
 - [Alarm Configuration](docs/alarm-configuration.md) — per-alarm defaults, config math, rate limiting
-- [Alerting](docs/alerting.md) — email/SMS, Icinga heartbeats, and Mattermost posts
 - [Helper Scripts](docs/helper-scripts.md) — `list-alerts`, `update-metadata`, `update-html`, and more
-- [API Reference](docs/api-reference.md) — auto-generated from source docstrings

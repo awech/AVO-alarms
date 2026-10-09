@@ -4,6 +4,7 @@
 
 - [ ] add --no-email flag for external control on Magnitude, Swarm, VAA and NOAA_CIMSS alarms
 - [ ] rename error/test email function to "Patrick" 😂
+- [ ] add support for different obspy Clients (besides just earthworm)
 
 ## 📚 Documentation
 - [ ] improve line-by-line comments throughout

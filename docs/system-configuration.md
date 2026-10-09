@@ -21,21 +21,26 @@ alarms/
 ```
 
 ### Key environment variables
- The most important environment variables are:
+**The most important environment variables are:**
 
-- `CONFIGS_DIR`: path to individual alarm config files reside
+- `SMTP_IP` - ip_address for sending email via smtp
+- `SMTP_PORT` - port # for sending email via smtp
+- `PHONEBOOK_FILE` - .yml file linking distribution list to email or sms. Not to be inlcuded in public-facing repo. See `config/phonebook.yml` example
+- `DISTRIBUTION_FILE` - .yml file defining alert distribution. See `config/distribution.yml` example
+- `CONFIGS_DIR`: path to directory where individual alarm config files reside
+- `STATION_XML` - station .xml file with metadata supporting channels in various alarm configs
+- `VOLCANO_LIST` - .csv (.xlsx) file with Name,Latitude,Longitude headers. See `src/volc_alarms/data/volcano_list.csv` example
+- `WINSTON_HOST`: winston waveserver IP address 
+- `WINSTON_PORT`: winston waveserver port number
+
+**Less important, but probably worth overriding the default for a bit more control:**
+
 - `LOGS_DIR` - path to write `.log` output
 - `LOCK_DIR` - path to write `.lock` files
 - `TMP_FIGURE_DIR` - path for .png file output so temporarily save while attaching to an alert
 - `DB_FILE` - `<name>.db` file for the sqlite database to record sent alerts
-- `STATION_XML` - station .xml file with metadata supporting channels in various alarm configs
-- `DISTRIBUTION_FILE` - .yml file defining alert distribution. See `config/distribution.yml` example
-- `VOLCANO_LIST` - .csv (.xlsx) file with Name,Latitude,Longitude headers. See `src/volc_alarms/data/volcano_list.csv` example
-- `PHONEBOOK_FILE` - .yml file linking distribution list to email or sms. Not to be inlcuded in public-facing repo. See `config/phonebook.yml` example
-- `SMTP_IP` - ip_address for sending email via smtp
-- `SMTP_PORT` - port # for sending email via smtp
-- `WINSTON_HOST`: winston waveserver IP address 
-- `WINSTON_PORT`: winston waveserver port number
+
+
 
 
 ## Defaults
@@ -57,12 +62,12 @@ Inferred from the installed package location (project root).
 
 | Parameter         | Environment variable | Default                                               |
 |-------------------|----------------------|-------------------------------------------------------|
-| Database file     | `DB_FILE`            | `<tmp_files>/alarms_sent.db`                          |
+| Database file     | `DB_FILE`            | `<project_root>/tmp_files/alarms_sent.db`             |
 | Distribution file | `DISTRIBUTION_FILE`  | `<project_root>/config/distribution.yml`              |
 | Phonebook file    | `PHONEBOOK_FILE`     | `<project_root>/config/phonebook.yml`                 |
 | Volcano list      | `VOLCANO_LIST`       | `<project_root>/src/volc_alarms/data/volcano_list.csv`|
-| Station metadata  | `STATION_XML`        | `<tmp_files>/stations.xml`                            |
-| Distribution HTML | `WWW_FILE`           | `<tmp_files>/index.html`                              |
+| Station metadata  | `STATION_XML`        | `<project_root>/tmp_files/stations.xml`               |
+| Distribution HTML | `WWW_FILE`           | `<project_root>/tmp_files/index.html`                 |
 
 ### Waveserver / data access
 

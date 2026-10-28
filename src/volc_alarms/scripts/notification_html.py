@@ -85,10 +85,10 @@ def main():
         alarms = [alarm for alarm in distribution]
         users = []
         for alarm in alarms:
-            users += distribution[alarm]
+            users += distribution[alarm] or []
         A = pd.DataFrame(index=alarms, columns=np.unique(users))
         for alarm in alarms:
-            A.loc[alarm, distribution[alarm]] = "x"
+            A.loc[alarm, distribution[alarm] or []] = "x"
 
         def highlight_vals(val):
             """Return CSS styling for a single table cell.

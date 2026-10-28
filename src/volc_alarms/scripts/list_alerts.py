@@ -35,9 +35,11 @@ def parse_args():
         endtime : str or None
             Window end in UTC, formatted ``YYYYMMDDHHMM``.
         duration : str or None
-            Window length before present as a number plus unit: ``h`` (hours),
-            ``d`` (days), or ``m`` (minutes), e.g. ``"3h"``. Combined with
-            ``starttime`` or ``endtime``, or used alone relative to now.
+            Window length as a number plus unit: ``h`` (hours), ``d`` (days),
+            or ``m`` (minutes), e.g. ``"3h"``. With ``starttime``, the window
+            extends forward from the start (``end = start + duration``); with
+            ``endtime``, backward from the end (``start = end - duration``);
+            alone, backward from the present (``now - duration`` to ``now``).
         env_file : str or None
             Path to a ``.env`` file; if omitted, the directory tree is
             searched upward.
@@ -86,7 +88,10 @@ def parse_args():
         "-dt",
         "--duration",
         type=str,
-        help="Duration in hours (\"h\"), days (\"d\"), or minutes (\"m\") before present to process (e.g. -dt 3h)",
+        help="Window length relative to a start/end time: hours (\"h\"), days "
+        "(\"d\"), or minutes (\"m\"), e.g. -dt 3h. With -s, measured forward "
+        "from the start; with -e, backward from the end; alone, backward from "
+        "the present.",
         required=False,
     )
     parser.add_argument(

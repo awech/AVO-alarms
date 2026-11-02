@@ -78,3 +78,8 @@ Full documentation lives in [`docs/`](docs/index.md) and is published via GitLab
 - [Alarm Modules](docs/alarm-modules.md) — what each alarm type detects
 - [Alarm Configuration](docs/alarm-configuration.md) — per-alarm defaults, config math, rate limiting
 - [Helper Scripts](docs/helper-scripts.md) — `list-alerts`, `update-metadata`, `update-html`, and more
+
+
+## Citation
+The software package can be cited as:
+> Wech, A.G. (2026), volc-alarms (Version 1.0.0), U.S. Geological Survey Software Release, doi:[10.5066/P1TP7BXQ](https://doi.org/10.5066/P1TP7BXQ).

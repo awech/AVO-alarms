@@ -9,7 +9,7 @@ description = "Various volcano monitoring alarms."
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{name = "Aaron Wech", email = "awech@usgs.gov"}]
-license = {file = "LICENSE"}
+license = {file = "LICENSE.md"}
 dependencies = [
     "obspy",
     "pandas",

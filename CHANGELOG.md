@@ -14,12 +14,13 @@ Current and past maintainers of volc-alarms:
 - @jlubbers
 
 
-## [1.0.0] Unreleased
+## [1.0.0] First approved release - [https://doi.org/10.5066/P1TP7BXQ](https://doi.org/10.5066/P1TP7BXQ)
 
-Work toward the first tagged `v1.0.0` of the modern (2026) codebase. This is a
-near-complete rewrite of the pre-2026 alarms into an installable
-`volc-alarms` package with a shared alarm-run framework, a test suite, and
-published documentation.
+**Fist Approved Release** - 
+This version is the official public release of *volc-alarms* and a 
+near-complete rewrite of the pre-2026 alarms into an installable 
+`volc-alarms` package with a shared alarm-run framework, a test suite, 
+and published documentation.
 
 ### ✨ Features
 
